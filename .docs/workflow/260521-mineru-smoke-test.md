@@ -137,6 +137,62 @@ images/
 
 `middle_json` 体积大，保留详细 layout/span 信息，适合定位 OCR/版面问题，不适合直接喂给 extraction prompt。`images` 用于表格/图示复核。
 
+## RAG 原料层
+
+已新增：
+
+```text
+scripts/build_rag_inputs.py
+src/enzyme_recommender/rag/artifacts.py
+src/enzyme_recommender/rag/chunking.py
+```
+
+B10 smoke test 生成命令：
+
+```bash
+.venv/bin/python scripts/build_rag_inputs.py \
+  --artifact-dir artifacts/mineru_local_smoke/B10_da1f51e1-650e-49ad-bc4b-0db6c79ce71e/unpacked/B10/auto \
+  --output-dir artifacts/rag_inputs/B10 \
+  --source-pdf B10.pdf \
+  --document-id B10
+```
+
+输出：
+
+```text
+document_manifest.json
+rag_chunks.jsonl
+table_records.jsonl
+extraction_candidates.jsonl
+```
+
+B10 当前统计：
+
+```text
+content_items: 131
+pages: 14
+text_blocks: 69
+rag_chunks: 36
+text_chunks: 34
+table_chunks: 2
+table_records: 2
+extraction_candidates: 34
+```
+
+策略：
+
+- `rag_chunks.jsonl` 作为向量库主输入，保留 `source_pdf`、`page_start/page_end`、`bbox`、`section`、`source_block_indices`。
+- `table_records.jsonl` 单独保存表格结构，包括 `columns`、`rows`、`html`、`caption`、`img_path`。
+- `extraction_candidates.jsonl` 只做 evidence extraction 候选，不直接当最终 evidence。
+- 低价值短 chunk 会被过滤；表格也会镜像成 table chunk 进入 RAG 检索。
+- `quality_flags` 已覆盖 `suspicious_percent_gt_300`、`suspicious_table_yield_gt_100`、`suspicious_reference_cell`、`possible_ocr_duplicate_text`。
+
+重要发现：
+
+- Abstract 中 `1279%` 被标记为 `suspicious_percent_gt_300`，后续不能直接进入 ranking。
+- Table 1 中 `Yield (%) = 900.00` 被标记为 `suspicious_table_yield_gt_100`。
+- OCR 重复文本仍然存在，例如部分 activity recovery 段落，需要后续 evidence extraction 阶段进入 review queue。
+
 ## 关键工程发现
 
 - 本地 MinerU 首次运行会下载模型文件并初始化 DocAnalysis，耗时明显；后续同类 PDF 会快很多。
@@ -149,3 +205,6 @@ images/
 - [x] 能列出 artifact 中 md/content_list/middle_json/table/image 的文件数量。
 - [x] 能判断 extraction 首选输入和辅助输入。
 - [x] git 状态中不包含 PDF 或 artifact。
+- [x] 能从 MinerU artifact 生成 RAG 原料层 JSONL。
+- [x] RAG 原料层能保留 page/bbox/source block provenance。
+- [x] 明显异常数值能进入 quality flags。
