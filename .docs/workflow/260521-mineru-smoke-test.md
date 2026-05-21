@@ -193,6 +193,72 @@ extraction_candidates: 34
 - Table 1 中 `Yield (%) = 900.00` 被标记为 `suspicious_table_yield_gt_100`。
 - OCR 重复文本仍然存在，例如部分 activity recovery 段落，需要后续 evidence extraction 阶段进入 review queue。
 
+## Evidence Extraction 原型
+
+已新增：
+
+```text
+scripts/extract_evidence_records.py
+src/enzyme_recommender/evidence/extractor.py
+src/enzyme_recommender/evidence/__init__.py
+```
+
+B10 evidence extraction 命令：
+
+```bash
+.venv/bin/python scripts/extract_evidence_records.py \
+  --input-dir artifacts/rag_inputs/B10 \
+  --output-dir artifacts/evidence/B10
+```
+
+输出：
+
+```text
+evidence_records.jsonl
+review_queue.jsonl
+validation_report.json
+```
+
+B10 当前统计：
+
+```text
+evidence_records: 81
+review_queue: 24
+
+record_type_counts:
+  enzyme_identity: 25
+  immobilization_strategy: 24
+  formulation_condition: 12
+  performance_metric: 6
+  table_comparison_row: 14
+
+quality_flag_counts:
+  suspicious_percent_gt_300: 17
+  possible_ocr_duplicate_text: 10
+  suspicious_reference_cell: 3
+  suspicious_table_yield_gt_100: 1
+```
+
+已验证的关键抽取：
+
+```text
+enzyme: Burkholderia cepacia lipase / BCL
+carrier: hierarchical mesoporous ZIF-8
+material_class: MOF
+immobilization_method: adsorption
+optimal conditions: BCL loading 700 mg, adsorption time 30 min, temperature 25 degC, pH 7.5
+application: biodiesel production / transesterification
+this study table row: soybean oil, solvent-free, ethanol, yield 93.4%, 8 cycles, last yield 71.3%
+```
+
+当前策略：
+
+- `evidence_records.jsonl` 是 first-pass evidence，不是最终 curated facts。
+- `review_queue.jsonl` 中的记录不能进入 ranking，除非人工或后续 LLM 校正确认。
+- 上游 RAG chunk 的 `quality_flags` 会传递到 evidence。
+- 表格异常只作用于对应 row，不污染整张表。
+- `activity_recovery > 100%` 暂时进入 review queue；这类指标在固定化酶论文中可能有实验定义上的合理性，但必须回看图表/原文确认小数点和 OCR。
+
 ## 关键工程发现
 
 - 本地 MinerU 首次运行会下载模型文件并初始化 DocAnalysis，耗时明显；后续同类 PDF 会快很多。
@@ -208,3 +274,6 @@ extraction_candidates: 34
 - [x] 能从 MinerU artifact 生成 RAG 原料层 JSONL。
 - [x] RAG 原料层能保留 page/bbox/source block provenance。
 - [x] 明显异常数值能进入 quality flags。
+- [x] 能从 RAG 原料层生成 first-pass evidence records。
+- [x] 能生成 review queue，隔离 OCR/数值/表格异常。
+- [x] 表格 row evidence 不被整表异常误污染。

@@ -11,7 +11,7 @@
 
 ## 当前活跃任务池 (Active Workflows)
 
-暂无。
+`workflow/260521-mineru-smoke-test.md` - MinerU 单篇 PDF smoke test、RAG 原料层与 evidence extraction 闭环
 
 ## 全局重要记忆 (Global Memory)
 
