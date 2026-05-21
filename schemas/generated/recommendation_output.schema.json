@@ -1,0 +1,232 @@
+{
+  "$defs": {
+    "CandidateRecommendation": {
+      "additionalProperties": false,
+      "properties": {
+        "rank": {
+          "minimum": 1,
+          "title": "Rank",
+          "type": "integer"
+        },
+        "strategy_summary": {
+          "title": "Strategy Summary",
+          "type": "string"
+        },
+        "carrier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Carrier"
+        },
+        "crosslinker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Crosslinker"
+        },
+        "recommended_conditions": {
+          "$ref": "#/$defs/RecommendedConditions"
+        },
+        "expected_benefits": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Expected Benefits",
+          "type": "array"
+        },
+        "risks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Risks",
+          "type": "array"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "confidence": {
+          "$ref": "#/$defs/ConfidenceLevel"
+        }
+      },
+      "required": [
+        "rank",
+        "strategy_summary",
+        "evidence_ids",
+        "confidence"
+      ],
+      "title": "CandidateRecommendation",
+      "type": "object"
+    },
+    "ConfidenceLevel": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "ConfidenceLevel",
+      "type": "string"
+    },
+    "ExperimentSuggestion": {
+      "additionalProperties": false,
+      "properties": {
+        "variable": {
+          "title": "Variable",
+          "type": "string"
+        },
+        "range": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Range",
+          "type": "array"
+        },
+        "metric": {
+          "title": "Metric",
+          "type": "string"
+        }
+      },
+      "required": [
+        "variable",
+        "metric"
+      ],
+      "title": "ExperimentSuggestion",
+      "type": "object"
+    },
+    "RecommendedConditions": {
+      "additionalProperties": false,
+      "properties": {
+        "enzyme_to_carrier_ratio": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enzyme To Carrier Ratio"
+        },
+        "pH": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ph"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Temperature"
+        },
+        "time": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Time"
+        },
+        "additives": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Additives",
+          "type": "array"
+        }
+      },
+      "title": "RecommendedConditions",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "recommendation_id": {
+      "title": "Recommendation Id",
+      "type": "string"
+    },
+    "answer_type": {
+      "enum": [
+        "ranked_candidates",
+        "abstention"
+      ],
+      "title": "Answer Type",
+      "type": "string"
+    },
+    "target_enzyme": {
+      "title": "Target Enzyme",
+      "type": "string"
+    },
+    "objective": {
+      "title": "Objective",
+      "type": "string"
+    },
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/CandidateRecommendation"
+      },
+      "title": "Candidates",
+      "type": "array"
+    },
+    "abstention_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Abstention Reason"
+    },
+    "next_experiment_suggestions": {
+      "items": {
+        "$ref": "#/$defs/ExperimentSuggestion"
+      },
+      "title": "Next Experiment Suggestions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "recommendation_id",
+    "answer_type",
+    "target_enzyme",
+    "objective"
+  ],
+  "title": "RecommendationOutput",
+  "type": "object"
+}

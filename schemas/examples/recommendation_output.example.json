@@ -1,0 +1,48 @@
+{
+  "recommendation_id": "rec_output_example_001",
+  "answer_type": "ranked_candidates",
+  "target_enzyme": "lipase",
+  "objective": "maximize_reuse_stability",
+  "candidates": [
+    {
+      "rank": 1,
+      "strategy_summary": "chitosan beads activated by glutaraldehyde",
+      "carrier": "chitosan beads",
+      "crosslinker": "glutaraldehyde",
+      "recommended_conditions": {
+        "enzyme_to_carrier_ratio": "10 mg/g",
+        "pH": 7,
+        "temperature": "25 degC",
+        "time": "4 h",
+        "additives": [
+          "BSA 1 mg/mL"
+        ]
+      },
+      "expected_benefits": [
+        "higher reuse stability",
+        "good activity recovery"
+      ],
+      "risks": [
+        "glutaraldehyde residue risk",
+        "possible activity loss from excessive crosslinking"
+      ],
+      "evidence_ids": [
+        "ev_lipase_example_001"
+      ],
+      "confidence": "medium"
+    }
+  ],
+  "abstention_reason": null,
+  "next_experiment_suggestions": [
+    {
+      "variable": "glutaraldehyde concentration",
+      "range": [
+        "0.5%",
+        "1.0%",
+        "2.5%"
+      ],
+      "metric": "activity recovery and residual activity after reuse"
+    }
+  ]
+}
+

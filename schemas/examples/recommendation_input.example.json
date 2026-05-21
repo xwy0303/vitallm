@@ -1,0 +1,30 @@
+{
+  "query_type": "recommend_immobilization_agent",
+  "enzyme_name": "lipase",
+  "enzyme_source": "Candida rugosa",
+  "objective": {
+    "primary": "maximize_reuse_stability",
+    "secondary": [
+      "maintain_activity",
+      "low_toxicity"
+    ]
+  },
+  "application_context": {
+    "substrate": "olive oil",
+    "reaction_medium": "aqueous",
+    "temperature": {
+      "value": 40,
+      "unit": "degC"
+    },
+    "pH": 7.5
+  },
+  "constraints": {
+    "food_grade_required": false,
+    "avoid_toxic_crosslinker": false,
+    "max_temperature": null,
+    "available_materials": [],
+    "disallowed_materials": []
+  },
+  "user_formulation": null
+}
+

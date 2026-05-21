@@ -1,0 +1,216 @@
+{
+  "$defs": {
+    "ApplicationContext": {
+      "additionalProperties": false,
+      "properties": {
+        "substrate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Substrate"
+        },
+        "reaction_medium": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reaction Medium"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemperatureQuantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "pH": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ph"
+        }
+      },
+      "title": "ApplicationContext",
+      "type": "object"
+    },
+    "Objective": {
+      "additionalProperties": false,
+      "properties": {
+        "primary": {
+          "title": "Primary",
+          "type": "string"
+        },
+        "secondary": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Secondary",
+          "type": "array"
+        }
+      },
+      "required": [
+        "primary"
+      ],
+      "title": "Objective",
+      "type": "object"
+    },
+    "RecommendationConstraints": {
+      "additionalProperties": false,
+      "properties": {
+        "food_grade_required": {
+          "default": false,
+          "title": "Food Grade Required",
+          "type": "boolean"
+        },
+        "avoid_toxic_crosslinker": {
+          "default": false,
+          "title": "Avoid Toxic Crosslinker",
+          "type": "boolean"
+        },
+        "max_temperature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemperatureQuantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "available_materials": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Available Materials",
+          "type": "array"
+        },
+        "disallowed_materials": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Disallowed Materials",
+          "type": "array"
+        }
+      },
+      "title": "RecommendationConstraints",
+      "type": "object"
+    },
+    "TemperatureQuantity": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "title": "TemperatureQuantity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "query_type": {
+      "enum": [
+        "recommend_immobilization_agent",
+        "optimize_formulation"
+      ],
+      "title": "Query Type",
+      "type": "string"
+    },
+    "enzyme_name": {
+      "title": "Enzyme Name",
+      "type": "string"
+    },
+    "enzyme_source": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Enzyme Source"
+    },
+    "objective": {
+      "$ref": "#/$defs/Objective"
+    },
+    "application_context": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ApplicationContext"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "constraints": {
+      "$ref": "#/$defs/RecommendationConstraints"
+    },
+    "user_formulation": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "User Formulation"
+    }
+  },
+  "required": [
+    "query_type",
+    "enzyme_name",
+    "objective"
+  ],
+  "title": "RecommendationInput",
+  "type": "object"
+}

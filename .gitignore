@@ -1,0 +1,15 @@
+.DS_Store
+.venv/
+.venv-mineru/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.env
+.env.*
+artifacts/
+output/
+tmp/
+MOF固定化脂肪酶文献调研/

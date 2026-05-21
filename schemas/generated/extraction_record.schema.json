@@ -1,0 +1,1435 @@
+{
+  "$defs": {
+    "Additive": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "concentration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Concentration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Additive",
+      "type": "object"
+    },
+    "AssayConditions": {
+      "additionalProperties": false,
+      "properties": {
+        "pH": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ph"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemperatureQuantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeQuantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        }
+      },
+      "title": "AssayConditions",
+      "type": "object"
+    },
+    "BufferCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "concentration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Concentration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "pH": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ph"
+        }
+      },
+      "title": "BufferCondition",
+      "type": "object"
+    },
+    "Carrier": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "material_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Material Class"
+        },
+        "properties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Properties"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Carrier",
+      "type": "object"
+    },
+    "Concentration": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "title": "Concentration",
+      "type": "object"
+    },
+    "ConfidenceLevel": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "ConfidenceLevel",
+      "type": "string"
+    },
+    "EnzymeAmount": {
+      "additionalProperties": false,
+      "properties": {
+        "enzyme_id": {
+          "title": "Enzyme Id",
+          "type": "string"
+        },
+        "amount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "enzyme_id"
+      ],
+      "title": "EnzymeAmount",
+      "type": "object"
+    },
+    "EnzymeIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "enzyme_id": {
+          "title": "Enzyme Id",
+          "type": "string"
+        },
+        "canonical_name": {
+          "title": "Canonical Name",
+          "type": "string"
+        },
+        "ec_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ec Number"
+        },
+        "synonyms": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Synonyms",
+          "type": "array"
+        },
+        "source_organism": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Organism"
+        },
+        "enzyme_form": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enzyme Form"
+        },
+        "sequence_or_uniprot": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence Or Uniprot"
+        },
+        "molecular_weight_kda": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Molecular Weight Kda"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        }
+      },
+      "required": [
+        "enzyme_id",
+        "canonical_name"
+      ],
+      "title": "EnzymeIdentity",
+      "type": "object"
+    },
+    "EvaluationContext": {
+      "additionalProperties": false,
+      "properties": {
+        "evaluation_context_id": {
+          "title": "Evaluation Context Id",
+          "type": "string"
+        },
+        "application": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Application"
+        },
+        "substrate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Substrate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reaction_medium": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reaction Medium"
+        },
+        "assay_conditions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AssayConditions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stress_conditions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StressConditions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reuse_protocol": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReuseProtocol"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "evaluation_context_id"
+      ],
+      "title": "EvaluationContext",
+      "type": "object"
+    },
+    "EvidenceRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_id": {
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "source_type": {
+          "default": "paper",
+          "enum": [
+            "paper",
+            "patent",
+            "dataset",
+            "user_input",
+            "other"
+          ],
+          "title": "Source Type",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "doi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Doi"
+        },
+        "year": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Year"
+        },
+        "journal": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Journal"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "table_or_figure": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Table Or Figure"
+        },
+        "quoted_span": {
+          "title": "Quoted Span",
+          "type": "string"
+        },
+        "extraction_confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Extraction Confidence",
+          "type": "number"
+        },
+        "evidence_type": {
+          "$ref": "#/$defs/EvidenceType"
+        },
+        "evidence_quality": {
+          "$ref": "#/$defs/ConfidenceLevel"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "source_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source File"
+        },
+        "source_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Sha256"
+        },
+        "mineru_task_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mineru Task Id"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "quoted_span",
+        "extraction_confidence",
+        "evidence_type",
+        "evidence_quality"
+      ],
+      "title": "EvidenceRecord",
+      "type": "object"
+    },
+    "EvidenceType": {
+      "enum": [
+        "direct_experimental_result",
+        "comparative_experiment",
+        "review_claim",
+        "inferred_from_related_enzyme",
+        "model_prediction",
+        "user_provided_claim"
+      ],
+      "title": "EvidenceType",
+      "type": "string"
+    },
+    "Formulation": {
+      "additionalProperties": false,
+      "properties": {
+        "formulation_id": {
+          "title": "Formulation Id",
+          "type": "string"
+        },
+        "enzyme": {
+          "$ref": "#/$defs/EnzymeAmount"
+        },
+        "strategy_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Strategy Id"
+        },
+        "carrier_amount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "enzyme_to_carrier_ratio": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "additives": {
+          "items": {
+            "$ref": "#/$defs/Additive"
+          },
+          "title": "Additives",
+          "type": "array"
+        },
+        "buffer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BufferCondition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "immobilization_conditions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImmobilizationConditions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        }
+      },
+      "required": [
+        "formulation_id",
+        "enzyme"
+      ],
+      "title": "Formulation",
+      "type": "object"
+    },
+    "ImmobilizationConditions": {
+      "additionalProperties": false,
+      "properties": {
+        "temperature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemperatureQuantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeQuantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "agitation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        }
+      },
+      "title": "ImmobilizationConditions",
+      "type": "object"
+    },
+    "ImmobilizationMethod": {
+      "enum": [
+        "adsorption",
+        "covalent_binding",
+        "crosslinking",
+        "entrapment",
+        "encapsulation",
+        "affinity_binding",
+        "CLEA",
+        "sol_gel",
+        "layer_by_layer",
+        "magnetic_nanoparticle_binding"
+      ],
+      "title": "ImmobilizationMethod",
+      "type": "string"
+    },
+    "ImmobilizationStrategy": {
+      "additionalProperties": false,
+      "properties": {
+        "strategy_id": {
+          "title": "Strategy Id",
+          "type": "string"
+        },
+        "immobilization_method": {
+          "$ref": "#/$defs/ImmobilizationMethod"
+        },
+        "method_family": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method Family"
+        },
+        "carrier": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Carrier"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "crosslinker": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Reagent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "spacer_or_ligand": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Reagent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "matrix_or_encapsulant": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Reagent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "surface_activation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Surface Activation"
+        },
+        "toxicity_or_safety_notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Toxicity Or Safety Notes"
+        }
+      },
+      "required": [
+        "strategy_id",
+        "immobilization_method"
+      ],
+      "title": "ImmobilizationStrategy",
+      "type": "object"
+    },
+    "MetricValue": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "cycle": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cycle"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemperatureQuantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeQuantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        }
+      },
+      "title": "MetricValue",
+      "type": "object"
+    },
+    "PerformanceMetricSet": {
+      "additionalProperties": false,
+      "properties": {
+        "immobilization_yield": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetricValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "activity_recovery": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetricValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "relative_activity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetricValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "residual_activity_after_reuse": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetricValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reuse_cycles": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetricValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "thermal_stability": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetricValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "thermal_stability_half_life": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetricValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "pH_stability": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetricValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "storage_stability": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetricValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "km": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetricValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "vmax": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetricValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "leaching_rate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetricValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "PerformanceMetricSet",
+      "type": "object"
+    },
+    "PerformanceMetrics": {
+      "additionalProperties": false,
+      "properties": {
+        "metric_id": {
+          "title": "Metric Id",
+          "type": "string"
+        },
+        "formulation_id": {
+          "title": "Formulation Id",
+          "type": "string"
+        },
+        "evaluation_context_id": {
+          "title": "Evaluation Context Id",
+          "type": "string"
+        },
+        "metrics": {
+          "$ref": "#/$defs/PerformanceMetricSet"
+        }
+      },
+      "required": [
+        "metric_id",
+        "formulation_id",
+        "evaluation_context_id",
+        "metrics"
+      ],
+      "title": "PerformanceMetrics",
+      "type": "object"
+    },
+    "Quantity": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "title": "Quantity",
+      "type": "object"
+    },
+    "Reagent": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "concentration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Concentration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Reagent",
+      "type": "object"
+    },
+    "ReuseProtocol": {
+      "additionalProperties": false,
+      "properties": {
+        "cycle_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cycle Count"
+        },
+        "wash_method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wash Method"
+        },
+        "cycle_duration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeQuantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        }
+      },
+      "title": "ReuseProtocol",
+      "type": "object"
+    },
+    "StressConditions": {
+      "additionalProperties": false,
+      "properties": {
+        "thermal_stability_test": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThermalStabilityTest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "organic_solvent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Organic Solvent"
+        },
+        "pH_stress": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ph Stress"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        }
+      },
+      "title": "StressConditions",
+      "type": "object"
+    },
+    "Substrate": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "concentration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Concentration"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Substrate",
+      "type": "object"
+    },
+    "TemperatureQuantity": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "title": "TemperatureQuantity",
+      "type": "object"
+    },
+    "ThermalStabilityTest": {
+      "additionalProperties": false,
+      "properties": {
+        "temperature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TemperatureQuantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeQuantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ThermalStabilityTest",
+      "type": "object"
+    },
+    "TimeQuantity": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "title": "TimeQuantity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    },
+    "enzyme": {
+      "$ref": "#/$defs/EnzymeIdentity"
+    },
+    "immobilization_strategy": {
+      "$ref": "#/$defs/ImmobilizationStrategy"
+    },
+    "formulation": {
+      "$ref": "#/$defs/Formulation"
+    },
+    "evaluation_context": {
+      "$ref": "#/$defs/EvaluationContext"
+    },
+    "performance_metrics": {
+      "$ref": "#/$defs/PerformanceMetrics"
+    },
+    "evidence_records": {
+      "items": {
+        "$ref": "#/$defs/EvidenceRecord"
+      },
+      "minItems": 1,
+      "title": "Evidence Records",
+      "type": "array"
+    },
+    "extraction_notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Extraction Notes"
+    }
+  },
+  "required": [
+    "record_id",
+    "enzyme",
+    "immobilization_strategy",
+    "formulation",
+    "evaluation_context",
+    "performance_metrics",
+    "evidence_records"
+  ],
+  "title": "ExtractionRecord",
+  "type": "object"
+}
