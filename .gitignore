@@ -9,7 +9,10 @@ __pycache__/
 *.egg-info/
 .env
 .env.*
+.local/
+.qdrant-initialized
 artifacts/
 output/
+storage/
 tmp/
 MOF固定化脂肪酶文献调研/

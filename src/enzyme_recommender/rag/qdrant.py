@@ -38,10 +38,11 @@ class QdrantRestClient:
 
     def ensure_collection(self, vector_size: int, recreate: bool = False) -> None:
         if recreate:
-            self.client.delete(f"{self.base_url}/collections/{self.config.collection}")
+            self._request("DELETE", f"/collections/{self.config.collection}")
 
-        response = self.client.put(
-            f"{self.base_url}/collections/{self.config.collection}",
+        response = self._request(
+            "PUT",
+            f"/collections/{self.config.collection}",
             json={
                 "vectors": {
                     "size": vector_size,
@@ -55,8 +56,9 @@ class QdrantRestClient:
     def upsert_points(self, points: Sequence[Point], batch_size: int = 64) -> None:
         for start in range(0, len(points), batch_size):
             batch = points[start : start + batch_size]
-            response = self.client.put(
-                f"{self.base_url}/collections/{self.config.collection}/points",
+            response = self._request(
+                "PUT",
+                f"/collections/{self.config.collection}/points",
                 json={"points": batch},
             )
             if response.status_code not in {200, 201}:
@@ -71,8 +73,9 @@ class QdrantRestClient:
         if query_filter:
             payload["filter"] = query_filter
 
-        response = self.client.post(
-            f"{self.base_url}/collections/{self.config.collection}/points/search",
+        response = self._request(
+            "POST",
+            f"/collections/{self.config.collection}/points/search",
             json=payload,
         )
         if response.status_code != 200:
@@ -81,6 +84,16 @@ class QdrantRestClient:
         if not isinstance(result, list):
             raise RuntimeError(f"unexpected Qdrant search response: {response.text}")
         return result
+
+    def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        url = f"{self.base_url}{path}"
+        try:
+            return self.client.request(method, url, **kwargs)
+        except httpx.TransportError as exc:
+            raise RuntimeError(
+                f"cannot connect to Qdrant at {self.base_url}; "
+                "start the local service first with scripts/start_qdrant_local.sh"
+            ) from exc
 
 
 def load_jsonl(path: Path) -> List[Dict[str, Any]]:

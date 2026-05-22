@@ -267,8 +267,11 @@ this study table row: soybean oil, solvent-free, ethanol, yield 93.4%, 8 cycles,
 scripts/index_rag_qdrant.py
 scripts/search_rag_qdrant.py
 scripts/search_rag_local.py
+scripts/start_qdrant_local.sh
+scripts/stop_qdrant_local.sh
 src/enzyme_recommender/rag/embedding.py
 src/enzyme_recommender/rag/qdrant.py
+src/enzyme_recommender/rag/retrieval.py
 .docs/engineering/rag_retrieval_architecture.md
 ```
 
@@ -278,6 +281,7 @@ src/enzyme_recommender/rag/qdrant.py
 - 使用 `hash-v1-384` deterministic local embedding 打通无网络 smoke test。
 - 同一个 collection 中存 `rag_chunk`、`table_record`、`evidence_record` 三类 point。
 - `requires_review=true` 或带质量异常的 point 默认 `usable_for_ranking=false`。
+- `EvidenceRetriever.retrieve()` 返回结构化 `RetrievalResponse`，可直接作为后续 LLM prompt context 的输入。
 - 后续替换专业 embedding 时保持 payload contract 不变。
 
 B10 dry-run：
@@ -316,7 +320,7 @@ citation=B10.pdf:p8
 text=Enzyme: B. cepacia lipase; Substrate: Soybean oil; ... Yield (%): 93.4; Reusability and Last Yield (%): 8 cycle; 71.3; References: This study
 ```
 
-当前本机 Qdrant `127.0.0.1:6333` 未启动，因此尚未执行真实入库。启动 Qdrant 后运行：
+已完成真实 Qdrant 入库验证。启动 Qdrant 后运行：
 
 ```bash
 PYTHONPATH=src .venv/bin/python scripts/index_rag_qdrant.py \
@@ -324,6 +328,31 @@ PYTHONPATH=src .venv/bin/python scripts/index_rag_qdrant.py \
   --evidence-dir artifacts/evidence/B10 \
   --collection enzyme_immobilization_b10 \
   --recreate
+```
+
+结果：
+
+```text
+collection: enzyme_immobilization_b10
+points_count: 119
+status: green
+```
+
+真实 Qdrant retrieval：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/search_rag_qdrant.py \
+  "This study soybean oil ethanol yield 93.4 8 cycles last yield" \
+  --collection enzyme_immobilization_b10 \
+  --top-k 1 \
+  --usable-only \
+  --context
+```
+
+第一名仍命中 B10 this-study 表格 evidence：
+
+```text
+B. cepacia lipase; Soybean oil; Solvent-free; Ethanol; Yield 93.4%; 8 cycle; last yield 71.3
 ```
 
 ## 关键工程发现

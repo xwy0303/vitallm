@@ -18,6 +18,12 @@ MinerU artifact -> RAG inputs -> evidence records -> vector points -> retrieval 
 enzyme_immobilization
 ```
 
+本地 B10 smoke collection：
+
+```text
+enzyme_immobilization_b10
+```
+
 同一个 collection 存三类 point：
 
 - `rag_chunk`：正文和表格镜像 chunk，用于召回上下文。
@@ -65,6 +71,51 @@ enzyme_immobilization
 - 后续应替换为 BGE-M3、SciBERT/SPECTER 类科学文本 embedding，或领域微调 reranker。
 - 替换时只改 embedding backend，不改 RAG artifact schema 和 Qdrant payload contract。
 
+## 本地 Qdrant
+
+当前本地验证使用 Qdrant `v1.18.0` Apple Silicon release：
+
+```text
+qdrant-aarch64-apple-darwin.tar.gz
+sha256: 1ced2cf6fb637a8184229e2d63f1a096c9f7854ec92bf0f0739f33d4059f9df7
+```
+
+二进制和 storage 放在 `.local/qdrant/`，该目录不进入 git。
+
+启动：
+
+```bash
+scripts/start_qdrant_local.sh
+```
+
+停止：
+
+```bash
+scripts/stop_qdrant_local.sh
+```
+
+索引 B10：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/index_rag_qdrant.py \
+  --rag-input-dir artifacts/rag_inputs/B10 \
+  --evidence-dir artifacts/evidence/B10 \
+  --collection enzyme_immobilization_b10 \
+  --recreate
+```
+
+检索 B10：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/search_rag_qdrant.py \
+  "This study soybean oil ethanol yield 93.4 8 cycles last yield" \
+  --collection enzyme_immobilization_b10 \
+  --top-k 3 \
+  --usable-only
+```
+
+`--json` 输出结构化 `RetrievalResponse`；`--context` 输出 LLM-ready context。
+
 ## Ranking 边界
 
 `requires_review=true` 或带质量异常的记录默认不进入推荐 ranking。
@@ -82,6 +133,7 @@ usable_for_ranking=true
 B10 本地 smoke test 应满足：
 
 - 能构建 `rag_chunk`、`table_record`、`evidence_record` 三类 point。
+- 真实 Qdrant collection `enzyme_immobilization_b10` points count 为 119。
 - 查询 BCL/ZIF-8 能召回 enzyme identity 和 immobilization strategy。
 - 查询 `This study soybean oil ethanol yield 93.4 8 cycles` 时，第一名应为 B10 this-study 表格 evidence。
 - Qdrant 未启动时，离线 local search 仍可验证 embedding 和 point payload。

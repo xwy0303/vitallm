@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from enzyme_recommender.rag.embedding import HashEmbeddingConfig, HashEmbeddingModel
@@ -43,9 +44,13 @@ def main() -> None:
         return
 
     config = QdrantConfig(url=args.qdrant_url, collection=args.collection)
-    with QdrantRestClient(config) as client:
-        client.ensure_collection(vector_size=embedding_model.dimensions, recreate=args.recreate)
-        client.upsert_points(points, batch_size=args.batch_size)
+    try:
+        with QdrantRestClient(config) as client:
+            client.ensure_collection(vector_size=embedding_model.dimensions, recreate=args.recreate)
+            client.upsert_points(points, batch_size=args.batch_size)
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
 
     print(f"Indexed {len(points)} points into {args.qdrant_url} collection={args.collection}")
 
