@@ -48,6 +48,7 @@ flowchart LR
 | Generator protocol | 已实现 | mock、SiliconFlow、DeepSeek provider 接口 |
 | Recommendation service | 已实现 | 酶名 -> evidence retrieval -> 固定化方案候选 |
 | Formulation optimizer | 已实现 | 用户配方 JSON -> 字段级优化建议与 citation |
+| FastAPI backend | 已实现 | `/api/health`、推荐、配方优化、证据检索 |
 | Web prototype | 已实现 | 绿色主题首页、问答入口、能力卡片 |
 
 ## 引擎与模型规划
@@ -148,6 +149,66 @@ PYTHONPATH=src .venv/bin/python scripts/search_rag_qdrant.py \
 
 ```bash
 scripts/stop_qdrant_local.sh
+```
+
+## FastAPI 后端
+
+启动 API：
+
+```bash
+scripts/start_api.sh
+```
+
+默认地址：
+
+```text
+http://127.0.0.1:8001
+```
+
+可用接口：
+
+```text
+GET  /api/health
+POST /api/recommend/by-enzyme
+POST /api/optimize/formulation
+POST /api/search/evidence
+```
+
+推荐接口 smoke：
+
+```bash
+curl -sS http://127.0.0.1:8001/api/recommend/by-enzyme \
+  -H 'Content-Type: application/json' \
+  -d '{"enzyme_name":"Burkholderia cepacia lipase","application_context":"biodiesel production from soybean oil with ethanol","collection":"enzyme_immobilization_b10","top_k":5}'
+```
+
+错误处理：
+
+```json
+{
+  "error": {
+    "code": "runtime_error",
+    "message": "cannot connect to Qdrant..."
+  }
+}
+```
+
+前端默认请求：
+
+```text
+http://127.0.0.1:8001
+```
+
+静态前端启动：
+
+```bash
+python3 -m http.server 5173 -d web
+```
+
+访问：
+
+```text
+http://127.0.0.1:5173
 ```
 
 ## 推荐 API Smoke Test

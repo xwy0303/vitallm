@@ -282,6 +282,33 @@ scripts/optimize_formulation.py
 - `review_queue` 或 `requires_review=true` evidence 不能进入 ranking。
 - 配方优化建议必须以字段级差异呈现，避免把整段自然语言建议变成不可审计结论。
 
+## FastAPI / Frontend 联调层
+
+已新增：
+
+```text
+src/enzyme_recommender/api/app.py
+src/enzyme_recommender/api/models.py
+scripts/start_api.sh
+web/app.js
+```
+
+API endpoints：
+
+```text
+GET  /api/health
+POST /api/recommend/by-enzyme
+POST /api/optimize/formulation
+POST /api/search/evidence
+```
+
+设计约束：
+
+- FastAPI 只封装已有 service，不复制业务逻辑。
+- API response 直接返回结构化模型，前端展示 `candidates`、`changes`、`evidence_hits`、`limitations` 和 citations。
+- CORS 默认只放行本地前端端口 `5173` 和 API 端口 `8001`，可用 `ENZYME_API_CORS_ORIGINS` 覆盖。
+- `scripts/start_api.sh` 默认不开 `uvicorn --reload`，避免受限环境下文件监听报 `Operation not permitted`；需要热重载时显式设置 `ENZYME_API_RELOAD=1`。
+
 ## Retrieval 原型
 
 已新增：

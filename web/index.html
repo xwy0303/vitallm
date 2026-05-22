@@ -59,7 +59,7 @@
 
         <div class="sidebar-footer">
           <span class="status-dot"></span>
-          <span>本地引擎就绪</span>
+          <span data-api-status>检查 API 中</span>
         </div>
       </aside>
 
@@ -85,25 +85,37 @@
             </p>
           </div>
 
-          <form class="query-box">
+          <form class="query-box" onsubmit="return false">
             <textarea
+              data-query-input
               aria-label="输入酶名或配方"
               placeholder="例如：Burkholderia cepacia lipase，用于大豆油乙醇酯交换制备 biodiesel，推荐固定化载体和条件。"
             ></textarea>
             <div class="query-tools">
-              <button class="tool-chip active" type="button">酶名推荐</button>
-              <button class="tool-chip" type="button">配方优化</button>
-              <button class="tool-chip" type="button">证据检索</button>
-              <button class="send-button" type="button" aria-label="发送">发送</button>
+              <button class="tool-chip active" type="button" data-mode="recommend">酶名推荐</button>
+              <button class="tool-chip" type="button" data-mode="optimize">配方优化</button>
+              <button class="tool-chip" type="button" data-mode="search">证据检索</button>
+              <button class="send-button" type="button" aria-label="发送" data-send-button>发送</button>
             </div>
           </form>
 
           <div class="quick-prompts" aria-label="示例问题">
             <span>猜你想问：</span>
-            <button type="button">BCL 最适合什么 MOF 固定化？</button>
-            <button type="button">如何优化 pH、温度和 enzyme loading？</button>
-            <button type="button">哪些证据不能直接进入 ranking？</button>
+            <button type="button" data-prompt="Burkholderia cepacia lipase，用于大豆油乙醇酯交换制备 biodiesel，推荐固定化载体和条件。">BCL 最适合什么 MOF 固定化？</button>
+            <button type="button" data-prompt='{"carrier":"ZIF-8","enzyme_loading":{"value":500,"unit":"mg"},"immobilization_conditions":{"time":{"value":60,"unit":"min"},"temperature":{"value":30,"unit":"degC"}},"buffer":{"pH":7},"application":{"substrate":"soybean oil","acyl_acceptor":"ethanol","reaction_medium":"solvent-free"}}'>如何优化 pH、温度和 enzyme loading？</button>
+            <button type="button" data-prompt="soybean oil ethanol yield 93.4 8 cycles last yield">哪些证据不能直接进入 ranking？</button>
           </div>
+
+          <section class="result-panel" data-result-panel hidden>
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Live API Response</p>
+                <h3 data-result-title>结果</h3>
+              </div>
+              <span class="badge green">FastAPI</span>
+            </div>
+            <div class="result-body" data-result-body></div>
+          </section>
         </section>
 
         <section class="dashboard-grid">
@@ -217,5 +229,6 @@
         </section>
       </main>
     </div>
+    <script src="./app.js"></script>
   </body>
 </html>
