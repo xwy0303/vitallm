@@ -2,9 +2,9 @@
 
 ## 定位
 
-本文记录后续论文 PDF 切片/解析要用的 MinerU 调用方式。原始 `.http.yaml` 来自外部文件，仅作为 API contract 样例；不得把其中的本地文件路径、历史 `task_id`、凭证或网络环境假设写入业务代码。
+本文记录后续论文 PDF 切片/解析要用的 MinerU 调用方式。原始 `.http.yaml` 来自外部文件，仅作为历史 API contract 样例；不得把其中的本地文件路径、历史 `task_id`、凭证或网络环境假设写入业务代码。
 
-当前推荐路线是本机部署 MinerU，再通过 `127.0.0.1` 接本地 `mineru-api`，避免依赖内网天翼云服务。
+当前路线固定为本机/自托管部署 MinerU，再通过 `127.0.0.1` 或服务端内网地址接自有 `mineru-api`。天翼云 MinerU 不进入后续 MVP、外网部署或生产调用路径。
 
 ## 调用模型
 
@@ -17,14 +17,14 @@ GET /tasks/{task_id}/result
   -> 拉取解析结果
 ```
 
-注意：样例中的提交 endpoint 和结果获取 endpoint 使用了不同 host/port。后续实现 pipeline 时必须把它们拆成独立配置：
+注意：历史样例中的提交 endpoint 和结果获取 endpoint 使用了不同 host/port。为兼容自托管部署差异，pipeline 仍保留二者的独立配置：
 
 ```text
 MINERU_SUBMIT_BASE_URL
 MINERU_RESULT_BASE_URL
 ```
 
-不要默认二者相同。
+默认本地部署二者相同；只有明确配置时才拆开。
 
 本地 MinerU 部署时，二者可以相同：
 
