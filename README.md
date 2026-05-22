@@ -46,6 +46,8 @@ flowchart LR
 | Qdrant `1.18.0` | 已验证 | B10 collection 119 points |
 | Runtime config | 已实现 | `configs/local.yaml` 统一管理引擎和 provider |
 | Generator protocol | 已实现 | mock、SiliconFlow、DeepSeek provider 接口 |
+| Recommendation service | 已实现 | 酶名 -> evidence retrieval -> 固定化方案候选 |
+| Formulation optimizer | 已实现 | 用户配方 JSON -> 字段级优化建议与 citation |
 | Web prototype | 已实现 | 绿色主题首页、问答入口、能力卡片 |
 
 ## 引擎与模型规划
@@ -170,6 +172,41 @@ PYTHONPATH=src .venv/bin/python scripts/recommend_by_enzyme.py \
 
 当前默认使用 `mock` generator，只验证推荐链路和输出结构。接入 SiliconFlow/DeepSeek 后，generator provider 会复用同一 protocol。
 
+## 配方优化 Smoke Test
+
+输入示例：
+
+```bash
+schemas/examples/formulation_optimization_input.example.json
+```
+
+执行：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/optimize_formulation.py \
+  "Burkholderia cepacia lipase" \
+  --formulation schemas/examples/formulation_optimization_input.example.json \
+  --config configs/local.yaml \
+  --collection enzyme_immobilization_b10 \
+  --application-context "biodiesel production from soybean oil with ethanol" \
+  --top-k 5 \
+  --pretty
+```
+
+输出会包含：
+
+```text
+changes[].field_path
+changes[].current_value
+changes[].recommended_value
+changes[].evidence_ids
+changes[].citations
+limitations
+next_experiment_suggestions
+```
+
+当前默认使用 deterministic evidence fallback，因此即使 generator 还是 `mock`，也能先跑通“用户配方 -> RAG evidence -> 字段级建议”的 MVP 链路。
+
 ## B10 Smoke Test 结果
 
 | 指标 | 数值 |
@@ -198,6 +235,6 @@ Citation: B10.pdf:p8
 
 1. 接入真实 SiliconFlow generator。
 2. 保留 DeepSeek adapter 并做 provider 对照。
-3. 实现 `recommend_by_enzyme()` 端到端推荐 API。
-4. 将 `hash-v1-384` 替换为专业 scientific embedding。
-5. 批量处理 5-20 篇 PDF，建立 review/curation 闭环。
+3. 将 `hash-v1-384` 替换为专业 scientific embedding。
+4. 批量处理 5-20 篇 PDF，建立 review/curation 闭环。
+5. 增加 FastAPI 服务层，把 recommendation / optimization 暴露为稳定 API。

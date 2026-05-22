@@ -1,0 +1,25 @@
+{
+  "carrier": "ZIF-8",
+  "enzyme_loading": {
+    "value": 500,
+    "unit": "mg"
+  },
+  "immobilization_conditions": {
+    "time": {
+      "value": 60,
+      "unit": "min"
+    },
+    "temperature": {
+      "value": 30,
+      "unit": "degC"
+    }
+  },
+  "buffer": {
+    "pH": 7
+  },
+  "application": {
+    "substrate": "soybean oil",
+    "acyl_acceptor": "ethanol",
+    "reaction_medium": "solvent-free"
+  }
+}

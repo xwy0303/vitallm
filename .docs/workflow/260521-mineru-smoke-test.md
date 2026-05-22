@@ -259,6 +259,29 @@ this study table row: soybean oil, solvent-free, ethanol, yield 93.4%, 8 cycles,
 - 表格异常只作用于对应 row，不污染整张表。
 - `activity_recovery > 100%` 暂时进入 review queue；这类指标在固定化酶论文中可能有实验定义上的合理性，但必须回看图表/原文确认小数点和 OCR。
 
+## Recommendation / Optimization 服务层
+
+已新增：
+
+```text
+src/enzyme_recommender/recommendation/enzyme.py
+src/enzyme_recommender/recommendation/formulation.py
+scripts/recommend_by_enzyme.py
+scripts/optimize_formulation.py
+```
+
+当前能力：
+
+- `recommend_by_enzyme`：用户输入酶名、应用场景和约束后，检索 Qdrant evidence，输出固定化载体/方法候选。
+- `optimize_formulation`：用户输入配方 JSON 后，检索相近 evidence，输出字段级 `changes[]`，每条建议绑定 `evidence_ids` 和 `citations`。
+- 当前 generator 默认为 `mock`，所以服务层实现了 deterministic evidence fallback，用于在 SiliconFlow/DeepSeek 接入前验证推荐链路和 JSON contract。
+
+重要边界：
+
+- 推荐不能声称“全局最优”，只能输出 evidence-backed starting points。
+- `review_queue` 或 `requires_review=true` evidence 不能进入 ranking。
+- 配方优化建议必须以字段级差异呈现，避免把整段自然语言建议变成不可审计结论。
+
 ## Retrieval 原型
 
 已新增：
