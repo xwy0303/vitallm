@@ -1,0 +1,43 @@
+# Local MVP runtime config. This file intentionally contains no secrets.
+
+document_parser:
+  provider: mineru_local
+  network_scope: self_hosted
+  submit_base_url: http://127.0.0.1:8000
+  result_base_url: http://127.0.0.1:8000
+  timeout_seconds: 120
+
+vector_store:
+  provider: qdrant
+  url: http://127.0.0.1:6333
+  collection: enzyme_immobilization
+  timeout_seconds: 30
+
+embedding:
+  provider: hash_v1
+  dimensions: 384
+
+retrieval:
+  top_k: 8
+  usable_only: true
+
+generator:
+  provider: mock
+  temperature: 0.1
+  timeout_seconds: 60
+  max_retries: 2
+
+generator_providers:
+  mock:
+    enabled: true
+    model: mock-generator-v1
+  siliconflow:
+    enabled: false
+    base_url: https://api.siliconflow.cn/v1
+    api_key_env: SILICONFLOW_API_KEY
+    model: TBD
+  deepseek:
+    enabled: false
+    base_url: https://api.deepseek.com/v1
+    api_key_env: DEEPSEEK_API_KEY
+    model: TBD

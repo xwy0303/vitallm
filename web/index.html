@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>生机大模型 - 生物酶固定化推荐</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="主导航">
+        <a class="brand" href="#">
+          <span class="brand-mark" aria-hidden="true">S</span>
+          <span>
+            <strong>生机大模型</strong>
+            <small>Enzyme RAG Lab</small>
+          </span>
+        </a>
+
+        <nav class="nav-section">
+          <p class="nav-title">核心能力</p>
+          <a class="nav-item active" href="#home">
+            <span class="nav-icon" aria-hidden="true">01</span>
+            首页问答
+          </a>
+          <a class="nav-item" href="#models">
+            <span class="nav-icon" aria-hidden="true">02</span>
+            大模型
+          </a>
+          <a class="nav-item" href="#knowledge">
+            <span class="nav-icon" aria-hidden="true">03</span>
+            知识库
+          </a>
+          <a class="nav-item" href="#pipeline">
+            <span class="nav-icon" aria-hidden="true">04</span>
+            PDF 切片
+          </a>
+          <a class="nav-item" href="#evidence">
+            <span class="nav-icon" aria-hidden="true">05</span>
+            证据抽取
+          </a>
+        </nav>
+
+        <nav class="nav-section">
+          <p class="nav-title">实验工作台</p>
+          <a class="nav-item" href="#formula">
+            <span class="nav-icon" aria-hidden="true">06</span>
+            配方优化
+          </a>
+          <a class="nav-item" href="#review">
+            <span class="nav-icon" aria-hidden="true">07</span>
+            人工审核
+          </a>
+          <a class="nav-item" href="#history">
+            <span class="nav-icon" aria-hidden="true">08</span>
+            任务历史
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <span class="status-dot"></span>
+          <span>本地引擎就绪</span>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Bio-Enzyme Immobilization MVP</p>
+            <h1>生物酶固定化推荐工作台</h1>
+          </div>
+          <div class="topbar-actions">
+            <button class="ghost-button" type="button">查看证据链</button>
+            <button class="primary-button" type="button">登录</button>
+          </div>
+        </header>
+
+        <section class="hero" id="home">
+          <div class="hero-copy">
+            <p class="eyebrow">Evidence-first Recommendation</p>
+            <h2>输入酶名或配方，让系统基于论文证据给出可追溯建议</h2>
+            <p>
+              面向脂肪酶固定化场景，整合 MinerU PDF 切片、Qdrant 知识库检索、
+              evidence records 与生成式 LLM，输出推荐固化剂、实验条件和优化方向。
+            </p>
+          </div>
+
+          <form class="query-box">
+            <textarea
+              aria-label="输入酶名或配方"
+              placeholder="例如：Burkholderia cepacia lipase，用于大豆油乙醇酯交换制备 biodiesel，推荐固定化载体和条件。"
+            ></textarea>
+            <div class="query-tools">
+              <button class="tool-chip active" type="button">酶名推荐</button>
+              <button class="tool-chip" type="button">配方优化</button>
+              <button class="tool-chip" type="button">证据检索</button>
+              <button class="send-button" type="button" aria-label="发送">发送</button>
+            </div>
+          </form>
+
+          <div class="quick-prompts" aria-label="示例问题">
+            <span>猜你想问：</span>
+            <button type="button">BCL 最适合什么 MOF 固定化？</button>
+            <button type="button">如何优化 pH、温度和 enzyme loading？</button>
+            <button type="button">哪些证据不能直接进入 ranking？</button>
+          </div>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="panel knowledge-panel" id="knowledge">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Knowledge Base</p>
+                <h3>知识库专区</h3>
+              </div>
+              <span class="badge">RAG-ready</span>
+            </div>
+            <div class="stack-list">
+              <div class="stack-card">
+                <span class="stack-icon">KB</span>
+                <div>
+                  <strong>论文知识库</strong>
+                  <p>MinerU artifact、RAG chunks、table records 与 citation 溯源。</p>
+                </div>
+              </div>
+              <div class="stack-card">
+                <span class="stack-icon">EV</span>
+                <div>
+                  <strong>证据记录</strong>
+                  <p>enzyme、carrier、method、conditions、metrics、review flags。</p>
+                </div>
+              </div>
+              <div class="stack-card">
+                <span class="stack-icon">DB</span>
+                <div>
+                  <strong>向量数据库</strong>
+                  <p>Qdrant collection 已支持 metadata filter 与 usable-only 检索。</p>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel feature-panel" id="models">
+            <p class="eyebrow">Model Gateway</p>
+            <h3>大模型中枢</h3>
+            <p>统一管理 SiliconFlow、DeepSeek、embedding、reranker 和 mock generator。</p>
+            <div class="pill-row">
+              <span>SiliconFlow</span>
+              <span>DeepSeek</span>
+              <span>BGE-M3</span>
+            </div>
+            <a href="#runtime">查看 runtime 配置</a>
+          </article>
+
+          <article class="panel feature-panel" id="pipeline">
+            <p class="eyebrow">Document Parser</p>
+            <h3>PDF 切片引擎</h3>
+            <p>只使用本地/自托管 MinerU，支持 PDF 到 Markdown、content list、表格与图片 artifact。</p>
+            <div class="metric-line">
+              <span>B10 smoke</span>
+              <strong>14 pages</strong>
+            </div>
+          </article>
+
+          <article class="panel wide-panel" id="evidence">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Evidence Pipeline</p>
+                <h3>从论文到推荐的证据链</h3>
+              </div>
+              <span class="badge green">119 points</span>
+            </div>
+            <div class="pipeline">
+              <div>
+                <span>01</span>
+                <strong>PDF 切片</strong>
+                <p>MinerU content list + tables</p>
+              </div>
+              <div>
+                <span>02</span>
+                <strong>证据抽取</strong>
+                <p>conditions / metrics / table rows</p>
+              </div>
+              <div>
+                <span>03</span>
+                <strong>向量检索</strong>
+                <p>Qdrant + metadata filter</p>
+              </div>
+              <div>
+                <span>04</span>
+                <strong>LLM 推荐</strong>
+                <p>answer with citations</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel formula-panel" id="formula">
+            <p class="eyebrow">Formula Optimizer</p>
+            <h3>配方优化</h3>
+            <p>输入配体/酶比例、添加剂浓度、反应条件和外部环境，输出优化建议与实验验证路径。</p>
+            <ul>
+              <li>enzyme loading / carrier ratio</li>
+              <li>pH / temperature / time</li>
+              <li>reuse cycles / last yield</li>
+            </ul>
+          </article>
+
+          <article class="panel review-panel" id="review">
+            <p class="eyebrow">Human Review</p>
+            <h3>人工审核队列</h3>
+            <p>对 OCR 异常、百分比异常、疑似错列的证据进行人工确认，进入 curated evidence。</p>
+            <div class="review-count">
+              <strong>24</strong>
+              <span>B10 review items</span>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
