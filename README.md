@@ -148,6 +148,28 @@ PYTHONPATH=src .venv/bin/python scripts/search_rag_qdrant.py \
 scripts/stop_qdrant_local.sh
 ```
 
+## 推荐 API Smoke Test
+
+当前已有 `recommend_by_enzyme` CLI，会执行：
+
+```text
+enzyme query -> Qdrant retrieval -> evidence context -> generator protocol -> recommendation JSON
+```
+
+B10 smoke：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/recommend_by_enzyme.py \
+  "Burkholderia cepacia lipase" \
+  --config configs/local.yaml \
+  --collection enzyme_immobilization_b10 \
+  --application-context "biodiesel production from soybean oil with ethanol" \
+  --top-k 5 \
+  --pretty
+```
+
+当前默认使用 `mock` generator，只验证推荐链路和输出结构。接入 SiliconFlow/DeepSeek 后，generator provider 会复用同一 protocol。
+
 ## B10 Smoke Test 结果
 
 | 指标 | 数值 |
