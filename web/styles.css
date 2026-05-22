@@ -433,6 +433,19 @@ a {
   color: #a33a36;
 }
 
+.loading-steps {
+  display: grid;
+  gap: 10px;
+}
+
+.loading-steps span {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #4d6252;
+  background: #f8fcf8;
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1.05fr 1fr 1fr;

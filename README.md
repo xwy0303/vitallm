@@ -92,28 +92,43 @@ flowchart TB
 configs/local.yaml
 ```
 
-校验配置和 mock generator：
+校验配置和真实 generator：
 
 ```bash
 PYTHONPATH=src .venv/bin/python scripts/check_runtime_config.py \
   --config configs/local.yaml \
-  --run-mock-generation
+  --run-generation
 ```
 
 关键配置片段：
 
 ```yaml
 generator:
-  provider: mock
+  provider: siliconflow
   temperature: 0.1
 
 generator_providers:
   siliconflow:
-    enabled: false
+    enabled: true
     api_key_env: SILICONFLOW_API_KEY
+    model: deepseek-ai/DeepSeek-V3.2
   deepseek:
     enabled: false
     api_key_env: DEEPSEEK_API_KEY
+```
+
+本地密钥放在 `.env.local`，该文件已被 `.gitignore` 排除：
+
+```bash
+SILICONFLOW_API_KEY=...
+```
+
+真实 generation smoke：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/check_runtime_config.py \
+  --config configs/local.yaml \
+  --run-generation
 ```
 
 ## Qdrant 本地检索
@@ -231,7 +246,7 @@ PYTHONPATH=src .venv/bin/python scripts/recommend_by_enzyme.py \
   --pretty
 ```
 
-当前默认使用 `mock` generator，只验证推荐链路和输出结构。接入 SiliconFlow/DeepSeek 后，generator provider 会复用同一 protocol。
+当前默认使用 SiliconFlow generator，输出会保留结构化候选、LLM 生成的 limitations、下一步实验建议和 evidence citations。`mock` provider 仍保留为离线开发 fallback。
 
 ## 配方优化 Smoke Test
 
@@ -266,7 +281,7 @@ limitations
 next_experiment_suggestions
 ```
 
-当前默认使用 deterministic evidence fallback，因此即使 generator 还是 `mock`，也能先跑通“用户配方 -> RAG evidence -> 字段级建议”的 MVP 链路。
+当前默认使用 SiliconFlow generator；如果 LLM 没有返回合格的 `changes[]`，服务层会回退到 deterministic evidence fallback，保证“用户配方 -> RAG evidence -> 字段级建议”的 MVP 链路可用。
 
 ## B10 Smoke Test 结果
 
@@ -294,8 +309,8 @@ Citation: B10.pdf:p8
 
 ## 下一步
 
-1. 接入真实 SiliconFlow generator。
-2. 保留 DeepSeek adapter 并做 provider 对照。
-3. 将 `hash-v1-384` 替换为专业 scientific embedding。
-4. 批量处理 5-20 篇 PDF，建立 review/curation 闭环。
-5. 增加 FastAPI 服务层，把 recommendation / optimization 暴露为稳定 API。
+1. 保留 DeepSeek adapter 并做 provider 对照。
+2. 将 `hash-v1-384` 替换为专业 scientific embedding。
+3. 批量处理 5-20 篇 PDF，建立 review/curation 闭环。
+4. 增加 reranker 和 citation-aware answer check。
+5. 把前端结果展示升级为可审计 evidence 面板。

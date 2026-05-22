@@ -105,12 +105,45 @@ class RuntimeConfig(StrictBaseModel):
         if provider == "mock":
             return ""
         assert provider_config.api_key_env is not None
+        load_local_env_files()
         value = os.environ.get(provider_config.api_key_env)
         if not value:
             raise RuntimeConfigError(
                 f"missing API key env var for generator provider {provider}: {provider_config.api_key_env}"
             )
         return value
+
+
+_LOCAL_ENV_LOADED = False
+
+
+def load_local_env_files() -> None:
+    global _LOCAL_ENV_LOADED
+    if _LOCAL_ENV_LOADED:
+        return
+    _LOCAL_ENV_LOADED = True
+    candidates = [
+        Path.cwd() / ".env.local",
+        Path.cwd() / ".env",
+    ]
+    for path in candidates:
+        if path.exists():
+            load_env_file(path)
+
+
+def load_env_file(path: Path) -> None:
+    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            raise RuntimeConfigError(f"invalid env line in {path}:{line_number}")
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if not key:
+            raise RuntimeConfigError(f"empty env key in {path}:{line_number}")
+        os.environ.setdefault(key, value)
 
 
 def load_config_mapping(path: Path) -> Dict[str, Any]:

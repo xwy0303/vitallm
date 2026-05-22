@@ -88,8 +88,8 @@ class RecommendationService:
             evidence_hits=retrieval.hits,
             generation_content=generation.content,
             generation_json=generation_json,
-            limitations=build_limitations(generation, retrieval),
-            next_experiment_suggestions=build_next_experiment_suggestions(retrieval),
+            limitations=build_limitations(generation, retrieval, generation_json),
+            next_experiment_suggestions=build_next_experiment_suggestions(retrieval, generation_json),
         )
 
     def _generate_recommendation(
@@ -240,18 +240,30 @@ def benefits_from_hit(hit: RetrievalHit) -> List[str]:
     return benefits
 
 
-def build_limitations(generation: GenerationResponse, retrieval: RetrievalResponse) -> List[str]:
+def build_limitations(
+    generation: GenerationResponse,
+    retrieval: RetrievalResponse,
+    generation_json: Optional[Dict[str, Any]] = None,
+) -> List[str]:
     limitations = []
+    if generation_json:
+        limitations.extend(string_items(generation_json.get("limitations")))
     if generation.provider == "mock":
         limitations.append("mock generator only validates pipeline wiring; final wording requires SiliconFlow/DeepSeek.")
     if not retrieval.hits:
         limitations.append("no usable evidence was retrieved")
     if any(hit.requires_review for hit in retrieval.hits):
         limitations.append("some retrieved evidence requires review and should not be used for ranking")
-    return limitations
+    return dedupe_strings(limitations)
 
 
-def build_next_experiment_suggestions(retrieval: RetrievalResponse) -> List[Dict[str, Any]]:
+def build_next_experiment_suggestions(
+    retrieval: RetrievalResponse,
+    generation_json: Optional[Dict[str, Any]] = None,
+) -> List[Dict[str, Any]]:
+    generated = normalize_experiment_suggestions(generation_json)
+    if generated:
+        return generated
     if not retrieval.hits:
         return []
     return [
@@ -261,6 +273,37 @@ def build_next_experiment_suggestions(retrieval: RetrievalResponse) -> List[Dict
             "evidence_basis": [hit.citation for hit in retrieval.hits[:3] if hit.citation],
         }
     ]
+
+
+def normalize_experiment_suggestions(generation_json: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not generation_json:
+        return []
+    raw_suggestions = generation_json.get("next_experiment_suggestions")
+    if not isinstance(raw_suggestions, list):
+        return []
+    suggestions: List[Dict[str, Any]] = []
+    for item in raw_suggestions:
+        if isinstance(item, dict):
+            suggestions.append(item)
+        elif isinstance(item, str) and item.strip():
+            suggestions.append({"suggestion": item.strip()})
+    return suggestions
+
+
+def string_items(value: Any) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+
+
+def dedupe_strings(values: List[str]) -> List[str]:
+    deduped = []
+    seen = set()
+    for value in values:
+        if value not in seen:
+            deduped.append(value)
+            seen.add(value)
+    return deduped
 
 
 def parse_json_object(value: str) -> Optional[Dict[str, Any]]:

@@ -94,8 +94,8 @@ class FormulationOptimizationService:
             evidence_hits=retrieval.hits,
             generation_content=generation.content,
             generation_json=generation_json,
-            limitations=build_optimization_limitations(generation, retrieval, changes),
-            next_experiment_suggestions=build_optimization_experiment_suggestions(changes, retrieval),
+            limitations=build_optimization_limitations(generation, retrieval, changes, generation_json),
+            next_experiment_suggestions=build_optimization_experiment_suggestions(changes, retrieval, generation_json),
         )
 
     def _generate_optimization(
@@ -318,8 +318,11 @@ def build_optimization_limitations(
     generation: GenerationResponse,
     retrieval: RetrievalResponse,
     changes: List[FormulationChange],
+    generation_json: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     limitations = []
+    if generation_json:
+        limitations.extend(string_items(generation_json.get("limitations")))
     if generation.provider == "mock":
         limitations.append("mock generator only validates pipeline wiring; final optimization wording requires SiliconFlow/DeepSeek.")
     if not retrieval.hits:
@@ -329,13 +332,17 @@ def build_optimization_limitations(
     if any(hit.requires_review for hit in retrieval.hits):
         limitations.append("some retrieved evidence requires review and should not be used for ranking")
     limitations.append("recommendations are evidence-based starting points, not a global optimum without DOE validation")
-    return limitations
+    return dedupe_strings(limitations)
 
 
 def build_optimization_experiment_suggestions(
     changes: List[FormulationChange],
     retrieval: RetrievalResponse,
+    generation_json: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
+    generated = normalize_experiment_suggestions(generation_json)
+    if generated:
+        return generated
     variables = [change.field_path for change in changes[:4]]
     if not variables:
         variables = ["enzyme.amount", "carrier", "buffer.pH", "immobilization_conditions.temperature"]
@@ -346,6 +353,37 @@ def build_optimization_experiment_suggestions(
             "evidence_basis": [hit.citation for hit in retrieval.hits[:3] if hit.citation],
         }
     ]
+
+
+def normalize_experiment_suggestions(generation_json: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not generation_json:
+        return []
+    raw_suggestions = generation_json.get("next_experiment_suggestions")
+    if not isinstance(raw_suggestions, list):
+        return []
+    suggestions: List[Dict[str, Any]] = []
+    for item in raw_suggestions:
+        if isinstance(item, dict):
+            suggestions.append(item)
+        elif isinstance(item, str) and item.strip():
+            suggestions.append({"suggestion": item.strip()})
+    return suggestions
+
+
+def string_items(value: Any) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+
+
+def dedupe_strings(values: List[str]) -> List[str]:
+    deduped = []
+    seen = set()
+    for value in values:
+        if value not in seen:
+            deduped.append(value)
+            seen.add(value)
+    return deduped
 
 
 def make_optimization_id(request: FormulationOptimizationRequest, retrieval: RetrievalResponse) -> str:

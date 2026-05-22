@@ -11,6 +11,8 @@ const statusText = document.querySelector("[data-api-status]");
 const promptButtons = Array.from(document.querySelectorAll("[data-prompt]"));
 
 let activeMode = "recommend";
+let loadingTimer = null;
+let loadingStartedAt = 0;
 
 modeButtons.forEach((button) => {
   button.addEventListener("click", () => {
@@ -93,6 +95,8 @@ async function runQuery() {
       });
       renderRecommendation(data);
     }
+  } catch (error) {
+    renderError(error.message || String(error));
   } finally {
     setLoading(false);
   }
@@ -133,19 +137,31 @@ function extractEnzymeName(rawInput) {
 }
 
 async function requestJson(path, options) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 120000);
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
     },
+    signal: controller.signal,
     ...options,
+  }).catch((error) => {
+    if (error.name === "AbortError") {
+      throw new Error("请求超过 120 秒仍未返回。请稍后重试，或先使用证据检索模式确认知识库可用。");
+    }
+    throw error;
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const message = data?.error?.message || data?.detail?.error?.message || response.statusText;
-    throw new Error(typeof message === "string" ? message : JSON.stringify(message));
+  try {
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = data?.error?.message || data?.detail?.error?.message || response.statusText;
+      throw new Error(typeof message === "string" ? message : JSON.stringify(message));
+    }
+    return data;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
-  return data;
 }
 
 function setLoading(isLoading) {
@@ -154,8 +170,25 @@ function setLoading(isLoading) {
   resultPanel.hidden = false;
   resultTitle.textContent = isLoading ? "正在检索证据并生成建议" : resultTitle.textContent;
   if (isLoading) {
-    resultBody.innerHTML = '<p class="result-muted">Qdrant retrieval → generator protocol → structured response</p>';
+    loadingStartedAt = Date.now();
+    updateLoadingMessage();
+    loadingTimer = window.setInterval(updateLoadingMessage, 1000);
+  } else if (loadingTimer) {
+    window.clearInterval(loadingTimer);
+    loadingTimer = null;
   }
+}
+
+function updateLoadingMessage() {
+  const seconds = Math.max(0, Math.round((Date.now() - loadingStartedAt) / 1000));
+  resultBody.innerHTML = `
+    <div class="loading-steps">
+      <span>1. Qdrant evidence retrieval：通常 &lt; 1 秒</span>
+      <span>2. SiliconFlow generation：当前已等待 ${seconds} 秒</span>
+      <span>3. Structured response rendering：返回后自动展示 citations</span>
+    </div>
+    <p class="result-muted">真实 LLM 生成不是卡死，通常需要 10-40 秒；超过 120 秒会自动报错。</p>
+  `;
 }
 
 function renderRecommendation(data) {
@@ -255,11 +288,12 @@ function renderKeyValues(value) {
 }
 
 function renderList(title, items) {
-  if (!items || !items.length) return "";
+  const normalizedItems = Array.isArray(items) ? items : items ? [items] : [];
+  if (!normalizedItems.length) return "";
   return `
     <div class="result-list">
       <b>${escapeHtml(title)}</b>
-      ${items.map((item) => `<span>${escapeHtml(formatValue(item))}</span>`).join("")}
+      ${normalizedItems.map((item) => `<span>${escapeHtml(formatValue(item))}</span>`).join("")}
     </div>
   `;
 }

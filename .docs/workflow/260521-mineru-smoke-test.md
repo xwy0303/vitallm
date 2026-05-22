@@ -274,7 +274,7 @@ scripts/optimize_formulation.py
 
 - `recommend_by_enzyme`：用户输入酶名、应用场景和约束后，检索 Qdrant evidence，输出固定化载体/方法候选。
 - `optimize_formulation`：用户输入配方 JSON 后，检索相近 evidence，输出字段级 `changes[]`，每条建议绑定 `evidence_ids` 和 `citations`。
-- 当前 generator 默认为 `mock`，所以服务层实现了 deterministic evidence fallback，用于在 SiliconFlow/DeepSeek 接入前验证推荐链路和 JSON contract。
+- 当前 generator 默认为 `siliconflow`；服务层仍保留 deterministic evidence fallback，用于 LLM 输出不符合 JSON contract 时兜底。
 
 重要边界：
 
@@ -308,6 +308,19 @@ POST /api/search/evidence
 - API response 直接返回结构化模型，前端展示 `candidates`、`changes`、`evidence_hits`、`limitations` 和 citations。
 - CORS 默认只放行本地前端端口 `5173` 和 API 端口 `8001`，可用 `ENZYME_API_CORS_ORIGINS` 覆盖。
 - `scripts/start_api.sh` 默认不开 `uvicorn --reload`，避免受限环境下文件监听报 `Operation not permitted`；需要热重载时显式设置 `ENZYME_API_RELOAD=1`。
+
+## SiliconFlow Provider
+
+已将默认 generator provider 切换为：
+
+```text
+provider: siliconflow
+model: deepseek-ai/DeepSeek-V3.2
+base_url: https://api.siliconflow.cn/v1
+api_key_env: SILICONFLOW_API_KEY
+```
+
+本地密钥只放在 `.env.local`，该文件被 `.gitignore` 排除，不进入 git。`RuntimeConfig.require_generator_api_key()` 会自动加载本地 `.env.local` / `.env`，因此 CLI 与 FastAPI 都可以复用同一套配置。
 
 ## Retrieval 原型
 
