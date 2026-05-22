@@ -7,7 +7,7 @@
 
 ## 工程架构契约 (Engineering Docs)
 
-暂无。
+`engineering/rag_retrieval_architecture.md` - RAG 向量检索 collection、payload、embedding 替换边界和 ranking 禁用规则
 
 ## 当前活跃任务池 (Active Workflows)
 

@@ -2,7 +2,7 @@
 
 ## 现状分析
 
-项目已迁移到 `/Users/way/Desktop/99-生机大模型`。当前有 MOF 固定化脂肪酶论文资料目录，但该目录属于原始/外部数据，不进入 git。
+项目当前主工作目录为 `/Users/way/Documents/生机大模型`。此前 Desktop 目录保留为迁移来源，后续开发以 Documents 目录为准。当前有 MOF 固定化脂肪酶论文资料目录，但该目录属于原始/外部数据，不进入 git。
 
 已建立：
 
@@ -258,6 +258,73 @@ this study table row: soybean oil, solvent-free, ethanol, yield 93.4%, 8 cycles,
 - 上游 RAG chunk 的 `quality_flags` 会传递到 evidence。
 - 表格异常只作用于对应 row，不污染整张表。
 - `activity_recovery > 100%` 暂时进入 review queue；这类指标在固定化酶论文中可能有实验定义上的合理性，但必须回看图表/原文确认小数点和 OCR。
+
+## Retrieval 原型
+
+已新增：
+
+```text
+scripts/index_rag_qdrant.py
+scripts/search_rag_qdrant.py
+scripts/search_rag_local.py
+src/enzyme_recommender/rag/embedding.py
+src/enzyme_recommender/rag/qdrant.py
+.docs/engineering/rag_retrieval_architecture.md
+```
+
+当前策略：
+
+- 使用 Qdrant REST API，不引入额外 Python client 依赖。
+- 使用 `hash-v1-384` deterministic local embedding 打通无网络 smoke test。
+- 同一个 collection 中存 `rag_chunk`、`table_record`、`evidence_record` 三类 point。
+- `requires_review=true` 或带质量异常的 point 默认 `usable_for_ranking=false`。
+- 后续替换专业 embedding 时保持 payload contract 不变。
+
+B10 dry-run：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/index_rag_qdrant.py \
+  --rag-input-dir artifacts/rag_inputs/B10 \
+  --evidence-dir artifacts/evidence/B10 \
+  --collection enzyme_immobilization_b10 \
+  --dry-run
+```
+
+结果：
+
+```text
+Prepared points: total=119 counts={'rag_chunk': 36, 'table_record': 2, 'evidence_record': 81}
+Embedding model: hash-v1-384
+```
+
+离线 retrieval smoke：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/search_rag_local.py \
+  "This study soybean oil ethanol yield 93.4 8 cycles last yield" \
+  --rag-input-dir artifacts/rag_inputs/B10 \
+  --evidence-dir artifacts/evidence/B10 \
+  --top-k 8 \
+  --usable-only
+```
+
+第一名命中：
+
+```text
+record_type=table_comparison_row
+citation=B10.pdf:p8
+text=Enzyme: B. cepacia lipase; Substrate: Soybean oil; ... Yield (%): 93.4; Reusability and Last Yield (%): 8 cycle; 71.3; References: This study
+```
+
+当前本机 Qdrant `127.0.0.1:6333` 未启动，因此尚未执行真实入库。启动 Qdrant 后运行：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/index_rag_qdrant.py \
+  --rag-input-dir artifacts/rag_inputs/B10 \
+  --evidence-dir artifacts/evidence/B10 \
+  --collection enzyme_immobilization_b10 \
+  --recreate
+```
 
 ## 关键工程发现
 
