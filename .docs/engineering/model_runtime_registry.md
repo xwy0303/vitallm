@@ -8,7 +8,7 @@ PDF parsing 只使用自托管/本地 MinerU 服务。
 
 后续会把整个服务部署到公网，外部用户通过自有服务接口调用；外部请求不得直连用户本机或内网 MinerU。
 
-主要生成 LLM 后续使用 SiliconFlow API。当前先记录架构约束，暂不实现 SiliconFlow client。
+主要生成 LLM 后续优先使用 SiliconFlow API，同时保留 DeepSeek API 作为生成式 LLM provider 接口。当前先记录架构约束，暂不实现具体 client。
 
 ## 当前已部署或已接入
 
@@ -23,7 +23,8 @@ PDF parsing 只使用自托管/本地 MinerU 服务。
 
 | 层级 | 推荐选择 | 类型 | 优先级 | 作用 | 边界 |
 | --- | --- | --- | --- | --- | --- |
-| Generator LLM | SiliconFlow API | Chat / generation LLM | P0 | 生成推荐固化剂、优化配方、解释证据和不确定性 | 先做 API adapter 和 prompt contract；不把 API key 写入仓库 |
+| Generator LLM | SiliconFlow API | Chat / generation LLM | P0 | 生成推荐固化剂、优化配方、解释证据和不确定性 | 默认生成服务商；先做 API adapter 和 prompt contract；不把 API key 写入仓库 |
+| Generator LLM | DeepSeek API | Chat / generation LLM | P0 | 保留生成式 LLM 备用 provider 接口 | 与 SiliconFlow 共用 generator protocol；可用于成本、可用性、效果对照 |
 | Scientific Embedding | BGE-M3 或同等级中英科学文本 embedding | Embedding model | P1 | 替换 `hash-v1-384`，提升语义召回 | 替换 embedding backend，不改 Qdrant payload contract |
 | Reranker | BGE reranker 或 LLM rerank | Cross-encoder / reranking | P1 | 对 top-k evidence 排序，降低噪音 | 先在小规模 curated evidence 上评估，再进入默认链路 |
 | Extraction LLM | SiliconFlow 或本地小模型 | Structured extraction | P2 | 辅助 rule-based extractor 处理复杂段落/表格 | 必须输出 JSON，保留 source span 和 review flags |
@@ -55,6 +56,14 @@ generator:
   provider: siliconflow
   model: TBD
   temperature: 0.1
+
+generator_providers:
+  siliconflow:
+    enabled: true
+    model: TBD
+  deepseek:
+    enabled: false
+    model: TBD
 ```
 
 Runtime 层只负责配置和工厂：
