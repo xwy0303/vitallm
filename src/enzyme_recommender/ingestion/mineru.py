@@ -208,6 +208,34 @@ class MinerUClient:
                     )
                     time.sleep(interval_seconds)
                     continue
+                if status_code == 409:
+                    payload = _safe_json_response(exc.response)
+                    if isinstance(payload, dict):
+                        status = str(payload.get("status") or payload.get("state") or "").strip().lower()
+                        error_message = str(
+                            payload.get("error")
+                            or payload.get("message")
+                            or payload.get("detail")
+                            or exc.response.text[:1000]
+                        )
+                        if status in {"failed", "fail", "error", "cancelled", "canceled"}:
+                            raise RuntimeError(f"MinerU task {task_id} failed with status={status}: {error_message}")
+                        last_result = MinerUFetchResult(
+                            task_id=task_id,
+                            status=status or f"transient_http_{status_code}",
+                            content_type=exc.response.headers.get("content-type"),
+                            json_payload=payload,
+                            error_message=error_message,
+                        )
+                    else:
+                        last_result = MinerUFetchResult(
+                            task_id=task_id,
+                            status=f"transient_http_{status_code}",
+                            content_type=exc.response.headers.get("content-type"),
+                            error_message=exc.response.text[:1000],
+                        )
+                    time.sleep(interval_seconds)
+                    continue
                 raise
             last_result = result
             status = result.status.lower()
@@ -248,6 +276,13 @@ def _response_json(response: httpx.Response) -> Dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("expected JSON object response")
     return payload
+
+
+def _safe_json_response(response: httpx.Response) -> Any:
+    try:
+        return response.json()
+    except ValueError:
+        return None
 
 
 def _extract_task_id(payload: Dict[str, Any]) -> str:

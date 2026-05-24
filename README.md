@@ -43,13 +43,13 @@ flowchart LR
 | MinerU local `3.1.15` | 已验证 | B10 PDF smoke test 已打通 |
 | RAG input builder | 已实现 | MinerU artifact -> `rag_chunks/table_records/extraction_candidates` |
 | Evidence extractor | 已实现 | 规则抽取 enzyme、carrier、conditions、metrics、table rows |
-| Qdrant `1.18.0` | 已验证 | B10 collection 119 points |
+| Qdrant `1.18.0` | 已验证 | 当前 collection 2508 points |
 | Runtime config | 已实现 | `configs/local.yaml` 统一管理引擎和 provider |
-| Generator protocol | 已实现 | mock、SiliconFlow、DeepSeek provider 接口 |
+| Generator protocol | 已实现 | mock、SiliconFlow、DeepSeek provider 接口，支持 token streaming |
 | Recommendation service | 已实现 | 酶名 -> evidence retrieval -> 固定化方案候选 |
 | Formulation optimizer | 已实现 | 用户配方 JSON -> 字段级优化建议与 citation |
-| FastAPI backend | 已实现 | `/api/health`、推荐、配方优化、证据检索 |
-| Web prototype | 已实现 | 绿色主题首页、问答入口、能力卡片 |
+| FastAPI backend | 已实现 | `/api/health`、推荐、配方优化、证据检索、NDJSON 流式接口 |
+| Web prototype | 已实现 | 绿色主题首页、问答入口、流式生成结果 |
 
 ## 引擎与模型规划
 
@@ -58,8 +58,9 @@ flowchart TB
   subgraph Deployed["已接入"]
     MinerU["MinerU local<br/>PDF 切片"]
     Qdrant["Qdrant<br/>向量数据库"]
-    Hash["hash-v1-384<br/>工程 smoke embedding"]
+    BGEBase["BAAI/bge-base-en-v1.5<br/>sentence embedding 768d"]
     Rules["Rule-based extractor<br/>证据抽取"]
+    Stream["NDJSON stream<br/>前端流式展示"]
   end
 
   subgraph Planned["后续接入"]
@@ -72,7 +73,8 @@ flowchart TB
   Rules --> Qdrant
   Qdrant --> SF
   Qdrant --> DS
-  Hash -.替换.-> BGE
+  SF --> Stream
+  BGEBase -.升级.-> BGE
   Qdrant --> Reranker
 ```
 
@@ -185,9 +187,13 @@ http://127.0.0.1:8001
 ```text
 GET  /api/health
 POST /api/recommend/by-enzyme
+POST /api/recommend/by-enzyme/stream
 POST /api/optimize/formulation
+POST /api/optimize/formulation/stream
 POST /api/search/evidence
 ```
+
+流式接口返回 `application/x-ndjson`，事件类型包括 `status`、`retrieval`、`delta`、`final`、`error`。Web 工作台默认使用 stream endpoint；旧 JSON 接口保留给 CLI、脚本和 smoke test。
 
 推荐接口 smoke：
 
@@ -283,6 +289,22 @@ next_experiment_suggestions
 
 当前默认使用 SiliconFlow generator；如果 LLM 没有返回合格的 `changes[]`，服务层会回退到 deterministic evidence fallback，保证“用户配方 -> RAG evidence -> 字段级建议”的 MVP 链路可用。
 
+## 当前批处理进度
+
+| 指标 | 数值 |
+| --- | --- |
+| PDF 总数 | 97 |
+| 已完成 RAG + evidence | 27 |
+| 待处理 PDF | 70 |
+| Parsed pages | 323 |
+| RAG chunks | 1099 |
+| Table records | 53 |
+| Evidence records | 1356 |
+| Review queue | 411 |
+| Qdrant points | 2508 |
+
+当前 collection 仍沿用早期 smoke 名称 `enzyme_immobilization_b10`，但内容已经扩展到 27 篇文档；后续需要重建或迁移到正式 collection 名称。
+
 ## B10 Smoke Test 结果
 
 | 指标 | 数值 |
@@ -309,8 +331,8 @@ Citation: B10.pdf:p8
 
 ## 下一步
 
-1. 保留 DeepSeek adapter 并做 provider 对照。
-2. 将 `hash-v1-384` 替换为专业 scientific embedding。
-3. 批量处理 5-20 篇 PDF，建立 review/curation 闭环。
-4. 增加 reranker 和 citation-aware answer check。
-5. 把前端结果展示升级为可审计 evidence 面板。
+1. 跑完剩余 70 篇 PDF，并把批处理失败原因分为可重试、解析异常、文件损坏三类。
+2. 将 411 条 review queue 建成 curated evidence 层，明确哪些记录可进入 ranking。
+3. 将 `enzyme_immobilization_b10` 迁移/重建为正式 collection 名称，避免 smoke 命名污染生产配置。
+4. 做 generator benchmark：DeepSeek-V3.2、DeepSeek-V4-Flash、Qwen3.6 小参数版本统一测 TTFT、tokens/s、JSON 合格率和 citation 引用准确率。
+5. 增加 reranker、citation-aware answer check 和表格错列修复，提升推荐可信度。

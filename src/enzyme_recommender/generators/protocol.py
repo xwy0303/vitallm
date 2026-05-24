@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional, Protocol
+from typing import Any, Dict, Iterator, List, Literal, Optional, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -52,10 +52,24 @@ class GenerationResponse(BaseModel):
     raw_response: Optional[Dict[str, Any]] = None
 
 
+class GenerationStreamChunk(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    provider: str
+    model: str
+    delta: str = ""
+    finish_reason: Optional[str] = None
+    usage: Dict[str, Any] = Field(default_factory=dict)
+    raw_event: Optional[Dict[str, Any]] = None
+
+
 class GeneratorClient(Protocol):
     provider: str
 
     def generate(self, request: GenerationRequest) -> GenerationResponse:
+        ...
+
+    def stream_generate(self, request: GenerationRequest) -> Iterator[GenerationStreamChunk]:
         ...
 
 
@@ -85,6 +99,22 @@ class MockGeneratorClient:
             content=content,
             finish_reason="stop",
             usage={"mock": True},
+        )
+
+    def stream_generate(self, request: GenerationRequest) -> Iterator[GenerationStreamChunk]:
+        response = self.generate(request)
+        chunk_size = 32
+        for start in range(0, len(response.content), chunk_size):
+            yield GenerationStreamChunk(
+                provider=self.provider,
+                model=request.model,
+                delta=response.content[start : start + chunk_size],
+            )
+        yield GenerationStreamChunk(
+            provider=self.provider,
+            model=request.model,
+            finish_reason=response.finish_reason,
+            usage=response.usage,
         )
 
 

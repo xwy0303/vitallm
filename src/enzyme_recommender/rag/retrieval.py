@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from enzyme_recommender.rag.embedding import HashEmbeddingConfig, HashEmbeddingModel
+from enzyme_recommender.rag.embedding import HashEmbeddingConfig, HashEmbeddingModel, SentenceEmbeddingModel
 from enzyme_recommender.rag.qdrant import QdrantConfig, QdrantRestClient
 
 
@@ -17,6 +17,7 @@ class RetrievalHit(BaseModel):
     score: float
     point_type: str
     source_id: str
+    parent_source_id: Optional[str] = None
     document_id: Optional[str] = None
     source_pdf: Optional[str] = None
     citation: Optional[str] = None
@@ -32,6 +33,7 @@ class RetrievalHit(BaseModel):
     extracted: Dict[str, Any] = Field(default_factory=dict)
     metrics: List[Dict[str, Any]] = Field(default_factory=list)
     text: str
+    source_chunk_text: Optional[str] = None
 
 
 class RetrievalResponse(BaseModel):
@@ -53,7 +55,7 @@ class RetrievalResponse(BaseModel):
                 "\n".join(
                     [
                         f"[{index}] score={hit.score:.4f} type={hit.point_type} record_type={hit.record_type or '-'}",
-                        f"citation={hit.citation or '-'} usable={hit.usable_for_ranking} flags={hit.quality_flags}",
+                        f"source_id={hit.source_id} citation={hit.citation or '-'} usable={hit.usable_for_ranking} flags={hit.quality_flags}",
                         f"extracted={hit.extracted}",
                         f"metrics={hit.metrics}",
                         f"text={text}",
@@ -67,7 +69,7 @@ class EvidenceRetriever:
     def __init__(
         self,
         qdrant_config: QdrantConfig,
-        embedding_model: Optional[HashEmbeddingModel] = None,
+        embedding_model: Optional[Union[HashEmbeddingModel, SentenceEmbeddingModel]] = None,
     ) -> None:
         self.qdrant_config = qdrant_config
         self.embedding_model = embedding_model or HashEmbeddingModel(HashEmbeddingConfig())
@@ -116,6 +118,7 @@ def raw_hit_to_retrieval_hit(raw_hit: Dict[str, Any]) -> RetrievalHit:
         score=float(raw_hit.get("score") or 0.0),
         point_type=str(payload.get("point_type") or ""),
         source_id=str(payload.get("source_id") or ""),
+        parent_source_id=payload.get("parent_source_id"),
         document_id=payload.get("document_id"),
         source_pdf=payload.get("source_pdf"),
         citation=payload.get("citation"),

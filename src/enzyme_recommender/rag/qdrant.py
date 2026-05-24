@@ -8,7 +8,12 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 import httpx
 
-from enzyme_recommender.rag.embedding import HashEmbeddingModel, weighted_document_text
+from enzyme_recommender.rag.embedding import (
+    HashEmbeddingModel,
+    SentenceEmbeddingModel,
+    embed_many,
+    weighted_document_text,
+)
 
 
 Point = Dict[str, Any]
@@ -38,7 +43,23 @@ class QdrantRestClient:
 
     def ensure_collection(self, vector_size: int, recreate: bool = False) -> None:
         if recreate:
-            self._request("DELETE", f"/collections/{self.config.collection}")
+            self.delete_collection()
+
+        collection_info = self.get_collection_info()
+        if collection_info is not None:
+            existing_size = extract_collection_vector_size(collection_info)
+            if existing_size is None:
+                raise RuntimeError(
+                    f"cannot determine vector size for Qdrant collection '{self.config.collection}'; "
+                    "use a single-vector collection or recreate it for this pipeline."
+                )
+            if existing_size != vector_size:
+                raise RuntimeError(
+                    f"Qdrant collection '{self.config.collection}' has vector size {existing_size}, "
+                    f"but the embedding model produces {vector_size}. "
+                    "Use --recreate or choose a collection indexed with the same embedding model."
+                )
+            return
 
         response = self._request(
             "PUT",
@@ -50,10 +71,19 @@ class QdrantRestClient:
                 }
             },
         )
+        if response.status_code == 409:
+            collection_info = self.get_collection_info()
+            existing_size = extract_collection_vector_size(collection_info or {})
+            if existing_size == vector_size:
+                return
         if response.status_code not in {200, 201}:
             raise RuntimeError(f"Qdrant collection setup failed: {response.status_code} {response.text}")
 
     def upsert_points(self, points: Sequence[Point], batch_size: int = 64) -> None:
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+        if not points:
+            return
         for start in range(0, len(points), batch_size):
             batch = points[start : start + batch_size]
             response = self._request(
@@ -64,7 +94,28 @@ class QdrantRestClient:
             if response.status_code not in {200, 201}:
                 raise RuntimeError(f"Qdrant upsert failed: {response.status_code} {response.text}")
 
-    def search(self, vector: Sequence[float], top_k: int = 10, query_filter: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def search(
+        self,
+        vector: Sequence[float],
+        top_k: int = 10,
+        query_filter: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        if top_k <= 0:
+            raise ValueError("top_k must be positive")
+        collection_info = self.get_collection_info()
+        if collection_info is None:
+            raise RuntimeError(f"Qdrant collection does not exist: {self.config.collection}")
+        existing_size = extract_collection_vector_size(collection_info)
+        if existing_size is None:
+            raise RuntimeError(
+                f"cannot determine vector size for Qdrant collection '{self.config.collection}'; "
+                "use a single-vector collection or recreate it for this pipeline."
+            )
+        if existing_size != len(vector):
+            raise RuntimeError(
+                f"Qdrant collection '{self.config.collection}' has vector size {existing_size}, "
+                f"but query vector has size {len(vector)}. Use the embedding model that built this collection."
+            )
         payload: Dict[str, Any] = {
             "vector": list(vector),
             "limit": top_k,
@@ -85,6 +136,23 @@ class QdrantRestClient:
             raise RuntimeError(f"unexpected Qdrant search response: {response.text}")
         return result
 
+    def get_collection_info(self) -> Optional[Dict[str, Any]]:
+        response = self._request("GET", f"/collections/{self.config.collection}")
+        if response.status_code == 404:
+            return None
+        if response.status_code != 200:
+            raise RuntimeError(f"Qdrant collection inspect failed: {response.status_code} {response.text}")
+        payload = response.json()
+        result = payload.get("result")
+        if not isinstance(result, dict):
+            raise RuntimeError(f"unexpected Qdrant collection response: {response.text}")
+        return result
+
+    def delete_collection(self) -> None:
+        response = self._request("DELETE", f"/collections/{self.config.collection}")
+        if response.status_code not in {200, 202, 404}:
+            raise RuntimeError(f"Qdrant collection delete failed: {response.status_code} {response.text}")
+
     def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         url = f"{self.base_url}{path}"
         try:
@@ -94,6 +162,25 @@ class QdrantRestClient:
                 f"cannot connect to Qdrant at {self.base_url}; "
                 "start the local service first with scripts/start_qdrant_local.sh"
             ) from exc
+
+
+def extract_collection_vector_size(collection_info: Dict[str, Any]) -> Optional[int]:
+    vectors = (
+        collection_info.get("config", {})
+        .get("params", {})
+        .get("vectors")
+    )
+    if isinstance(vectors, dict) and isinstance(vectors.get("size"), int):
+        return vectors["size"]
+    if isinstance(vectors, dict):
+        sizes = {
+            value.get("size")
+            for value in vectors.values()
+            if isinstance(value, dict) and isinstance(value.get("size"), int)
+        }
+        if len(sizes) == 1:
+            return sizes.pop()
+    return None
 
 
 def load_jsonl(path: Path) -> List[Dict[str, Any]]:
@@ -112,7 +199,7 @@ def load_jsonl(path: Path) -> List[Dict[str, Any]]:
 def build_index_points(
     rag_input_dir: Path,
     evidence_dir: Optional[Path],
-    embedding_model: HashEmbeddingModel,
+    embedding_model: HashEmbeddingModel | SentenceEmbeddingModel,
 ) -> List[Point]:
     rows: List[Dict[str, Any]] = []
     rows.extend(chunk_to_document(row) for row in load_jsonl(rag_input_dir / "rag_chunks.jsonl"))
@@ -121,14 +208,24 @@ def build_index_points(
     if evidence_dir is not None and (evidence_dir / "evidence_records.jsonl").exists():
         rows.extend(evidence_to_document(row) for row in load_jsonl(evidence_dir / "evidence_records.jsonl"))
 
-    points: List[Point] = []
+    embedding_texts: List[str] = []
+    payload_rows: List[Dict[str, Any]] = []
     for row in rows:
-        text = row.pop("_embedding_text")
+        payload_row = dict(row)
+        embedding_texts.append(str(payload_row.pop("_embedding_text")))
+        payload_rows.append(payload_row)
+
+    vectors = embed_many(embedding_model, embedding_texts)
+    if len(vectors) != len(payload_rows):
+        raise RuntimeError(f"embedding model returned {len(vectors)} vectors for {len(payload_rows)} documents")
+
+    points: List[Point] = []
+    for row, vector in zip(payload_rows, vectors):
         point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, row["payload_key"]))
         points.append(
             {
                 "id": point_id,
-                "vector": embedding_model.embed(text),
+                "vector": vector,
                 "payload": row,
             }
         )
@@ -239,8 +336,16 @@ def citation(row: Dict[str, Any]) -> str:
     if page_start is None:
         return str(source_pdf)
     if page_end is None or page_end == page_start:
-        return f"{source_pdf}:p{page_start}"
-    return f"{source_pdf}:p{page_start}-p{page_end}"
+        return f"{source_pdf}:p{display_page_number(page_start)}"
+    return f"{source_pdf}:p{display_page_number(page_start)}-p{display_page_number(page_end)}"
+
+
+def display_page_number(page_index: Any) -> Any:
+    """MinerU page_idx is 0-based; citations and PDF viewers are 1-based."""
+    try:
+        return int(page_index) + 1
+    except (TypeError, ValueError):
+        return page_index
 
 
 def point_type_counts(points: Iterable[Point]) -> Dict[str, int]:

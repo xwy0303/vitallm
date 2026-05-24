@@ -169,8 +169,8 @@
             <h3>PDF 切片引擎</h3>
             <p>只使用本地/自托管 MinerU，支持 PDF 到 Markdown、content list、表格与图片 artifact。</p>
             <div class="metric-line">
-              <span>B10 smoke</span>
-              <strong>14 pages</strong>
+              <span>27 docs</span>
+              <strong>323 pages</strong>
             </div>
           </article>
 
@@ -180,7 +180,7 @@
                 <p class="eyebrow">Evidence Pipeline</p>
                 <h3>从论文到推荐的证据链</h3>
               </div>
-              <span class="badge green">119 points</span>
+              <span class="badge green">2508 points</span>
             </div>
             <div class="pipeline">
               <div>
@@ -222,12 +222,32 @@
             <h3>人工审核队列</h3>
             <p>对 OCR 异常、百分比异常、疑似错列的证据进行人工确认，进入 curated evidence。</p>
             <div class="review-count">
-              <strong>24</strong>
-              <span>B10 review items</span>
+              <strong>411</strong>
+              <span>review items</span>
             </div>
           </article>
         </section>
       </main>
+    </div>
+    <div class="reference-modal" data-reference-modal hidden>
+      <div class="reference-modal-backdrop" data-close-reference-modal></div>
+      <section
+        class="reference-modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reference-modal-title"
+      >
+        <header class="reference-modal-header">
+          <div>
+            <p class="eyebrow">Reference Chunk</p>
+            <h3 id="reference-modal-title" data-reference-modal-title>参考论文</h3>
+          </div>
+          <button class="icon-button" type="button" aria-label="关闭" data-close-reference-modal>×</button>
+        </header>
+        <div class="reference-modal-meta" data-reference-modal-meta></div>
+        <div class="reference-modal-text" data-reference-modal-text></div>
+        <footer class="reference-modal-footer" data-reference-modal-footer></footer>
+      </section>
     </div>
     <script src="./app.js"></script>
   </body>

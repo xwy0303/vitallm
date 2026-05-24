@@ -40,8 +40,12 @@ class VectorStoreConfig(StrictBaseModel):
 
 
 class EmbeddingConfig(StrictBaseModel):
-    provider: Literal["hash_v1"] = "hash_v1"
+    provider: Literal["hash_v1", "sentence"] = "hash_v1"
     dimensions: int = Field(default=384, ge=64, le=4096)
+    model_name: str = Field(default="BAAI/bge-base-en-v1.5")
+    device: str = Field(default="mps")
+    cache_folder: Optional[str] = None
+    local_files_only: bool = False
 
 
 class RetrievalConfig(StrictBaseModel):

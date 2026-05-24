@@ -4,7 +4,8 @@ import hashlib
 import math
 import re
 from dataclasses import dataclass
-from typing import Iterable, List, Sequence
+from pathlib import Path
+from typing import Any, Iterable, List, Optional, Sequence
 
 
 TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9\-]{1,}|[0-9]+(?:\.[0-9]+)?%?")
@@ -81,9 +82,83 @@ def hash_feature(feature: str, dimensions: int) -> tuple[int, float]:
     return index, sign
 
 
-def embed_many(model: HashEmbeddingModel, texts: Iterable[str]) -> List[List[float]]:
+def embed_many(model: HashEmbeddingModel | SentenceEmbeddingModel, texts: Iterable[str]) -> List[List[float]]:
+    if isinstance(model, SentenceEmbeddingModel):
+        return model.embed_many(texts)
     return [model.embed(text) for text in texts]
 
 
 def weighted_document_text(parts: Sequence[str | None]) -> str:
     return "\n".join(part.strip() for part in parts if part and part.strip())
+
+
+@dataclass(frozen=True)
+class SentenceEmbeddingConfig:
+    model_name: str = "BAAI/bge-base-en-v1.5"
+    dimensions: int = 768
+    device: str = "mps"
+    normalize_embeddings: bool = True
+    cache_folder: Optional[str] = None
+    local_files_only: bool = False
+
+
+class SentenceEmbeddingModel:
+    """Semantic embedding via sentence-transformers.
+
+    Uses BGE or compatible model for meaningful vector representations.
+    Model is lazy-loaded on first call to avoid import overhead.
+    """
+
+    def __init__(self, config: Optional[SentenceEmbeddingConfig] = None) -> None:
+        self.config = config or SentenceEmbeddingConfig()
+        self._model: Any = None
+
+    @property
+    def dimensions(self) -> int:
+        return self.config.dimensions
+
+    @property
+    def name(self) -> str:
+        return f"sentence:{self.config.model_name}"
+
+    def embed(self, text: str) -> List[float]:
+        model = self._load_model()
+        vector = model.encode(text, normalize_embeddings=self.config.normalize_embeddings)
+        return self._normalize_vector(vector)
+
+    def embed_many(self, texts: Iterable[str]) -> List[List[float]]:
+        model = self._load_model()
+        batch = list(texts)
+        if not batch:
+            return []
+        vectors = model.encode(batch, normalize_embeddings=self.config.normalize_embeddings)
+        return [self._normalize_vector(vec) for vec in vectors]
+
+    def _load_model(self) -> Any:
+        if self._model is not None:
+            return self._model
+        from sentence_transformers import SentenceTransformer
+
+        cache_folder = str(Path(self.config.cache_folder).expanduser()) if self.config.cache_folder else None
+        self._model = SentenceTransformer(
+            self.config.model_name,
+            device=self.config.device,
+            cache_folder=cache_folder,
+            local_files_only=self.config.local_files_only,
+        )
+        actual_dimensions = self._model.get_sentence_embedding_dimension()
+        if actual_dimensions != self.config.dimensions:
+            raise ValueError(
+                f"embedding dimension mismatch for {self.config.model_name}: "
+                f"config={self.config.dimensions}, model={actual_dimensions}"
+            )
+        return self._model
+
+    def _normalize_vector(self, vector: Any) -> List[float]:
+        values = list(map(float, vector))
+        if len(values) != self.config.dimensions:
+            raise ValueError(
+                f"embedding vector dimension mismatch for {self.config.model_name}: "
+                f"config={self.config.dimensions}, vector={len(values)}"
+            )
+        return values

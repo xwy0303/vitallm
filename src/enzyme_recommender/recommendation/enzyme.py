@@ -67,13 +67,43 @@ class RecommendationService:
         self.runtime = runtime
 
     def recommend_by_enzyme(self, request: EnzymeRecommendationRequest) -> EnzymeRecommendationResponse:
+        retrieval = self.retrieve_evidence(request)
+        generation = self._generate_recommendation(request, retrieval)
+        return self.build_response(request, retrieval, generation)
+
+    def retrieve_evidence(self, request: EnzymeRecommendationRequest) -> RetrievalResponse:
         retrieval_query = build_retrieval_query(request)
-        retrieval = self.runtime.retriever().retrieve(
+        return self.runtime.retriever().retrieve(
             query=retrieval_query,
             top_k=request.top_k or self.runtime.config.retrieval.top_k,
             usable_only=self.runtime.config.retrieval.usable_only,
         )
-        generation = self._generate_recommendation(request, retrieval)
+
+    def build_generation_request(
+        self,
+        request: EnzymeRecommendationRequest,
+        retrieval: RetrievalResponse,
+    ) -> GenerationRequest:
+        config = self.runtime.config
+        provider_config = config.generator_providers[config.generator.provider]
+        return GenerationRequest(
+            messages=[
+                ChatMessage(role="system", content=SYSTEM_PROMPT),
+                ChatMessage(role="user", content=build_generation_prompt(request, retrieval)),
+            ],
+            model=provider_config.model,
+            temperature=config.generator.temperature,
+            response_format="json_object",
+            timeout_seconds=config.generator.timeout_seconds,
+            max_retries=config.generator.max_retries,
+        )
+
+    def build_response(
+        self,
+        request: EnzymeRecommendationRequest,
+        retrieval: RetrievalResponse,
+        generation: GenerationResponse,
+    ) -> EnzymeRecommendationResponse:
         generation_json = parse_json_object(generation.content)
         candidates = build_candidates_from_generation_or_evidence(generation_json, retrieval)
         return EnzymeRecommendationResponse(
@@ -81,7 +111,7 @@ class RecommendationService:
             created_at=datetime.now(timezone.utc).isoformat(),
             target_enzyme=request.enzyme_name,
             objective=request.objective,
-            retrieval_query=retrieval_query,
+            retrieval_query=build_retrieval_query(request),
             generator_provider=generation.provider,
             generator_model=generation.model,
             candidates=candidates,
@@ -97,22 +127,8 @@ class RecommendationService:
         request: EnzymeRecommendationRequest,
         retrieval: RetrievalResponse,
     ) -> GenerationResponse:
-        config = self.runtime.config
-        provider_config = config.generator_providers[config.generator.provider]
         generator = self.runtime.generator()
-        return generator.generate(
-            GenerationRequest(
-                messages=[
-                    ChatMessage(role="system", content=SYSTEM_PROMPT),
-                    ChatMessage(role="user", content=build_generation_prompt(request, retrieval)),
-                ],
-                model=provider_config.model,
-                temperature=config.generator.temperature,
-                response_format="json_object",
-                timeout_seconds=config.generator.timeout_seconds,
-                max_retries=config.generator.max_retries,
-            )
-        )
+        return generator.generate(self.build_generation_request(request, retrieval))
 
 
 SYSTEM_PROMPT = """你是一个面向生物酶固定化的 evidence-first 推荐助手。
@@ -158,8 +174,11 @@ def build_candidates_from_generation_or_evidence(
         for index, raw_candidate in enumerate(generation_json["candidates"], start=1):
             if not isinstance(raw_candidate, dict):
                 continue
+            sanitized = _sanitize_candidate(raw_candidate, retrieval)
+            if not sanitized["evidence_ids"] and not sanitized["citations"]:
+                continue
             try:
-                candidates.append(RecommendedCandidate.model_validate(raw_candidate))
+                candidates.append(RecommendedCandidate.model_validate(sanitized))
             except ValueError:
                 continue
         if candidates:
@@ -191,6 +210,25 @@ def build_candidates_from_generation_or_evidence(
         )
         if len(evidence_candidates) >= 3:
             break
+
+    # Fallback: if no structured candidates were built but there are hits,
+    # create a generic candidate from the top retrieval hit.
+    if not evidence_candidates and retrieval.hits:
+        top = retrieval.hits[0]
+        evidence_candidates.append(
+            RecommendedCandidate(
+                rank=1,
+                strategy_summary=top.text[:300] if top.text else "retrieved evidence",
+                carrier=None,
+                immobilization_method=None,
+                recommended_conditions=first_formulation_conditions(retrieval),
+                expected_benefits=benefits_from_hit(top),
+                risks=[],
+                evidence_ids=[top.source_id],
+                citations=[top.citation] if top.citation else [],
+                confidence=top.confidence or "low",
+            )
+        )
 
     return evidence_candidates
 
@@ -318,3 +356,68 @@ def make_recommendation_id(request: EnzymeRecommendationRequest, retrieval: Retr
     seed = "|".join([request.enzyme_name, request.objective, ",".join(hit.source_id for hit in retrieval.hits[:5])])
     digest = hashlib.sha1(seed.encode("utf-8")).hexdigest()
     return f"rec_{digest[:12]}"
+
+
+def _sanitize_candidate(candidate: Dict[str, Any], retrieval: RetrievalResponse) -> Dict[str, Any]:
+    """Sanitize LLM-generated candidate to match RecommendedCandidate model constraints."""
+    sanitized = dict(candidate)
+    sanitized["evidence_ids"], sanitized["citations"] = resolve_evidence_refs(
+        raw_ids=sanitized.get("evidence_ids"),
+        raw_citations=sanitized.get("citations"),
+        retrieval=retrieval,
+    )
+    # confidence must be a valid value
+    confidence = sanitized.get("confidence")
+    if confidence not in ("low", "medium", "high"):
+        sanitized["confidence"] = "medium"
+    return sanitized
+
+
+def resolve_evidence_refs(
+    raw_ids: Any,
+    raw_citations: Any,
+    retrieval: RetrievalResponse,
+) -> tuple[List[str], List[str]]:
+    hits_by_id = {hit.source_id: hit for hit in retrieval.hits}
+    hits_by_citation = {hit.citation: hit for hit in retrieval.hits if hit.citation}
+    evidence_ids: List[str] = []
+    citations: List[str] = []
+
+    id_items = raw_ids if isinstance(raw_ids, list) else []
+    for raw_id in id_items:
+        ref = str(raw_id).strip()
+        hit = resolve_hit_ref(ref, retrieval, hits_by_id, hits_by_citation)
+        if hit is not None:
+            evidence_ids.append(hit.source_id)
+            if hit.citation:
+                citations.append(hit.citation)
+
+    citation_items = raw_citations if isinstance(raw_citations, list) else []
+    for raw_citation in citation_items:
+        ref = str(raw_citation).strip()
+        hit = resolve_hit_ref(ref, retrieval, hits_by_id, hits_by_citation)
+        if hit is not None:
+            evidence_ids.append(hit.source_id)
+            if hit.citation:
+                citations.append(hit.citation)
+
+    return dedupe_strings(evidence_ids), dedupe_strings(citations)
+
+
+def resolve_hit_ref(
+    ref: str,
+    retrieval: RetrievalResponse,
+    hits_by_id: Dict[str, RetrievalHit],
+    hits_by_citation: Dict[str, RetrievalHit],
+) -> Optional[RetrievalHit]:
+    if not ref:
+        return None
+    if ref in hits_by_id:
+        return hits_by_id[ref]
+    if ref in hits_by_citation:
+        return hits_by_citation[ref]
+    if ref.isdigit():
+        index = int(ref) - 1
+        if 0 <= index < len(retrieval.hits):
+            return retrieval.hits[index]
+    return None

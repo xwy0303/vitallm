@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from enzyme_recommender.generators import ChatMessage, GenerationRequest, GenerationResponse
 from enzyme_recommender.rag.retrieval import RetrievalHit, RetrievalResponse
-from enzyme_recommender.recommendation.enzyme import parse_json_object
+from enzyme_recommender.recommendation.enzyme import parse_json_object, resolve_evidence_refs
 from enzyme_recommender.runtime import RuntimeServices
 
 
@@ -73,13 +73,43 @@ class FormulationOptimizationService:
         self.runtime = runtime
 
     def optimize_formulation(self, request: FormulationOptimizationRequest) -> FormulationOptimizationResponse:
+        retrieval = self.retrieve_evidence(request)
+        generation = self._generate_optimization(request, retrieval)
+        return self.build_response(request, retrieval, generation)
+
+    def retrieve_evidence(self, request: FormulationOptimizationRequest) -> RetrievalResponse:
         retrieval_query = build_formulation_retrieval_query(request)
-        retrieval = self.runtime.retriever().retrieve(
+        return self.runtime.retriever().retrieve(
             query=retrieval_query,
             top_k=request.top_k or self.runtime.config.retrieval.top_k,
             usable_only=self.runtime.config.retrieval.usable_only,
         )
-        generation = self._generate_optimization(request, retrieval)
+
+    def build_generation_request(
+        self,
+        request: FormulationOptimizationRequest,
+        retrieval: RetrievalResponse,
+    ) -> GenerationRequest:
+        config = self.runtime.config
+        provider_config = config.generator_providers[config.generator.provider]
+        return GenerationRequest(
+            messages=[
+                ChatMessage(role="system", content=SYSTEM_PROMPT),
+                ChatMessage(role="user", content=build_optimization_prompt(request, retrieval)),
+            ],
+            model=provider_config.model,
+            temperature=config.generator.temperature,
+            response_format="json_object",
+            timeout_seconds=config.generator.timeout_seconds,
+            max_retries=config.generator.max_retries,
+        )
+
+    def build_response(
+        self,
+        request: FormulationOptimizationRequest,
+        retrieval: RetrievalResponse,
+        generation: GenerationResponse,
+    ) -> FormulationOptimizationResponse:
         generation_json = parse_json_object(generation.content)
         changes = build_changes_from_generation_or_evidence(generation_json, request, retrieval)
         return FormulationOptimizationResponse(
@@ -87,7 +117,7 @@ class FormulationOptimizationService:
             created_at=datetime.now(timezone.utc).isoformat(),
             target_enzyme=request.enzyme_name,
             objective=request.objective,
-            retrieval_query=retrieval_query,
+            retrieval_query=build_formulation_retrieval_query(request),
             generator_provider=generation.provider,
             generator_model=generation.model,
             changes=changes,
@@ -103,22 +133,8 @@ class FormulationOptimizationService:
         request: FormulationOptimizationRequest,
         retrieval: RetrievalResponse,
     ) -> GenerationResponse:
-        config = self.runtime.config
-        provider_config = config.generator_providers[config.generator.provider]
         generator = self.runtime.generator()
-        return generator.generate(
-            GenerationRequest(
-                messages=[
-                    ChatMessage(role="system", content=SYSTEM_PROMPT),
-                    ChatMessage(role="user", content=build_optimization_prompt(request, retrieval)),
-                ],
-                model=provider_config.model,
-                temperature=config.generator.temperature,
-                response_format="json_object",
-                timeout_seconds=config.generator.timeout_seconds,
-                max_retries=config.generator.max_retries,
-            )
-        )
+        return generator.generate(self.build_generation_request(request, retrieval))
 
 
 SYSTEM_PROMPT = """你是一个面向生物酶固定化配方优化的 evidence-first 助手。
@@ -168,6 +184,9 @@ def build_changes_from_generation_or_evidence(
         for raw_change in generation_json["changes"]:
             if not isinstance(raw_change, dict):
                 continue
+            raw_change = sanitize_generation_change(raw_change, retrieval)
+            if not raw_change["evidence_ids"] and not raw_change["citations"]:
+                continue
             try:
                 changes.append(FormulationChange.model_validate(raw_change))
             except ValueError:
@@ -206,6 +225,18 @@ def build_changes_from_generation_or_evidence(
             break
 
     return changes
+
+
+def sanitize_generation_change(change: Dict[str, Any], retrieval: RetrievalResponse) -> Dict[str, Any]:
+    sanitized = dict(change)
+    sanitized["evidence_ids"], sanitized["citations"] = resolve_evidence_refs(
+        raw_ids=sanitized.get("evidence_ids"),
+        raw_citations=sanitized.get("citations"),
+        retrieval=retrieval,
+    )
+    if sanitized.get("confidence") not in {"low", "medium", "high"}:
+        sanitized["confidence"] = "medium"
+    return sanitized
 
 
 class ReferenceItem(BaseModel):

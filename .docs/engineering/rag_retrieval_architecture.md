@@ -24,6 +24,8 @@ enzyme_immobilization
 enzyme_immobilization_b10
 ```
 
+这个 collection 名称保留了最初的 smoke test 语义，但当前已经承载 27 篇 PDF 的批处理结果；后续应迁移到正式 collection 名称，避免继续误导配置语义。
+
 同一个 collection 存三类 point：
 
 - `rag_chunk`：正文和表格镜像 chunk，用于召回上下文。
@@ -56,18 +58,17 @@ enzyme_immobilization_b10
 
 ## Embedding 策略
 
-当前使用 `hash-v1-384` deterministic local embedding。
+当前使用 `BAAI/bge-base-en-v1.5` sentence embedding（768 维，`local_files_only: true`）。
 
 使用原因：
 
-- 不依赖外部 API。
-- 不需要下载模型。
+- 当前实现仍可离线加载本地模型缓存，避免外网依赖。
 - 可稳定验证 Qdrant 写入、搜索和 metadata filter。
 - 便于在无网络环境中做 smoke test。
 
 边界：
 
-- 该 embedding 不能作为最终专业语义检索模型。
+- 该 embedding 仍不是最终专业语义检索模型。
 - 后续应替换为 BGE-M3、SciBERT/SPECTER 类科学文本 embedding，或领域微调 reranker。
 - 替换时只改 embedding backend，不改 RAG artifact schema 和 Qdrant payload contract。
 
@@ -133,7 +134,7 @@ usable_for_ranking=true
 B10 本地 smoke test 应满足：
 
 - 能构建 `rag_chunk`、`table_record`、`evidence_record` 三类 point。
-- 真实 Qdrant collection `enzyme_immobilization_b10` points count 为 119。
+- 真实 Qdrant collection `enzyme_immobilization_b10` points count 当前约为 2508。
 - 查询 BCL/ZIF-8 能召回 enzyme identity 和 immobilization strategy。
 - 查询 `This study soybean oil ethanol yield 93.4 8 cycles` 时，第一名应为 B10 this-study 表格 evidence。
 - Qdrant 未启动时，离线 local search 仍可验证 embedding 和 point payload。

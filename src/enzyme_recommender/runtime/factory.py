@@ -6,7 +6,12 @@ from pathlib import Path
 from enzyme_recommender.generators.openai_compatible import OpenAICompatibleGeneratorClient
 from enzyme_recommender.generators.protocol import GeneratorClient, MockGeneratorClient
 from enzyme_recommender.ingestion import MinerUClient
-from enzyme_recommender.rag.embedding import HashEmbeddingConfig, HashEmbeddingModel
+from enzyme_recommender.rag.embedding import (
+    HashEmbeddingConfig,
+    HashEmbeddingModel,
+    SentenceEmbeddingConfig,
+    SentenceEmbeddingModel,
+)
 from enzyme_recommender.rag.qdrant import QdrantConfig
 from enzyme_recommender.rag.retrieval import EvidenceRetriever
 from enzyme_recommender.runtime.config import RuntimeConfig
@@ -28,8 +33,18 @@ class RuntimeServices:
             timeout=parser_config.timeout_seconds,
         )
 
-    def embedding_model(self) -> HashEmbeddingModel:
+    def embedding_model(self) -> HashEmbeddingModel | SentenceEmbeddingModel:
         embedding_config = self.config.embedding
+        if embedding_config.provider == "sentence":
+            return SentenceEmbeddingModel(
+                SentenceEmbeddingConfig(
+                    model_name=embedding_config.model_name,
+                    dimensions=embedding_config.dimensions,
+                    device=embedding_config.device,
+                    cache_folder=embedding_config.cache_folder,
+                    local_files_only=embedding_config.local_files_only,
+                )
+            )
         return HashEmbeddingModel(HashEmbeddingConfig(dimensions=embedding_config.dimensions))
 
     def qdrant_config(self) -> QdrantConfig:
