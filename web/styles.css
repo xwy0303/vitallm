@@ -444,11 +444,23 @@ a {
   overflow-wrap: anywhere;
 }
 
+.candidate-summary {
+  font-size: 14px;
+}
+
 .result-card-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.result-card-head strong {
+  min-width: 0;
+  color: var(--green-900);
+  font-size: 16px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .result-card-head span {

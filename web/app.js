@@ -384,10 +384,10 @@ function renderRecommendation(data) {
             (item) => `
               <article class="result-card">
                 <div class="result-card-head">
-                  <strong>#${escapeHtml(item.rank)} ${escapeHtml(item.carrier || item.strategy_summary)}</strong>
+                  <strong>#${escapeHtml(item.rank)} ${escapeHtml(formatCandidateTitle(item))}</strong>
                   <span>${escapeHtml(item.confidence)}</span>
                 </div>
-                <p>${escapeHtml(item.strategy_summary)}</p>
+                <p class="candidate-summary">${escapeHtml(truncateDisplayText(cleanDisplayText(item.strategy_summary), 420))}</p>
                 <p><b>method</b>: ${escapeHtml(item.immobilization_method || "-")}</p>
                 ${renderKeyValues(item.recommended_conditions)}
                 ${renderList("expected benefits", item.expected_benefits)}
@@ -535,8 +535,8 @@ function renderReferenceSection(hits) {
 function renderReferenceCard(hit, index, options = {}) {
   const key = referenceKey(hit, index);
   const citation = formatReferenceCitation(hit);
-  const text = getReferenceText(hit);
-  const preview = text.length > 320 ? `${text.slice(0, 320).trimEnd()}...` : text;
+  const text = cleanDisplayText(getReferenceText(hit));
+  const preview = truncateDisplayText(text, 320);
   const pdfName = hit.source_pdf || parsePdfName(citation) || "-";
   const pdfUrl = buildPdfUrl(hit);
   return `
@@ -581,7 +581,7 @@ function renderReferenceModalContent() {
   }
   const hit = activeReferenceHit;
   const citation = formatReferenceCitation(hit);
-  const text = getReferenceText(hit) || "无 chunk 文本";
+  const text = cleanDisplayText(getReferenceText(hit)) || "无 chunk 文本";
   const isLong = text.length > CHUNK_PREVIEW_LIMIT;
   const visibleText = isLong && !activeReferenceExpanded ? `${text.slice(0, CHUNK_PREVIEW_LIMIT).trimEnd()}...` : text;
   const pdfName = hit.source_pdf || parsePdfName(citation) || "-";
@@ -643,6 +643,39 @@ function parsePageStart(citation) {
 
 function getReferenceText(hit) {
   return String(hit.source_chunk_text || hit.text || "");
+}
+
+function formatCandidateTitle(item) {
+  const carrier = cleanDisplayText(item.carrier);
+  if (carrier && carrier !== "-") return truncateDisplayText(carrier, 96);
+
+  const method = cleanDisplayText(item.immobilization_method);
+  if (method && method !== "-") return truncateDisplayText(method, 96);
+
+  const citation = Array.isArray(item.citations) ? item.citations.find(Boolean) : item.citations;
+  if (citation) return `Evidence ${truncateDisplayText(formatValue(citation), 72)}`;
+
+  return "Candidate";
+}
+
+function cleanDisplayText(value) {
+  return String(value || "")
+    .replace(/\$+/g, " ")
+    .replace(/\\(?:mathrm|text|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, "$1")
+    .replace(/\\(?:mathrm|text|mathbf|mathit|operatorname)\b/g, "")
+    .replace(/\\[a-zA-Z]+/g, " ")
+    .replace(/[{}]/g, "")
+    .replace(/\s*_\s*/g, "_")
+    .replace(/\s*@\s*/g, "@")
+    .replace(/\s*\/\s*/g, "/")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function truncateDisplayText(value, limit) {
+  const text = String(value || "").trim();
+  if (!text || text.length <= limit) return text;
+  return `${text.slice(0, limit).trimEnd()}...`;
 }
 
 function displayPageNumber(pageIndex) {
