@@ -25,7 +25,7 @@ retrieval:
   usable_only: true
 
 generator:
-  provider: mock
+  provider: siliconflow
   temperature: 0.1
   timeout_seconds: 60
   max_retries: 2
