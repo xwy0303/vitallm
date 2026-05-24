@@ -136,6 +136,30 @@ class QdrantRestClient:
             raise RuntimeError(f"unexpected Qdrant search response: {response.text}")
         return result
 
+    def scroll_payloads(
+        self,
+        query_filter: Dict[str, Any],
+        limit: int = 32,
+    ) -> List[Dict[str, Any]]:
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        response = self._request(
+            "POST",
+            f"/collections/{self.config.collection}/points/scroll",
+            json={
+                "filter": query_filter,
+                "limit": limit,
+                "with_payload": True,
+                "with_vector": False,
+            },
+        )
+        if response.status_code != 200:
+            raise RuntimeError(f"Qdrant scroll failed: {response.status_code} {response.text}")
+        points = response.json().get("result", {}).get("points")
+        if not isinstance(points, list):
+            raise RuntimeError(f"unexpected Qdrant scroll response: {response.text}")
+        return [dict(point.get("payload") or {}) for point in points]
+
     def get_collection_info(self) -> Optional[Dict[str, Any]]:
         response = self._request("GET", f"/collections/{self.config.collection}")
         if response.status_code == 404:

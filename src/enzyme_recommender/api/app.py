@@ -17,6 +17,7 @@ from enzyme_recommender.api.models import (
     RecommendByEnzymeApiRequest,
     SearchEvidenceApiRequest,
 )
+from enzyme_recommender.rag.qdrant import QdrantRestClient
 from enzyme_recommender.rag.retrieval import PointType
 from enzyme_recommender.rag.retrieval import RetrievalHit, RetrievalResponse
 from enzyme_recommender.recommendation import (
@@ -34,6 +35,7 @@ T = TypeVar("T")
 PROJECT_DIR = Path(__file__).resolve().parents[3]
 PDF_DIR = PROJECT_DIR / "MOF固定化脂肪酶文献调研"
 RAG_INPUT_DIR = PROJECT_DIR / "artifacts" / "rag_inputs"
+REFERENCE_NEIGHBOR_WINDOW = 1
 
 
 def create_app(config_path: Optional[str | Path] = None) -> FastAPI:
@@ -139,7 +141,7 @@ def register_routes(app: FastAPI) -> None:
             point_type=validate_point_type(payload.point_type),
             usable_only=runtime.config.retrieval.usable_only if payload.usable_only is None else payload.usable_only,
         )
-        return enrich_retrieval_response(response).model_dump(mode="json")
+        return enrich_retrieval_response(runtime, response).model_dump(mode="json")
 
     @app.get("/api/pdfs/{pdf_name}")
     def get_pdf(pdf_name: str) -> FileResponse:
@@ -185,16 +187,22 @@ def make_formulation_optimization_request(payload: OptimizeFormulationApiRequest
 def recommend_by_enzyme_response(runtime: RuntimeServices, payload: RecommendByEnzymeApiRequest):
     runtime = runtime_with_collection(runtime, payload.collection)
     service = RecommendationService(runtime)
-    response = service.recommend_by_enzyme(make_enzyme_recommendation_request(payload))
-    response.evidence_hits = enrich_retrieval_hits(response.evidence_hits)
+    request = make_enzyme_recommendation_request(payload)
+    retrieval = service.retrieve_evidence(request)
+    retrieval.hits = enrich_retrieval_hits(runtime, retrieval.hits)
+    generation = service.runtime.generator().generate(service.build_generation_request(request, retrieval))
+    response = service.build_response(request, retrieval, generation)
     return response
 
 
 def optimize_formulation_response(runtime: RuntimeServices, payload: OptimizeFormulationApiRequest):
     runtime = runtime_with_collection(runtime, payload.collection)
     service = FormulationOptimizationService(runtime)
-    response = service.optimize_formulation(make_formulation_optimization_request(payload))
-    response.evidence_hits = enrich_retrieval_hits(response.evidence_hits)
+    request = make_formulation_optimization_request(payload)
+    retrieval = service.retrieve_evidence(request)
+    retrieval.hits = enrich_retrieval_hits(runtime, retrieval.hits)
+    generation = service.runtime.generator().generate(service.build_generation_request(request, retrieval))
+    response = service.build_response(request, retrieval, generation)
     return response
 
 
@@ -214,13 +222,14 @@ def validate_point_type(value: Optional[str]) -> Optional[PointType]:
     return value  # type: ignore[return-value]
 
 
-def enrich_retrieval_response(response: RetrievalResponse) -> RetrievalResponse:
-    response.hits = enrich_retrieval_hits(response.hits)
+def enrich_retrieval_response(runtime: RuntimeServices, response: RetrievalResponse) -> RetrievalResponse:
+    response.hits = enrich_retrieval_hits(runtime, response.hits)
     return response
 
 
-def enrich_retrieval_hits(hits: list[RetrievalHit]) -> list[RetrievalHit]:
-    reference_cache: dict[str, dict[str, str]] = {}
+def enrich_retrieval_hits(runtime: RuntimeServices, hits: list[RetrievalHit]) -> list[RetrievalHit]:
+    reference_cache: dict[str, dict[str, dict[str, Any]]] = {}
+    qdrant_reference_cache: dict[tuple[str, str], str] = {}
     for hit in hits:
         if hit.source_chunk_text:
             continue
@@ -230,21 +239,26 @@ def enrich_retrieval_hits(hits: list[RetrievalHit]) -> list[RetrievalHit]:
             continue
         if document_id not in reference_cache:
             reference_cache[document_id] = load_reference_texts(document_id)
-        reference_text = reference_cache[document_id].get(source_id)
+        reference_text = build_local_reference_context(reference_cache[document_id], source_id)
+        if not reference_text:
+            cache_key = (document_id, source_id)
+            if cache_key not in qdrant_reference_cache:
+                qdrant_reference_cache[cache_key] = load_qdrant_reference_context(runtime, hit, source_id)
+            reference_text = qdrant_reference_cache[cache_key]
         if reference_text:
             hit.source_chunk_text = reference_text
     return hits
 
 
-def load_reference_texts(document_id: str) -> dict[str, str]:
+def load_reference_texts(document_id: str) -> dict[str, dict[str, Any]]:
     document_dir = RAG_INPUT_DIR / Path(document_id).name
-    references: dict[str, str] = {}
+    references: dict[str, dict[str, Any]] = {}
     load_reference_jsonl(document_dir / "rag_chunks.jsonl", id_field="chunk_id", text_field="text", output=references)
     load_reference_jsonl(document_dir / "table_records.jsonl", id_field="table_id", text_field="text", output=references)
     return references
 
 
-def load_reference_jsonl(path: Path, id_field: str, text_field: str, output: dict[str, str]) -> None:
+def load_reference_jsonl(path: Path, id_field: str, text_field: str, output: dict[str, dict[str, Any]]) -> None:
     if not path.is_file():
         return
     with path.open("r", encoding="utf-8") as handle:
@@ -258,7 +272,99 @@ def load_reference_jsonl(path: Path, id_field: str, text_field: str, output: dic
             source_id = row.get(id_field)
             text = row.get(text_field)
             if isinstance(source_id, str) and isinstance(text, str):
-                output[source_id] = text
+                output[source_id] = row
+
+
+def build_local_reference_context(references: dict[str, dict[str, Any]], source_id: str) -> str:
+    row = references.get(source_id)
+    if not row:
+        return ""
+    if row.get("chunk_type") != "text":
+        return str(row.get("text") or "")
+
+    rows = [item for item in neighboring_chunk_rows(references, source_id)]
+    if not rows:
+        rows = [row]
+    return join_reference_rows(rows)
+
+
+def load_qdrant_reference_context(runtime: RuntimeServices, hit: RetrievalHit, source_id: str) -> str:
+    payloads = qdrant_reference_payloads(runtime, hit, source_id)
+    if not payloads:
+        return ""
+    return join_reference_rows(payloads)
+
+
+def qdrant_reference_payloads(runtime: RuntimeServices, hit: RetrievalHit, source_id: str) -> list[dict[str, Any]]:
+    if not hit.document_id:
+        return []
+    rows: list[dict[str, Any]] = []
+    try:
+        with QdrantRestClient(runtime.qdrant_config()) as client:
+            for candidate_id in neighboring_source_ids(source_id):
+                rows.extend(
+                    client.scroll_payloads(
+                        {
+                            "must": [
+                                {"key": "document_id", "match": {"value": hit.document_id}},
+                                {"key": "source_id", "match": {"value": candidate_id}},
+                            ]
+                        },
+                        limit=1,
+                    )
+                )
+    except RuntimeError:
+        return []
+    return sorted(
+        dedupe_reference_rows(rows),
+        key=lambda row: (row.get("page_start") is None, row.get("page_start") or 0, str(row.get("source_id") or "")),
+    )
+
+
+def neighboring_chunk_rows(references: dict[str, dict[str, Any]], source_id: str) -> Iterator[dict[str, Any]]:
+    for candidate_id in neighboring_source_ids(source_id):
+        row = references.get(candidate_id)
+        if row:
+            yield row
+
+
+def neighboring_source_ids(source_id: str) -> list[str]:
+    prefix, index = split_chunk_id(source_id)
+    if prefix is None or index is None:
+        return [source_id]
+    return [f"{prefix}{candidate:04d}" for candidate in range(max(index - REFERENCE_NEIGHBOR_WINDOW, 0), index + REFERENCE_NEIGHBOR_WINDOW + 1)]
+
+
+def split_chunk_id(source_id: str) -> tuple[str | None, int | None]:
+    marker = "_chunk_"
+    if marker not in source_id:
+        return None, None
+    prefix, raw_index = source_id.rsplit(marker, 1)
+    if not raw_index.isdigit():
+        return None, None
+    return f"{prefix}{marker}", int(raw_index)
+
+
+def join_reference_rows(rows: list[dict[str, Any]]) -> str:
+    texts = []
+    for row in dedupe_reference_rows(rows):
+        text = str(row.get("text") or "").strip()
+        if text:
+            texts.append(text)
+    return "\n\n".join(texts)
+
+
+def dedupe_reference_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped = []
+    seen: set[str] = set()
+    for row in rows:
+        key = str(row.get("source_id") or row.get("chunk_id") or row.get("table_id") or row.get("text") or "")
+        if key and key in seen:
+            continue
+        if key:
+            seen.add(key)
+        deduped.append(row)
+    return deduped
 
 
 def resolve_pdf_file(pdf_name: str) -> Optional[Path]:
@@ -293,6 +399,7 @@ def stream_recommendation_events(
     try:
         yield ndjson_event({"event": "status", "stage": "retrieval_start", "message": "retrieving evidence"})
         retrieval = service.retrieve_evidence(request)
+        retrieval.hits = enrich_retrieval_hits(service.runtime, retrieval.hits)
         yield ndjson_event(
             {
                 "event": "retrieval",
@@ -334,7 +441,7 @@ def stream_recommendation_events(
             usage=usage,
         )
         response = service.build_response(request, retrieval, generation)
-        response.evidence_hits = enrich_retrieval_hits(response.evidence_hits)
+        response.evidence_hits = enrich_retrieval_hits(service.runtime, response.evidence_hits)
         yield ndjson_event(
             {
                 "event": "final",
@@ -352,6 +459,7 @@ def stream_optimization_events(
     try:
         yield ndjson_event({"event": "status", "stage": "retrieval_start", "message": "retrieving evidence"})
         retrieval = service.retrieve_evidence(request)
+        retrieval.hits = enrich_retrieval_hits(service.runtime, retrieval.hits)
         yield ndjson_event(
             {
                 "event": "retrieval",
@@ -393,7 +501,7 @@ def stream_optimization_events(
             usage=usage,
         )
         response = service.build_response(request, retrieval, generation)
-        response.evidence_hits = enrich_retrieval_hits(response.evidence_hits)
+        response.evidence_hits = enrich_retrieval_hits(service.runtime, response.evidence_hits)
         yield ndjson_event(
             {
                 "event": "final",

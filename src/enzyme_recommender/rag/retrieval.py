@@ -50,7 +50,7 @@ class RetrievalResponse(BaseModel):
     def context_text(self, max_chars_per_hit: int = 900) -> str:
         blocks = []
         for index, hit in enumerate(self.hits, start=1):
-            text = hit.text[:max_chars_per_hit]
+            text = (hit.source_chunk_text or hit.text)[:max_chars_per_hit]
             blocks.append(
                 "\n".join(
                     [

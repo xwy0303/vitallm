@@ -38,7 +38,7 @@ generator_providers:
     enabled: true
     base_url: https://api.siliconflow.cn/v1
     api_key_env: SILICONFLOW_API_KEY
-    model: deepseek-ai/DeepSeek-V3.2
+    model: deepseek-ai/DeepSeek-V4-Flash
   deepseek:
     enabled: false
     base_url: https://api.deepseek.com/v1

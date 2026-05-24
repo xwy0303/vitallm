@@ -8,7 +8,7 @@ PDF parsing 只使用自托管/本地 MinerU 服务。
 
 后续会把整个服务部署到公网，外部用户通过自有服务接口调用；外部请求不得直连用户本机或内网 MinerU。
 
-主要生成 LLM 现在已经接入 SiliconFlow API，默认模型为 `deepseek-ai/DeepSeek-V3.2`；DeepSeek API 仍保留同协议 provider 接口，用于对照和备份。
+主要生成 LLM 现在已经接入 SiliconFlow API，默认模型为 `deepseek-ai/DeepSeek-V4-Flash`；DeepSeek API 仍保留同协议 provider 接口，用于对照和备份。
 
 ## 当前已部署或已接入
 
@@ -57,13 +57,13 @@ reranker:
 
 generator:
   provider: siliconflow
-  model: deepseek-ai/DeepSeek-V3.2
+  model: deepseek-ai/DeepSeek-V4-Flash
   temperature: 0.1
 
 generator_providers:
   siliconflow:
     enabled: true
-    model: deepseek-ai/DeepSeek-V3.2
+    model: deepseek-ai/DeepSeek-V4-Flash
   deepseek:
     enabled: false
     model: TBD
