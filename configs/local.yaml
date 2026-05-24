@@ -14,7 +14,7 @@ vector_store:
   timeout_seconds: 30
 
 embedding:
-  provider: sentence
+  provider: hash_v1
   dimensions: 768
   model_name: BAAI/bge-base-en-v1.5
   device: mps
@@ -25,7 +25,7 @@ retrieval:
   usable_only: true
 
 generator:
-  provider: siliconflow
+  provider: mock
   temperature: 0.1
   timeout_seconds: 60
   max_retries: 2

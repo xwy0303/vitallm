@@ -18,7 +18,7 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_embedding_local_files_only_is_loaded_from_yaml(self) -> None:
         config = RuntimeConfig.from_file(Path("configs/local.yaml"))
 
-        self.assertEqual(config.embedding.provider, "sentence")
+        self.assertEqual(config.embedding.provider, "hash_v1")
         self.assertEqual(config.embedding.dimensions, 768)
         self.assertTrue(config.embedding.local_files_only)
 

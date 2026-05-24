@@ -9,10 +9,13 @@
 
 `engineering/model_runtime_registry.md` - 当前/计划接入的模型与引擎清单、MinerU 本地化约束、SiliconFlow/DeepSeek 生成 LLM 规划
 `engineering/rag_retrieval_architecture.md` - RAG 向量检索 collection、payload、embedding 替换边界和 ranking 禁用规则
+`engineering/local_launchagents_deployment.md` - macOS LaunchAgents 本地持久化部署、日志管理、Qdrant 数据治理和 Docker 边界
+`engineering/system_deployment_report_260524.md` - 本地持久化部署后的项目组织架构、部署流程、验证结果与剩余风险
 
 ## 当前活跃任务池 (Active Workflows)
 
 `workflow/260521-mineru-smoke-test.md` - MinerU 单篇 PDF smoke test、RAG 原料层与 evidence extraction 闭环
+`workflow/260524-launchagents-deployment-progress.md` - LaunchAgents 本地持久化部署实现进度、当前 TCC/权限阻塞与下一步修复路线
 
 ## 全局重要记忆 (Global Memory)
 
