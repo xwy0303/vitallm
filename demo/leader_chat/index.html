@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>生物酶固定化推荐 MVP Demo</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="chat-panel">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Evidence-grounded RAG Demo</p>
+            <h1>生物酶固定化智能推荐</h1>
+          </div>
+          <span class="status-pill">B10 smoke test 已打通</span>
+        </header>
+
+        <div class="summary-grid" aria-label="pipeline stats">
+          <div>
+            <strong>36</strong>
+            <span>RAG chunks</span>
+          </div>
+          <div>
+            <strong>81</strong>
+            <span>evidence records</span>
+          </div>
+          <div>
+            <strong>24</strong>
+            <span>review queue</span>
+          </div>
+        </div>
+
+        <section id="messages" class="messages" aria-live="polite"></section>
+
+        <div class="quick-actions">
+          <button data-prompt="Burkholderia cepacia lipase 推荐什么固定化剂？">推荐固定化剂</button>
+          <button data-prompt="如果我的配方是 pH 7.0，25 摄氏度，想提高 biodiesel yield，怎么优化？">优化配方</button>
+          <button data-prompt="学生后续需要在 review queue 里做什么？">学生工作流</button>
+        </div>
+
+        <form id="chat-form" class="composer">
+          <input
+            id="user-input"
+            name="message"
+            autocomplete="off"
+            placeholder="输入酶名称、配方条件或反应目标，例如：BCL 固定化用于 biodiesel"
+          />
+          <button type="submit">发送</button>
+        </form>
+      </section>
+
+      <aside class="evidence-panel">
+        <section class="panel-section">
+          <p class="eyebrow">Current Evidence</p>
+          <h2>B10 文献抽取结果</h2>
+          <div class="fact-list">
+            <div><span>Enzyme</span><strong>Burkholderia cepacia lipase (BCL)</strong></div>
+            <div><span>Carrier</span><strong>hierarchical mesoporous ZIF-8</strong></div>
+            <div><span>Method</span><strong>adsorption</strong></div>
+            <div><span>Conditions</span><strong>700 mg loading, 30 min, pH 7.5, 25 degC</strong></div>
+            <div><span>Application</span><strong>biodiesel production</strong></div>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h2>证据片段</h2>
+          <article class="evidence-card">
+            <span class="tag">performance_metric</span>
+            <p>该研究在 soybean oil、solvent-free、ethanol 体系中记录 biodiesel yield 93.4%，复用 8 cycles 后 last yield 71.3%。</p>
+            <footer>Source: B10 table record · 需保留页码与表格追溯</footer>
+          </article>
+          <article class="evidence-card warning">
+            <span class="tag">review_queue</span>
+            <p>部分 OCR 数值存在异常，例如超过合理范围的百分比或表格 yield，需要学生回看原文确认。</p>
+            <footer>Flags: suspicious_percent_gt_300, possible_ocr_duplicate_text</footer>
+          </article>
+        </section>
+
+        <section class="panel-section">
+          <h2>下一步生产闭环</h2>
+          <ol class="workflow">
+            <li>学生继续收集脂肪酶固定化 PDF。</li>
+            <li>系统批量生成 RAG chunks 与 evidence records。</li>
+            <li>学生校验 review queue，形成 curated knowledge base。</li>
+            <li>LLM 基于证据输出推荐与配方优化。</li>
+          </ol>
+        </section>
+      </aside>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

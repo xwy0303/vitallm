@@ -1,0 +1,11 @@
+flowchart LR
+  A["论文 PDF<br/>MOF / lipase / immobilization"] --> B["MinerU local service<br/>layout + OCR + tables"]
+  B --> C["Artifact layer<br/>md / content_list / middle_json / images"]
+  C --> D["RAG input builder<br/>clean chunks + table records"]
+  D --> E["Evidence extractor<br/>enzyme / carrier / conditions / metrics"]
+  E --> F["Review queue<br/>quality flags + human validation"]
+  F --> G["Curated knowledge base<br/>vector DB + structured evidence"]
+  G --> H["LLM recommendation UI<br/>agent answer + citations"]
+
+  D --> I["Quality checks<br/>OCR duplicates / impossible values"]
+  I --> F

@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0a63d8"/>
+      <stop offset="100%" stop-color="#4168e8"/>
+    </linearGradient>
+    <linearGradient id="softBlue" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f7fbff" stop-opacity="0.2"/>
+      <stop offset="45%" stop-color="#3388ff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#18a6d9" stop-opacity="0.9"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-30%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#12448c" flood-opacity="0.18"/>
+    </filter>
+    <marker id="arrow" markerWidth="13" markerHeight="13" refX="11" refY="6.5" orient="auto">
+      <path d="M0,0 L13,6.5 L0,13 Z" fill="#2266d1"/>
+    </marker>
+    <marker id="softArrow" markerWidth="13" markerHeight="13" refX="11" refY="6.5" orient="auto">
+      <path d="M0,0 L13,6.5 L0,13 Z" fill="#8bb9ef"/>
+    </marker>
+    <style>
+      .title { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 48px; font-weight: 800; fill: #071c3a; }
+      .subtitle { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 26px; font-weight: 700; fill: #7a808a; }
+      .label { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 26px; font-weight: 800; fill: #ffffff; }
+      .small { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 22px; font-weight: 700; fill: #17345f; }
+      .tiny { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 18px; font-weight: 550; fill: #333b47; }
+      .zone { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 38px; font-weight: 900; fill: #04152d; }
+      .dash { stroke: #7fa2ce; stroke-width: 2; stroke-dasharray: 8 8; }
+      .line { stroke: #2266d1; stroke-width: 4; fill: none; marker-end: url(#arrow); }
+      .dashArrow { stroke: #2769d5; stroke-width: 4; fill: none; stroke-dasharray: 12 12; marker-end: url(#arrow); }
+      .softLine { stroke: #8bb9ef; stroke-width: 8; fill: none; marker-end: url(#softArrow); opacity: 0.55; }
+      .cardTitle { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 24px; font-weight: 850; fill: #ffffff; }
+      .cardText { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 20px; font-weight: 650; fill: #17345f; }
+    </style>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#ffffff"/>
+  <rect x="0" y="72" width="16" height="100" fill="url(#blueGrad)"/>
+  <text x="58" y="96" class="title">学生协作与知识库生产闭环</text>
+  <text x="58" y="142" class="subtitle">把“收集论文”升级为可追溯、可复核、可持续扩容的数据生产流程</text>
+  <g transform="translate(1608 54)">
+    <path d="M0 30 L36 10 L74 30 L74 75 L36 96 L0 75 Z" fill="#145fc8"/>
+    <path d="M18 39 L36 29 L55 39 L36 50 Z" fill="#ffffff" opacity="0.9"/>
+    <path d="M18 57 L36 47 L55 57 L36 68 Z" fill="#ffffff" opacity="0.75"/>
+    <text x="92" y="48" style="font-family:Arial,'PingFang SC';font-size:32px;font-weight:800;fill:#134b9f">Enzyme AI</text>
+    <text x="92" y="78" style="font-family:Arial,'PingFang SC';font-size:23px;font-weight:700;fill:#134b9f">Review Cloud</text>
+  </g>
+
+  <text x="48" y="246" class="zone">云上</text>
+  <g filter="url(#shadow)">
+    <rect x="116" y="194" width="330" height="62" rx="8" fill="url(#blueGrad)"/>
+    <rect x="486" y="194" width="360" height="62" rx="8" fill="url(#blueGrad)"/>
+    <rect x="886" y="194" width="440" height="62" rx="8" fill="url(#blueGrad)"/>
+    <rect x="1438" y="194" width="350" height="62" rx="8" fill="url(#blueGrad)"/>
+  </g>
+  <text x="174" y="234" class="label">PDF 数据资产池</text>
+  <text x="536" y="234" class="label">自动证据抽取平台</text>
+  <text x="956" y="234" class="label">学生 Review Queue 工作台</text>
+  <text x="1490" y="234" class="label">推荐应用与汇报输出</text>
+  <line x1="52" y1="305" x2="1870" y2="305" class="dash"/>
+
+  <text x="48" y="388" class="zone">云下</text>
+
+  <g transform="translate(70 480)" filter="url(#shadow)">
+    <path d="M0 0 H200 L238 86 H0 Z" fill="url(#softBlue)"/>
+    <text x="56" y="52" class="label">收集</text>
+  </g>
+  <text x="76" y="600" class="small">学生：论文 PDF 收集</text>
+  <text x="76" y="636" class="tiny">脂肪酶固定化、MOF、载体、应用场景</text>
+
+  <path d="M322 522 H430" class="line"/>
+  <g transform="translate(442 455)" filter="url(#shadow)">
+    <rect x="0" y="0" width="250" height="140" rx="8" fill="#ffffff"/>
+    <rect x="0" y="0" width="250" height="58" rx="8" fill="#0d63d5"/>
+    <text x="72" y="38" class="cardTitle">MinerU</text>
+    <text x="30" y="92" class="cardText">PDF 解析</text>
+    <text x="30" y="124" class="tiny">版面 / OCR / 表格 / 图片</text>
+  </g>
+
+  <path d="M704 522 H812" class="line"/>
+  <g transform="translate(824 455)" filter="url(#shadow)">
+    <path d="M0 0 H250 L288 140 H0 Z" fill="url(#softBlue)"/>
+    <text x="62" y="52" class="label">候选证据</text>
+    <text x="36" y="92" class="cardText" fill="#ffffff">enzyme / carrier</text>
+    <text x="36" y="124" class="cardText" fill="#ffffff">condition / metric</text>
+  </g>
+
+  <path d="M1126 522 H1210" class="line"/>
+  <g transform="translate(1218 432)" filter="url(#shadow)">
+    <polygon points="110,0 220,90 110,180 0,90" fill="#ffffff" stroke="#2c66c8" stroke-width="3"/>
+    <text x="60" y="80" class="small">质量门</text>
+    <text x="39" y="116" class="tiny">异常进入复核</text>
+  </g>
+
+  <path d="M1438 522 H1510" class="line"/>
+  <g transform="translate(1518 455)" filter="url(#shadow)">
+    <path d="M0 0 H260 L298 140 H0 Z" fill="url(#softBlue)"/>
+    <text x="52" y="52" class="label">可信知识库</text>
+    <text x="34" y="92" class="cardText" fill="#ffffff">curated facts</text>
+    <text x="34" y="124" class="cardText" fill="#ffffff">vector DB + schema</text>
+  </g>
+
+  <path d="M1328 432 C1358 352 1410 344 1468 360" class="dashArrow"/>
+  <g transform="translate(1468 326)" filter="url(#shadow)">
+    <rect x="0" y="0" width="292" height="90" rx="45" fill="#ffffff" stroke="#c7d8f1" stroke-width="2"/>
+    <text x="54" y="39" class="small">无需复核</text>
+    <text x="54" y="70" class="tiny">直接进入候选知识库</text>
+  </g>
+
+  <path d="M1328 612 C1358 706 1410 724 1468 720" class="dashArrow"/>
+  <g transform="translate(1330 690)" filter="url(#shadow)">
+    <rect x="0" y="0" width="360" height="122" rx="8" fill="#ffffff"/>
+    <rect x="0" y="0" width="360" height="52" rx="8" fill="#0d63d5"/>
+    <text x="84" y="35" class="cardTitle">Review Queue</text>
+    <text x="28" y="84" class="tiny">OCR 重复、百分比异常、表格错位</text>
+    <text x="28" y="112" class="tiny">学生核对原文后确认 / 修正 / 剔除</text>
+  </g>
+  <path d="M1690 751 C1768 714 1788 652 1790 596" class="dashArrow"/>
+
+  <line x1="52" y1="842" x2="1870" y2="842" class="dash"/>
+  <path d="M390 932 H768" class="softLine"/>
+  <path d="M1122 932 H1500" class="softLine"/>
+
+  <g filter="url(#shadow)">
+    <rect x="64" y="872" width="420" height="126" rx="8" fill="#ffffff"/>
+    <rect x="64" y="872" width="420" height="54" rx="8" fill="#0b49b8"/>
+    <text x="172" y="908" class="label">学生工作量</text>
+    <text x="96" y="958" class="tiny">PDF 收集</text>
+    <text x="224" y="958" class="tiny">证据校验</text>
+    <text x="352" y="958" class="tiny">异常标注</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="750" y="872" width="420" height="126" rx="8" fill="#ffffff"/>
+    <rect x="750" y="872" width="420" height="54" rx="8" fill="#0f74c9"/>
+    <text x="900" y="908" class="label">质量控制</text>
+    <text x="796" y="958" class="tiny">页码追溯</text>
+    <text x="928" y="958" class="tiny">数值范围</text>
+    <text x="1060" y="958" class="tiny">人工抽检</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="1436" y="872" width="420" height="126" rx="8" fill="#ffffff"/>
+    <rect x="1436" y="872" width="420" height="54" rx="8" fill="#3766df"/>
+    <text x="1568" y="908" class="label">项目产出</text>
+    <text x="1478" y="958" class="tiny">知识库</text>
+    <text x="1586" y="958" class="tiny">推荐 Demo</text>
+    <text x="1728" y="958" class="tiny">论文支撑</text>
+  </g>
+
+  <g transform="translate(72 704)">
+    <rect x="0" y="0" width="1040" height="88" rx="8" fill="#f1f7ff" stroke="#c9daf4"/>
+    <text x="28" y="36" class="small">B10 smoke test 已验证：36 个 RAG chunks、81 条 evidence records、24 条 review queue</text>
+    <text x="28" y="68" class="tiny">抽取内容覆盖 BCL、hierarchical mesoporous ZIF-8、adsorption、pH 7.5、25 degC、700 mg loading、biodiesel yield 93.4%、8 cycles。</text>
+  </g>
+</svg>

@@ -1,0 +1,1318 @@
+{
+  "name": "enzyme_immobilization_retrieval_curated_v3",
+  "description": "Curated retrieval benchmark for semantic live collection and hash rollback baseline; covers intent routing, record_type-aware retrieval, table/context rerank, negative/ambiguous queries, bad-table exclusion, and placeholder-page exclusion cases.",
+  "queries": [
+    {
+      "id": "bcl_zif8_strategy",
+      "query": "Burkholderia cepacia lipase immobilized on hierarchical ZIF-8 carrier",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "B10",
+          "record_type": "immobilization_strategy",
+          "text_contains": "ZIF-8"
+        }
+      ]
+    },
+    {
+      "id": "biodiesel_yield_reuse",
+      "query": "soybean oil ethanol biodiesel yield 93.4 reused 8 cycles last yield 71.3",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance",
+          "application"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "B10",
+          "record_type": "table_comparison_row",
+          "text_contains": "93.4"
+        }
+      ]
+    },
+    {
+      "id": "formulation_conditions",
+      "query": "BCL-ZIF-8 loading 700 mg adsorption time 30 min pH 7.5 25 C",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "condition",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition",
+          "text_contains": "700"
+        }
+      ]
+    },
+    {
+      "id": "bcl_zif8_optimal_strategy_span",
+      "query": "BCL-ZIF-8 optimal conditions led to 12-fold activity recovery",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "condition",
+          "performance",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "formulation_condition",
+          "performance_metric",
+          "immobilization_strategy"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_902dd3688f96d856"
+        },
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition",
+          "text_contains": "12-fold"
+        },
+        {
+          "document_id": "B10",
+          "record_type": "immobilization_strategy",
+          "text_contains": "12-fold"
+        }
+      ]
+    },
+    {
+      "id": "bcl_biodiesel_temperature_yield",
+      "query": "BCL-ZIF-8 biodiesel synthesis temperature 40 C yield 93.4 solvent-free ethanol soybean oil",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance",
+          "condition",
+          "application"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row",
+          "performance_metric",
+          "formulation_condition"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "B10",
+          "record_type": "table_comparison_row",
+          "text_contains": "93.4"
+        },
+        {
+          "document_id": "B10",
+          "text_contains": "40 C; 12 h"
+        }
+      ]
+    },
+    {
+      "id": "calb_zif8_znbtc_strategy",
+      "query": "CALB@ZIF-8@Zn-BTC core shell immobilized enzyme trisodium citrate alpha pinene epoxidation",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "application",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A23",
+          "record_type": "immobilization_strategy",
+          "text_contains": "CALB@ZIF-8@Zn-BTC"
+        }
+      ]
+    },
+    {
+      "id": "calb_zif8_znbtc_reuse",
+      "query": "CALB@ZIF-8@Zn-BTC seven reuse cycles retained over 60 initial activity",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "performance",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A23",
+          "record_type": "performance_metric",
+          "text_contains": "seven"
+        },
+        {
+          "document_id": "A23",
+          "text_contains": "60 %"
+        }
+      ]
+    },
+    {
+      "id": "calb_zif8_acid_tolerance",
+      "query": "CALB@ZIF-8 pH 4.0 acid tolerance decomposition chemo enzymatic epoxidation",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "condition",
+          "strategy",
+          "application"
+        ],
+        "record_type_priorities": [
+          "formulation_condition",
+          "immobilization_strategy"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A23",
+          "record_type": "formulation_condition",
+          "text_contains": "pH 4.0"
+        },
+        {
+          "document_id": "A23",
+          "record_type": "immobilization_strategy",
+          "text_contains": "pH 4.0"
+        }
+      ]
+    },
+    {
+      "id": "meso_mil88a_strategy",
+      "query": "Meso-MIL-88A mesoporous MIL-88A lipase immobilization adsorption carrier",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A25",
+          "record_type": "immobilization_strategy",
+          "text_contains": "Meso-MIL-88A"
+        }
+      ]
+    },
+    {
+      "id": "meso_mil88a_reusability",
+      "query": "CalB@Meso-MIL-88A remained 82.60 relative activity after five cycles",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "performance",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "performance_metric"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A25",
+          "record_type": "performance_metric",
+          "text_contains": "82.60"
+        },
+        {
+          "document_id": "A25",
+          "text_contains": "five cycles"
+        }
+      ]
+    },
+    {
+      "id": "uio66_lipase_ays_strategy",
+      "query": "lipase AYS immobilized onto UiO-66-NH2 precipitation crosslinking linkage method",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A20",
+          "record_type": "immobilization_strategy",
+          "text_contains": "AYS@UiO-66"
+        }
+      ]
+    },
+    {
+      "id": "uio66_ays_reuse",
+      "query": "AYS@UiO-66-NH2 recyclability residual activity after 6 cycles",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "performance",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "performance_metric"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A20",
+          "record_type": "performance_metric",
+          "text_contains": "6 cycles"
+        }
+      ]
+    },
+    {
+      "id": "calb_ru_uio66_synthesis_ph",
+      "query": "CALB-Ru-UiO-66 synthesis phosphate buffer pH 7.0 lipase concentration 4 mg mL",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "condition",
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "formulation_condition",
+          "immobilization_strategy"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A24",
+          "record_type": "formulation_condition",
+          "text_contains": "pH 7.0"
+        },
+        {
+          "document_id": "A24",
+          "record_type": "immobilization_strategy",
+          "text_contains": "4 mg"
+        }
+      ]
+    },
+    {
+      "id": "calb_ru_uio66_furfuryl_yield",
+      "query": "CALB-Ru-UiO-66 furfural furfuryl acetate 99 conversion 95 yield 80 C",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "performance",
+          "condition",
+          "application",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row",
+          "formulation_condition"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A24",
+          "record_type": "formulation_condition",
+          "text_contains": "95% yield"
+        },
+        {
+          "document_id": "A24",
+          "text_contains": "furfuryl acetate"
+        }
+      ]
+    },
+    {
+      "id": "calb_ru_uio66_reuse",
+      "query": "CALB-Ru-UiO-66 retained over 80 residual activity after 5 cycles reuse",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "performance",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "performance_metric"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A24",
+          "record_type": "performance_metric",
+          "text_contains": "80%"
+        },
+        {
+          "document_id": "A24",
+          "text_contains": "5 cycles"
+        }
+      ]
+    },
+    {
+      "id": "ha_gl_li_mof_strategy",
+      "query": "hydroxyapatite glycyrrhizin lithium MOF HA GL Li-MOF lipase immobilized nanocomposite",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A14",
+          "record_type": "immobilization_strategy",
+          "text_contains": "HA/GL/Li-MOF"
+        }
+      ]
+    },
+    {
+      "id": "ha_gl_li_mof_sonication_ph",
+      "query": "TLL HA GL Li-MOF nanocomposites phosphate buffer pH 7.0 sonicated 0 10 min glutaraldehyde",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "condition",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A14",
+          "record_type": "formulation_condition",
+          "text_contains": "pH 7.0"
+        }
+      ]
+    },
+    {
+      "id": "ha_gl_li_mof_reusability",
+      "query": "immobilized TLL HA GL Li-MOF reusability ten cycles activities measured optimal conditions",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "performance",
+          "strategy",
+          "condition"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "formulation_condition"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A14",
+          "record_type": "performance_metric",
+          "text_contains": "ten cycles"
+        }
+      ]
+    },
+    {
+      "id": "ppl_magnetic_mof_reuse",
+      "query": "PPL ionic liquid Fe3O4 MOF maintained 70.2 initial activity after eight cycles isoamyl acetate",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "performance",
+          "strategy",
+          "application"
+        ],
+        "record_type_priorities": [
+          "performance_metric"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A18",
+          "record_type": "performance_metric",
+          "text_contains": "70.2%"
+        },
+        {
+          "document_id": "A18",
+          "text_contains": "eight cycles"
+        }
+      ]
+    },
+    {
+      "id": "cu_btc_calb_strategy",
+      "query": "Candida antarctica lipase B CAL-B immobilized in Cu-BTC MOF ultrasound",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A12",
+          "record_type": "immobilization_strategy",
+          "text_contains": "Cu-BTC"
+        },
+        {
+          "document_id": "A12",
+          "text_contains": "CAL-B@Cu-BTC"
+        }
+      ]
+    },
+    {
+      "id": "cu_btc_calb_ph_solvents",
+      "query": "CAL-B@Cu-BTC organic solvents potassium phosphate buffer pH 7.2 MeOH EtOH THF",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "condition",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A12",
+          "record_type": "formulation_condition",
+          "text_contains": "pH 7.2"
+        }
+      ]
+    },
+    {
+      "id": "zn_mof_anl_reuse",
+      "query": "Amano lipase ANL immobilized Zn-MOF OTA degradation retained 78 activity after five cycles",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "performance",
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "performance_metric"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A3",
+          "record_type": "performance_metric",
+          "text_contains": "78%"
+        }
+      ]
+    },
+    {
+      "id": "opa_uio66_lip_reuse",
+      "query": "OPA UiO-66-NH2 LIP biodiesel FAME reusability seven cycles free lipase decreased sharply",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "performance",
+          "strategy",
+          "application"
+        ],
+        "record_type_priorities": [
+          "performance_metric"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A11",
+          "record_type": "performance_metric",
+          "text_contains": "seven cycles"
+        }
+      ]
+    },
+    {
+      "id": "lipase_cubtc_resolution_conditions",
+      "query": "lipase@Cu-BTC N-HMVL vinyl butyrate n-hexane water activity 0.21 55 C reaction",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "condition",
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A67",
+          "record_type": "formulation_condition",
+          "text_contains": "55"
+        },
+        {
+          "document_id": "A67",
+          "text_contains": "N-HMVL"
+        }
+      ]
+    },
+    {
+      "id": "lipase_sds_zif8_enhanced_activity",
+      "kind": "positive",
+      "query": "lipase-SDS ZIF-8 one-pot self-assembly surfactant enhanced activity 250% native lipase",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "B19",
+          "record_type": "immobilization_strategy",
+          "text_contains": "lipase-SDS ZIF-8"
+        }
+      ]
+    },
+    {
+      "id": "lipase_sds_zif8_biomineralization_conditions",
+      "kind": "positive",
+      "query": "Preparation of lipase-SDS ZIF-8 zinc acetate 40 mM 2-methylimidazole 160 mM half-hour room temperature",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "condition",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "formulation_condition",
+          "immobilization_strategy"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "B19",
+          "record_type": "immobilization_strategy",
+          "text_contains": "40 mM"
+        }
+      ]
+    },
+    {
+      "id": "ultrasound_lipase_zif8_biomineralization",
+      "kind": "positive",
+      "query": "sonicated lipase encapsulated ZIF-8 22 kHz 11.38 W cm-2 25 min one-step biomineralization",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "B6",
+          "text_contains": "22 kHz"
+        }
+      ]
+    },
+    {
+      "id": "thermophilic_qlm_zif8_loading",
+      "kind": "positive",
+      "query": "thermophilic lipase QLM embedded ZIF-8 enzyme loading 72.2 mg/g biomimetic mineralization",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "C4",
+          "text_contains": "72.2"
+        },
+        {
+          "document_id": "B2",
+          "text_contains": "72.2"
+        }
+      ]
+    },
+    {
+      "id": "qlm_zif8_kinetic_resolution_cycles",
+      "kind": "positive",
+      "query": "lipase@ZIF-8 kinetic resolution R S 2-octanol 10 cycle reactions p-nitrophenyl caprylate",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "performance",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "immobilization_strategy"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "C4",
+          "text_contains": "10 cycle"
+        },
+        {
+          "document_id": "B2",
+          "text_contains": "10 cycle"
+        }
+      ]
+    },
+    {
+      "id": "hybrid_lipase_zif8_fame",
+      "kind": "positive",
+      "query": "hybrid lipase@ZIF-8 biocatalyst one-pot coordination selfassembly fatty acid methyl ester FAME",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "A55",
+          "record_type": "immobilization_strategy",
+          "text_contains": "lipase@ZIF-8"
+        }
+      ]
+    },
+    {
+      "id": "hollow_hierarchical_zif8_derived_carbon",
+      "kind": "positive",
+      "query": "hollow hierarchically porous ZIF-8 derived carbon enzyme immobilization spherical hollow-open hierarchy",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "A52",
+          "record_type": "immobilization_strategy",
+          "text_contains": "hollow"
+        }
+      ]
+    },
+    {
+      "id": "calb_mof199_zif8_palm_oil",
+      "kind": "positive",
+      "query": "Candida antarctica Lipase B CALB MOF-199 ZIF-8 African palm oil adsorption capacity 26.9 mg g 45 C",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "A61",
+          "text_contains": "26.9"
+        }
+      ]
+    },
+    {
+      "id": "fa_zif8_pseudomonas_cepacia_efficiency",
+      "kind": "positive",
+      "query": "modified MOF-199 and ZIF-8 using furfuryl alcohol FA Pseudomonas cepacia lipase African palm oil FA@ZIF-8 91.2",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "A28",
+          "record_type": "immobilization_strategy",
+          "text_contains": "FA@ZIF-8"
+        },
+        {
+          "document_id": "A28",
+          "text_contains": "91.2"
+        }
+      ]
+    },
+    {
+      "id": "crl_mnp_zif8_magnetic_coprecipitation",
+      "kind": "positive",
+      "query": "CRL Fe3O4 magnetic nanoparticles encapsulated ZIF-8 CRL MNP@ZIF-8 88.4 immobilization yield",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "A29",
+          "record_type": "immobilization_strategy",
+          "text_contains": "88.4"
+        }
+      ]
+    },
+    {
+      "id": "crl_zif8_pnipam_thermoswitch",
+      "kind": "positive",
+      "query": "CRL@ZIF-8-PNIPAM thermo-switchable p-NPP 40 C blocked pores 27 C open pores",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "A15",
+          "record_type": "immobilization_strategy",
+          "text_contains": "PNIPAM"
+        }
+      ]
+    },
+    {
+      "id": "lipase_nkmof101_mn_activity",
+      "kind": "positive",
+      "query": "lipase@NKMOF-101-Mn 2-fold higher activity than lipase@ZIF-8 3-fold higher than MCM-41 hexane",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "A9",
+          "record_type": "immobilization_strategy",
+          "text_contains": "NKMOF-101-Mn"
+        }
+      ]
+    },
+    {
+      "id": "cutinase_nu1000_loading",
+      "kind": "positive",
+      "query": "cutinase NU-1000 crystals Tris-buffered saline pH 7.4 maximum loading 5 mmol g 75 hr",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "C3",
+          "text_contains": "5 mmol/g"
+        },
+        {
+          "document_id": "C3",
+          "text_contains": "75 hr"
+        }
+      ]
+    },
+    {
+      "id": "ppl_mof_warfarin_bioreactor",
+      "kind": "positive",
+      "query": "Lipase-Supported Metal-Organic Framework Bioreactor Catalyzes Warfarin Synthesis PPL@MOF 4-hydroxycoumarin benzylideneacetone",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "C6",
+          "record_type": "immobilization_strategy",
+          "text_contains": "warfarin"
+        }
+      ]
+    },
+    {
+      "id": "calb_zrmof_bes_buffer_ph72",
+      "kind": "positive",
+      "query": "CAL-B conjugated ZrMOF polar organic media BES buffer 5 mM pH 7.2 phenylethyl acetate",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "B5",
+          "record_type": "formulation_condition",
+          "text_contains": "pH 7.2"
+        }
+      ]
+    },
+    {
+      "id": "mcmc_ionic_liquid_lipase_reuse",
+      "kind": "positive",
+      "query": "magnetic carboxymethyl cellulose MCMC ionic liquids covalent immobilization lipase after 10 cycles reusability",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_plan": {
+        "intents": [
+          "performance",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "performance_metric"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A58",
+          "record_type": "performance_metric",
+          "text_contains": "10 cycles"
+        }
+      ]
+    },
+    {
+      "id": "ricinoleic_acid_hkust1_reuse",
+      "kind": "positive",
+      "query": "ricinoleic acid RA Fe3O4 HKUST-1 lipase composite carrier reused for 10 cycles",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "A38",
+          "record_type": "performance_metric",
+          "text_contains": "10 cycles"
+        }
+      ]
+    },
+    {
+      "id": "magnetic_mof_crl_pnpb_reuse",
+      "kind": "positive",
+      "query": "Candida rugosa lipase CRL magnetic particles pNPB PBS pH 7.4 retained almost 84 after 5 cycles",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "C2",
+          "record_type": "performance_metric",
+          "text_contains": "84"
+        }
+      ]
+    },
+    {
+      "id": "fe3o4_lip_nkmof101ni_pnpp_ethanol",
+      "kind": "positive",
+      "query": "Fe3O4 lip@NKMOF-101-Ni p-NPP ethanol n-hexane catalytic activity 37 C lipase",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "A13",
+          "record_type": "formulation_condition",
+          "text_contains": "37"
+        }
+      ]
+    },
+    {
+      "id": "ppl_mzif67_flavor_esters_ph9",
+      "kind": "positive",
+      "query": "PPL@mZIF-67 porcine pancreatic lipase magnetic zeolite imidazole framework flavor esters optimum pH 9.0",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "A30",
+          "record_type": "formulation_condition",
+          "text_contains": "9.0"
+        },
+        {
+          "document_id": "A30",
+          "text_contains": "PPL@mZIF-67"
+        }
+      ]
+    },
+    {
+      "id": "lipase_bio_mof_biodiesel_50c",
+      "kind": "positive",
+      "query": "lipase@Bio-MOF biodiesel sunflower oil methanol pH adjusted 50 C oil alcohol ratio",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "B15",
+          "record_type": "formulation_condition",
+          "text_contains": "50"
+        }
+      ]
+    },
+    {
+      "id": "ambiguous_zif8_biodiesel_reuse",
+      "kind": "ambiguous",
+      "query": "best ZIF-8 lipase immobilization for biodiesel production and reuse cycles",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "B10",
+          "text_contains": "biodiesel"
+        },
+        {
+          "document_id": "A55",
+          "text_contains": "FAME"
+        },
+        {
+          "document_id": "A61",
+          "text_contains": "biodiesel"
+        },
+        {
+          "document_id": "A28",
+          "text_contains": "biodiesel"
+        }
+      ]
+    },
+    {
+      "id": "ambiguous_mof_reuse_ten_cycles",
+      "kind": "ambiguous",
+      "query": "MOF immobilized lipase reusability after ten cycles high retained activity",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "B10",
+          "record_type": "table_comparison_row",
+          "text_contains": "10 cycle"
+        },
+        {
+          "document_id": "A33",
+          "record_type": "performance_metric",
+          "text_contains": "10 cycles"
+        },
+        {
+          "document_id": "B11",
+          "record_type": "performance_metric",
+          "text_contains": "10"
+        },
+        {
+          "document_id": "A58",
+          "record_type": "performance_metric"
+        },
+        {
+          "document_id": "A38",
+          "record_type": "performance_metric"
+        },
+        {
+          "document_id": "A30",
+          "record_type": "performance_metric"
+        },
+        {
+          "document_id": "A60",
+          "record_type": "performance_metric"
+        }
+      ]
+    },
+    {
+      "id": "ambiguous_cubtc_lipase_conditions",
+      "kind": "ambiguous",
+      "query": "Cu-BTC lipase immobilization organic solvent reaction conditions",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "A12",
+          "text_contains": "Cu-BTC"
+        },
+        {
+          "document_id": "A67",
+          "text_contains": "Cu-BTC"
+        },
+        {
+          "document_id": "C5",
+          "text_contains": "Cu-BTC"
+        }
+      ]
+    },
+    {
+      "id": "ambiguous_zif8_md_interaction",
+      "kind": "ambiguous",
+      "query": "ZIF-8 lipase molecular dynamics interaction surface charge docking",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "A69",
+          "text_contains": "surface charges"
+        },
+        {
+          "document_id": "A54",
+          "text_contains": "molecular docking"
+        },
+        {
+          "document_id": "A46",
+          "text_contains": "MD simulations"
+        }
+      ]
+    },
+    {
+      "id": "ambiguous_calb_mof_cascade_acidic",
+      "kind": "ambiguous",
+      "query": "CALB immobilized MOF cascade or epoxidation acidic media",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_any": [
+        {
+          "document_id": "A23",
+          "text_contains": "epoxidation"
+        },
+        {
+          "document_id": "A24",
+          "text_contains": "CALB-Ru-UiO-66"
+        }
+      ]
+    },
+    {
+      "id": "negative_crispr_graphene_qd",
+      "kind": "negative",
+      "query": "CRISPR Cas9 immobilized on graphene quantum dots for gene editing yield 99%",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_absent": [
+        {
+          "text_contains_any": [
+            "CRISPR",
+            "Cas9",
+            "graphene quantum dots"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "negative_amylase_starch_silica",
+      "kind": "negative",
+      "query": "alpha amylase covalently immobilized on silica nanoparticles for starch hydrolysis in this corpus",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_absent": [
+        {
+          "text_contains_all": [
+            "alpha amylase",
+            "silica nanoparticles",
+            "starch hydrolysis"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "negative_laccase_textile_dye",
+      "kind": "negative",
+      "query": "laccase immobilized on chitosan beads for textile dye decolorization",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_absent": [
+        {
+          "text_contains_all": [
+            "laccase",
+            "textile dye",
+            "decolorization"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "negative_urease_kidney_stone",
+      "kind": "negative",
+      "query": "urease immobilized MOF for kidney stone diagnostic biosensor",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_absent": [
+        {
+          "text_contains_all": [
+            "urease",
+            "kidney stone",
+            "biosensor"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "negative_cellulase_paper_pulp",
+      "kind": "negative",
+      "query": "cellulase immobilized on magnetic nanoparticles for paper pulp bleaching",
+      "top_k": 8,
+      "usable_only": true,
+      "expected_absent": [
+        {
+          "text_contains_all": [
+            "cellulase",
+            "paper pulp",
+            "bleaching"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "exclude_a14_rotated_wide_table",
+      "kind": "exclusion",
+      "query": "A14 HA GL Li-MOF rotated wide table Box-Behnken X1 X4 specific activity 22.8 row-level evidence",
+      "top_k": 8,
+      "usable_only": true,
+      "forbidden_any": [
+        {
+          "document_id": "A14",
+          "record_type": "table_comparison_row",
+          "quality_flags_any": [
+            "missing_enzyme_cell"
+          ]
+        },
+        {
+          "document_id": "A14",
+          "record_type": "table_comparison_row",
+          "requires_review": true
+        },
+        {
+          "document_id": "A14",
+          "record_type": "table_comparison_row",
+          "usable_for_ranking": false
+        }
+      ]
+    },
+    {
+      "id": "exclude_b10_bad_yield_900",
+      "kind": "exclusion",
+      "query": "Candida antarctica biodiesel yield 900.00 B10 Table 1 bad table OCR value",
+      "top_k": 8,
+      "usable_only": true,
+      "forbidden_any": [
+        {
+          "document_id": "B10",
+          "record_type": "table_comparison_row",
+          "text_contains": "900.00"
+        },
+        {
+          "document_id": "B10",
+          "quality_flags_any": [
+            "suspicious_percent_gt_300"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "exclude_any_requires_review_hit",
+      "kind": "exclusion",
+      "query": "review queue bad table requires_review evidence should not be usable ranking hit",
+      "top_k": 8,
+      "usable_only": true,
+      "forbidden_any": [
+        {
+          "requires_review": true
+        },
+        {
+          "usable_for_ranking": false
+        }
+      ]
+    },
+    {
+      "id": "exclude_placeholder_a34_pages",
+      "kind": "exclusion",
+      "query": "A34 fallback raster OCR placeholder page 8 9 10 unrecoverable_page_placeholder",
+      "top_k": 8,
+      "usable_only": true,
+      "forbidden_any": [
+        {
+          "document_id": "A34",
+          "qa_flags_any": [
+            "unrecoverable_page_placeholder"
+          ]
+        },
+        {
+          "document_id": "A34",
+          "quality_flags_any": [
+            "unrecoverable_page_placeholder"
+          ]
+        },
+        {
+          "document_id": "A34",
+          "usable_for_ranking": false
+        }
+      ]
+    },
+    {
+      "id": "exclude_placeholder_a68_pages",
+      "kind": "exclusion",
+      "query": "A68 raster OCR placeholder pages 10 11 12 unrecoverable_page_placeholder",
+      "top_k": 8,
+      "usable_only": true,
+      "forbidden_any": [
+        {
+          "document_id": "A68",
+          "qa_flags_any": [
+            "unrecoverable_page_placeholder"
+          ]
+        },
+        {
+          "document_id": "A68",
+          "quality_flags_any": [
+            "unrecoverable_page_placeholder"
+          ]
+        },
+        {
+          "document_id": "A68",
+          "usable_for_ranking": false
+        }
+      ]
+    },
+    {
+      "id": "exclude_placeholder_a77_pages",
+      "kind": "exclusion",
+      "query": "A77 raster OCR placeholder pages 10 11 12 13 unrecoverable_page_placeholder",
+      "top_k": 8,
+      "usable_only": true,
+      "forbidden_any": [
+        {
+          "document_id": "A77",
+          "qa_flags_any": [
+            "unrecoverable_page_placeholder"
+          ]
+        },
+        {
+          "document_id": "A77",
+          "quality_flags_any": [
+            "unrecoverable_page_placeholder"
+          ]
+        },
+        {
+          "document_id": "A77",
+          "usable_for_ranking": false
+        }
+      ]
+    },
+    {
+      "id": "exclude_any_placeholder_flag",
+      "kind": "exclusion",
+      "query": "unrecoverable placeholder page raster OCR fallback should never be usable ranking evidence",
+      "top_k": 8,
+      "usable_only": true,
+      "forbidden_any": [
+        {
+          "qa_flags_any": [
+            "unrecoverable_page_placeholder"
+          ]
+        },
+        {
+          "quality_flags_any": [
+            "unrecoverable_page_placeholder"
+          ]
+        },
+        {
+          "qa_status": "fail",
+          "usable_for_ranking": false
+        }
+      ]
+    }
+  ]
+}

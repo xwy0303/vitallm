@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0a63d8"/>
+      <stop offset="100%" stop-color="#4168e8"/>
+    </linearGradient>
+    <linearGradient id="softBlue" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f5fbff" stop-opacity="0.2"/>
+      <stop offset="42%" stop-color="#3388ff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#18a6d9" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="palePanel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#eff6ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-30%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#12448c" flood-opacity="0.18"/>
+    </filter>
+    <marker id="arrow" markerWidth="13" markerHeight="13" refX="11" refY="6.5" orient="auto">
+      <path d="M0,0 L13,6.5 L0,13 Z" fill="#2266d1"/>
+    </marker>
+    <marker id="softArrow" markerWidth="13" markerHeight="13" refX="11" refY="6.5" orient="auto">
+      <path d="M0,0 L13,6.5 L0,13 Z" fill="#8bb9ef"/>
+    </marker>
+    <style>
+      .title { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 48px; font-weight: 800; fill: #071c3a; }
+      .subtitle { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 26px; font-weight: 700; fill: #7a808a; }
+      .label { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 26px; font-weight: 800; fill: #ffffff; }
+      .small { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 21px; font-weight: 650; fill: #17345f; }
+      .tiny { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 18px; font-weight: 550; fill: #333b47; }
+      .muted { fill: #717b89; }
+      .zone { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 38px; font-weight: 900; fill: #04152d; }
+      .circleText { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 28px; font-weight: 800; fill: #102f65; }
+      .dash { stroke: #7fa2ce; stroke-width: 2; stroke-dasharray: 8 8; }
+      .line { stroke: #2266d1; stroke-width: 4; fill: none; marker-end: url(#arrow); }
+      .softLine { stroke: #8bb9ef; stroke-width: 8; fill: none; marker-end: url(#softArrow); opacity: 0.55; }
+      .dashArrow { stroke: #2769d5; stroke-width: 4; fill: none; stroke-dasharray: 12 12; marker-end: url(#arrow); }
+      .boxText { font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 22px; font-weight: 750; fill: #17345f; }
+    </style>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#ffffff"/>
+  <rect x="0" y="72" width="16" height="100" fill="url(#blueGrad)"/>
+  <text x="58" y="96" class="title">生物酶固定化智能推荐系统</text>
+  <text x="58" y="142" class="subtitle">从论文 PDF 到可审计知识库，再到固定化剂推荐与配方优化</text>
+  <g transform="translate(1608 54)">
+    <path d="M0 30 L36 10 L74 30 L74 75 L36 96 L0 75 Z" fill="#145fc8"/>
+    <path d="M18 39 L36 29 L55 39 L36 50 Z" fill="#ffffff" opacity="0.9"/>
+    <path d="M18 57 L36 47 L55 57 L36 68 Z" fill="#ffffff" opacity="0.75"/>
+    <text x="92" y="48" style="font-family:Arial,'PingFang SC';font-size:32px;font-weight:800;fill:#134b9f">Enzyme AI</text>
+    <text x="92" y="78" style="font-family:Arial,'PingFang SC';font-size:23px;font-weight:700;fill:#134b9f">Knowledge Cloud</text>
+  </g>
+
+  <text x="48" y="246" class="zone">云上</text>
+  <g filter="url(#shadow)">
+    <rect x="116" y="194" width="280" height="62" rx="8" fill="url(#blueGrad)"/>
+    <rect x="424" y="194" width="330" height="62" rx="8" fill="url(#blueGrad)"/>
+    <rect x="784" y="194" width="500" height="62" rx="8" fill="url(#blueGrad)"/>
+    <rect x="1450" y="194" width="330" height="62" rx="8" fill="url(#blueGrad)"/>
+  </g>
+  <text x="154" y="234" class="label">论文数据资产平台</text>
+  <text x="458" y="234" class="label">可信知识空间（交易场）</text>
+  <text x="858" y="234" class="label">固定化知识大模型服务平台</text>
+  <text x="1507" y="234" class="label">推荐应用（一云）</text>
+  <line x1="52" y1="305" x2="1870" y2="305" class="dash"/>
+
+  <text x="48" y="390" class="zone">云下</text>
+
+  <g transform="translate(78 505)" filter="url(#shadow)">
+    <path d="M0 0 H195 L232 84 H0 Z" fill="url(#softBlue)"/>
+    <text x="72" y="52" class="label">论文</text>
+  </g>
+  <text x="76" y="622" class="small">采集 → 清洗 → 价值挖掘</text>
+  <text x="76" y="660" class="tiny">PDF、表格、图示、实验条件</text>
+
+  <path d="M312 548 H552" class="line"/>
+  <text x="316" y="526" class="small">高质量文献集（标准化登记）</text>
+
+  <g transform="translate(596 505)" filter="url(#shadow)">
+    <path d="M0 0 H176 L213 84 H0 Z" fill="url(#softBlue)"/>
+    <text x="62" y="52" class="label">解析</text>
+  </g>
+  <text x="620" y="625" class="small">MinerU 本地服务</text>
+  <text x="620" y="660" class="tiny">layout / OCR / table / image</text>
+
+  <path d="M804 548 H910" class="line"/>
+
+  <circle cx="940" cy="420" r="62" fill="#ffffff" stroke="#2d65c8" stroke-width="2"/>
+  <text x="896" y="431" class="circleText">L0 原文</text>
+  <circle cx="940" cy="562" r="62" fill="#ffffff" stroke="#2d65c8" stroke-width="2"/>
+  <text x="878" y="573" class="circleText">L1 证据</text>
+  <circle cx="940" cy="704" r="62" fill="#ffffff" stroke="#808a96" stroke-width="2"/>
+  <text x="878" y="715" class="circleText muted">L2 场景</text>
+  <path d="M812 520 C842 450 865 426 878 420" class="dashArrow"/>
+  <path d="M812 548 H878" class="dashArrow"/>
+  <path d="M812 578 C842 653 865 695 878 704" class="dashArrow" style="stroke:#9da7b2;marker-end:url(#softArrow)"/>
+
+  <g transform="translate(1038 505)" filter="url(#shadow)">
+    <path d="M0 0 H216 L253 84 H0 Z" fill="url(#softBlue)"/>
+    <text x="55" y="52" class="label">知识库</text>
+  </g>
+  <text x="1060" y="625" class="small">RAG 原料层 + Evidence records</text>
+  <text x="1060" y="660" class="tiny">chunks、table records、review queue</text>
+
+  <path d="M1288 548 H1358" class="line"/>
+  <g transform="translate(1328 380)">
+    <rect x="0" y="0" width="190" height="56" rx="28" fill="#ffffff" stroke="#c7d8f1" stroke-width="2" filter="url(#shadow)"/>
+    <text x="42" y="37" class="small">酶名称推荐</text>
+    <rect x="0" y="314" width="190" height="56" rx="28" fill="#ffffff" stroke="#c7d8f1" stroke-width="2" filter="url(#shadow)"/>
+    <text x="42" y="351" class="small">配方优化</text>
+    <rect x="0" y="157" width="190" height="56" rx="28" fill="#ffffff" stroke="#c7d8f1" stroke-width="2" filter="url(#shadow)"/>
+    <text x="42" y="194" class="small">证据追溯</text>
+  </g>
+  <path d="M1280 512 C1308 430 1320 410 1328 408" class="dashArrow"/>
+  <path d="M1288 548 H1328" class="dashArrow"/>
+  <path d="M1280 585 C1308 670 1320 715 1328 722" class="dashArrow"/>
+
+  <path d="M1518 548 H1624 L1666 468 L1666 628 H1624" fill="none" stroke="#2365ce" stroke-width="4"/>
+  <text x="1554" y="490" class="tiny">推荐</text>
+  <text x="1554" y="548" class="tiny">优化</text>
+  <text x="1554" y="606" class="tiny">审计</text>
+  <g transform="translate(1692 390)">
+    <text x="0" y="0" class="small">最终可呈现效果</text>
+    <text x="0" y="46" class="tiny">• 固化剂候选排序</text>
+    <text x="0" y="84" class="tiny">• 配方条件优化建议</text>
+    <text x="0" y="122" class="tiny">• 论文页码与证据引用</text>
+    <text x="0" y="160" class="tiny">• 异常证据人工复核</text>
+    <text x="0" y="224" class="small">学生协作价值</text>
+    <text x="0" y="270" class="tiny">• PDF 收集</text>
+    <text x="0" y="308" class="tiny">• Review queue 校验</text>
+    <text x="0" y="346" class="tiny">• 知识库持续扩容</text>
+  </g>
+
+  <line x1="52" y1="828" x2="1870" y2="828" class="dash"/>
+  <path d="M300 918 H708" class="softLine"/>
+  <path d="M1120 918 H1510" class="softLine"/>
+
+  <g filter="url(#shadow)">
+    <rect x="64" y="858" width="420" height="112" rx="8" fill="#ffffff"/>
+    <rect x="64" y="858" width="420" height="54" rx="8" fill="#0b49b8"/>
+    <text x="176" y="894" class="label">本地算力与解析底座</text>
+    <text x="110" y="947" class="tiny">MinerU</text>
+    <text x="224" y="947" class="tiny">Python</text>
+    <text x="342" y="947" class="tiny">Schema</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="750" y="858" width="420" height="112" rx="8" fill="#ffffff"/>
+    <rect x="750" y="858" width="420" height="54" rx="8" fill="#0f74c9"/>
+    <text x="900" y="894" class="label">知识库云化</text>
+    <text x="805" y="947" class="tiny">Vector DB</text>
+    <text x="954" y="947" class="tiny">RAG</text>
+    <text x="1060" y="947" class="tiny">API</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="1436" y="858" width="420" height="112" rx="8" fill="#ffffff"/>
+    <rect x="1436" y="858" width="420" height="54" rx="8" fill="#3766df"/>
+    <text x="1586" y="894" class="label">科研应用化</text>
+    <text x="1494" y="947" class="tiny">推荐</text>
+    <text x="1596" y="947" class="tiny">优化</text>
+    <text x="1698" y="947" class="tiny">教学</text>
+  </g>
+</svg>

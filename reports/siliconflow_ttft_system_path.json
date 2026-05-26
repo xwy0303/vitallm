@@ -1,0 +1,376 @@
+{
+  "started_at": "2026-05-24T15:58:24.171655+00:00",
+  "finished_at": "2026-05-24T16:07:14.715771+00:00",
+  "base_url": "https://api.siliconflow.cn/v1",
+  "api_key_env": "SILICONFLOW_API_KEY",
+  "trials_per_model": 2,
+  "timeout_seconds": 300.0,
+  "temperature": 0.1,
+  "max_tokens": 0,
+  "thinking_budget": 0,
+  "json_response": true,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are an evidence-first enzyme immobilization assistant. Answer as a compact JSON object with fields recommendation, rationale, risks."
+    },
+    {
+      "role": "user",
+      "content": "For Burkholderia cepacia lipase used in soybean oil ethanolysis for biodiesel, recommend one immobilization carrier and key conditions. Keep the answer concise."
+    }
+  ],
+  "results": [
+    {
+      "model": "Qwen/Qwen3.6-27B",
+      "trial": 1,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 448.1,
+      "first_reasoning_ms": 448.5,
+      "ttft_ms": 32516.9,
+      "total_ms": 36328.1,
+      "reasoning_chars": 3321,
+      "output_chars": 629,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "Qwen/Qwen3.6-27B",
+      "trial": 2,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 20085.8,
+      "first_reasoning_ms": 20086.0,
+      "ttft_ms": 215387.2,
+      "total_ms": 233568.1,
+      "reasoning_chars": 6195,
+      "output_chars": 688,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "Qwen/Qwen3.6-35B-A3B",
+      "trial": 1,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 298.6,
+      "first_reasoning_ms": 298.6,
+      "ttft_ms": 15037.7,
+      "total_ms": 17601.3,
+      "reasoning_chars": 4770,
+      "output_chars": 766,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "Qwen/Qwen3.6-35B-A3B",
+      "trial": 2,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 402.4,
+      "first_reasoning_ms": 402.5,
+      "ttft_ms": 11762.3,
+      "total_ms": 14822.2,
+      "reasoning_chars": 2867,
+      "output_chars": 760,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "deepseek-ai/DeepSeek-V4-Flash",
+      "trial": 1,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 356.8,
+      "first_reasoning_ms": null,
+      "ttft_ms": 356.8,
+      "total_ms": 4335.4,
+      "reasoning_chars": 0,
+      "output_chars": 523,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "deepseek-ai/DeepSeek-V4-Flash",
+      "trial": 2,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 561.7,
+      "first_reasoning_ms": null,
+      "ttft_ms": 561.8,
+      "total_ms": 28120.0,
+      "reasoning_chars": 0,
+      "output_chars": 528,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "Pro/zai-org/GLM-5.1",
+      "trial": 1,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 1039.4,
+      "first_reasoning_ms": 1039.5,
+      "ttft_ms": 21019.2,
+      "total_ms": 24296.7,
+      "reasoning_chars": 4001,
+      "output_chars": 692,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "Pro/zai-org/GLM-5.1",
+      "trial": 2,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 841.3,
+      "first_reasoning_ms": 841.4,
+      "ttft_ms": 19940.3,
+      "total_ms": 23766.7,
+      "reasoning_chars": 4197,
+      "output_chars": 879,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "Pro/moonshotai/Kimi-K2.6",
+      "trial": 1,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 574.5,
+      "first_reasoning_ms": 574.6,
+      "ttft_ms": 83736.9,
+      "total_ms": 87765.9,
+      "reasoning_chars": 12888,
+      "output_chars": 852,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "Pro/moonshotai/Kimi-K2.6",
+      "trial": 2,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 5668.2,
+      "first_reasoning_ms": 5668.3,
+      "ttft_ms": 43437.8,
+      "total_ms": 46396.1,
+      "reasoning_chars": 5662,
+      "output_chars": 706,
+      "finish_reason": "stop",
+      "error": null
+    }
+  ],
+  "summaries": [
+    {
+      "model": "Qwen/Qwen3.6-27B",
+      "ok_trials": 2,
+      "failed_trials": 0,
+      "ttft_ms": {
+        "min": 32516.9,
+        "median": 123952.1,
+        "mean": 123952.1,
+        "max": 215387.2
+      },
+      "first_event_ms": {
+        "min": 448.1,
+        "median": 10266.9,
+        "mean": 10266.9,
+        "max": 20085.8
+      },
+      "first_reasoning_ms": {
+        "min": 448.5,
+        "median": 10267.2,
+        "mean": 10267.2,
+        "max": 20086.0
+      },
+      "total_ms": {
+        "min": 36328.1,
+        "median": 134948.1,
+        "mean": 134948.1,
+        "max": 233568.1
+      },
+      "reasoning_chars": {
+        "min": 3321.0,
+        "median": 4758.0,
+        "mean": 4758.0,
+        "max": 6195.0
+      },
+      "output_chars": {
+        "min": 629.0,
+        "median": 658.5,
+        "mean": 658.5,
+        "max": 688.0
+      },
+      "errors": []
+    },
+    {
+      "model": "Qwen/Qwen3.6-35B-A3B",
+      "ok_trials": 2,
+      "failed_trials": 0,
+      "ttft_ms": {
+        "min": 11762.3,
+        "median": 13400.0,
+        "mean": 13400.0,
+        "max": 15037.7
+      },
+      "first_event_ms": {
+        "min": 298.6,
+        "median": 350.5,
+        "mean": 350.5,
+        "max": 402.4
+      },
+      "first_reasoning_ms": {
+        "min": 298.6,
+        "median": 350.6,
+        "mean": 350.6,
+        "max": 402.5
+      },
+      "total_ms": {
+        "min": 14822.2,
+        "median": 16211.8,
+        "mean": 16211.8,
+        "max": 17601.3
+      },
+      "reasoning_chars": {
+        "min": 2867.0,
+        "median": 3818.5,
+        "mean": 3818.5,
+        "max": 4770.0
+      },
+      "output_chars": {
+        "min": 760.0,
+        "median": 763.0,
+        "mean": 763.0,
+        "max": 766.0
+      },
+      "errors": []
+    },
+    {
+      "model": "deepseek-ai/DeepSeek-V4-Flash",
+      "ok_trials": 2,
+      "failed_trials": 0,
+      "ttft_ms": {
+        "min": 356.8,
+        "median": 459.3,
+        "mean": 459.3,
+        "max": 561.8
+      },
+      "first_event_ms": {
+        "min": 356.8,
+        "median": 459.2,
+        "mean": 459.2,
+        "max": 561.7
+      },
+      "first_reasoning_ms": {
+        "min": null,
+        "median": null,
+        "mean": null,
+        "max": null
+      },
+      "total_ms": {
+        "min": 4335.4,
+        "median": 16227.7,
+        "mean": 16227.7,
+        "max": 28120.0
+      },
+      "reasoning_chars": {
+        "min": 0.0,
+        "median": 0.0,
+        "mean": 0.0,
+        "max": 0.0
+      },
+      "output_chars": {
+        "min": 523.0,
+        "median": 525.5,
+        "mean": 525.5,
+        "max": 528.0
+      },
+      "errors": []
+    },
+    {
+      "model": "Pro/zai-org/GLM-5.1",
+      "ok_trials": 2,
+      "failed_trials": 0,
+      "ttft_ms": {
+        "min": 19940.3,
+        "median": 20479.8,
+        "mean": 20479.8,
+        "max": 21019.2
+      },
+      "first_event_ms": {
+        "min": 841.3,
+        "median": 940.4,
+        "mean": 940.4,
+        "max": 1039.4
+      },
+      "first_reasoning_ms": {
+        "min": 841.4,
+        "median": 940.5,
+        "mean": 940.5,
+        "max": 1039.5
+      },
+      "total_ms": {
+        "min": 23766.7,
+        "median": 24031.7,
+        "mean": 24031.7,
+        "max": 24296.7
+      },
+      "reasoning_chars": {
+        "min": 4001.0,
+        "median": 4099.0,
+        "mean": 4099.0,
+        "max": 4197.0
+      },
+      "output_chars": {
+        "min": 692.0,
+        "median": 785.5,
+        "mean": 785.5,
+        "max": 879.0
+      },
+      "errors": []
+    },
+    {
+      "model": "Pro/moonshotai/Kimi-K2.6",
+      "ok_trials": 2,
+      "failed_trials": 0,
+      "ttft_ms": {
+        "min": 43437.8,
+        "median": 63587.3,
+        "mean": 63587.3,
+        "max": 83736.9
+      },
+      "first_event_ms": {
+        "min": 574.5,
+        "median": 3121.3,
+        "mean": 3121.3,
+        "max": 5668.2
+      },
+      "first_reasoning_ms": {
+        "min": 574.6,
+        "median": 3121.5,
+        "mean": 3121.5,
+        "max": 5668.3
+      },
+      "total_ms": {
+        "min": 46396.1,
+        "median": 67081.0,
+        "mean": 67081.0,
+        "max": 87765.9
+      },
+      "reasoning_chars": {
+        "min": 5662.0,
+        "median": 9275.0,
+        "mean": 9275.0,
+        "max": 12888.0
+      },
+      "output_chars": {
+        "min": 706.0,
+        "median": 779.0,
+        "mean": 779.0,
+        "max": 852.0
+      },
+      "errors": []
+    }
+  ]
+}

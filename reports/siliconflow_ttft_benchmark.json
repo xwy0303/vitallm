@@ -1,0 +1,362 @@
+{
+  "started_at": "2026-05-24T15:45:53.486582+00:00",
+  "finished_at": "2026-05-24T15:55:15.926505+00:00",
+  "base_url": "https://api.siliconflow.cn/v1",
+  "api_key_env": "SILICONFLOW_API_KEY",
+  "trials_per_model": 3,
+  "timeout_seconds": 180.0,
+  "temperature": 0.1,
+  "max_tokens": 220,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are an evidence-first enzyme immobilization assistant. Answer as a compact JSON object with fields recommendation, rationale, risks."
+    },
+    {
+      "role": "user",
+      "content": "For Burkholderia cepacia lipase used in soybean oil ethanolysis for biodiesel, recommend one immobilization carrier and key conditions. Keep the answer concise."
+    }
+  ],
+  "results": [
+    {
+      "model": "Qwen/Qwen3.6-27B",
+      "trial": 1,
+      "ok": false,
+      "status_code": 200,
+      "first_event_ms": 366.0,
+      "ttft_ms": null,
+      "total_ms": 27157.6,
+      "output_chars": 0,
+      "finish_reason": "length",
+      "error": "stream ended without non-empty delta.content"
+    },
+    {
+      "model": "Qwen/Qwen3.6-27B",
+      "trial": 2,
+      "ok": false,
+      "status_code": 200,
+      "first_event_ms": 290.4,
+      "ttft_ms": null,
+      "total_ms": 8072.1,
+      "output_chars": 0,
+      "finish_reason": "length",
+      "error": "stream ended without non-empty delta.content"
+    },
+    {
+      "model": "Qwen/Qwen3.6-27B",
+      "trial": 3,
+      "ok": false,
+      "status_code": 200,
+      "first_event_ms": 17597.1,
+      "ttft_ms": null,
+      "total_ms": 22343.2,
+      "output_chars": 0,
+      "finish_reason": "length",
+      "error": "stream ended without non-empty delta.content"
+    },
+    {
+      "model": "Qwen/Qwen3.6-35B-A3B",
+      "trial": 1,
+      "ok": false,
+      "status_code": 200,
+      "first_event_ms": 287.2,
+      "ttft_ms": null,
+      "total_ms": 2867.2,
+      "output_chars": 0,
+      "finish_reason": "length",
+      "error": "stream ended without non-empty delta.content"
+    },
+    {
+      "model": "Qwen/Qwen3.6-35B-A3B",
+      "trial": 2,
+      "ok": false,
+      "status_code": 200,
+      "first_event_ms": 410.3,
+      "ttft_ms": null,
+      "total_ms": 2698.7,
+      "output_chars": 0,
+      "finish_reason": "length",
+      "error": "stream ended without non-empty delta.content"
+    },
+    {
+      "model": "Qwen/Qwen3.6-35B-A3B",
+      "trial": 3,
+      "ok": false,
+      "status_code": null,
+      "first_event_ms": null,
+      "ttft_ms": null,
+      "total_ms": 180095.0,
+      "output_chars": 0,
+      "finish_reason": null,
+      "error": "ReadTimeout: The read operation timed out"
+    },
+    {
+      "model": "deepseek-ai/DeepSeek-V4-Flash",
+      "trial": 1,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 646.1,
+      "ttft_ms": 646.1,
+      "total_ms": 26763.6,
+      "output_chars": 637,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "deepseek-ai/DeepSeek-V4-Flash",
+      "trial": 2,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 679.7,
+      "ttft_ms": 679.8,
+      "total_ms": 21771.8,
+      "output_chars": 478,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "deepseek-ai/DeepSeek-V4-Flash",
+      "trial": 3,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 687.7,
+      "ttft_ms": 687.7,
+      "total_ms": 23960.7,
+      "output_chars": 523,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "Pro/zai-org/GLM-5.1",
+      "trial": 1,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 726.5,
+      "ttft_ms": 21508.8,
+      "total_ms": 25444.7,
+      "output_chars": 820,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "Pro/zai-org/GLM-5.1",
+      "trial": 2,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 639.0,
+      "ttft_ms": 20462.9,
+      "total_ms": 23401.0,
+      "output_chars": 645,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "Pro/zai-org/GLM-5.1",
+      "trial": 3,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 622.2,
+      "ttft_ms": 20901.9,
+      "total_ms": 24778.9,
+      "output_chars": 777,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "Pro/moonshotai/Kimi-K2.6",
+      "trial": 1,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 1306.0,
+      "ttft_ms": 43637.4,
+      "total_ms": 46731.4,
+      "output_chars": 865,
+      "finish_reason": "stop",
+      "error": null
+    },
+    {
+      "model": "Pro/moonshotai/Kimi-K2.6",
+      "trial": 2,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 354.7,
+      "ttft_ms": 51148.2,
+      "total_ms": 54048.6,
+      "output_chars": 874,
+      "finish_reason": "length",
+      "error": null
+    },
+    {
+      "model": "Pro/moonshotai/Kimi-K2.6",
+      "trial": 3,
+      "ok": true,
+      "status_code": 200,
+      "first_event_ms": 618.3,
+      "ttft_ms": 47902.4,
+      "total_ms": 51259.8,
+      "output_chars": 809,
+      "finish_reason": "stop",
+      "error": null
+    }
+  ],
+  "summaries": [
+    {
+      "model": "Qwen/Qwen3.6-27B",
+      "ok_trials": 0,
+      "failed_trials": 3,
+      "ttft_ms": {
+        "min": null,
+        "median": null,
+        "mean": null,
+        "max": null
+      },
+      "first_event_ms": {
+        "min": null,
+        "median": null,
+        "mean": null,
+        "max": null
+      },
+      "total_ms": {
+        "min": null,
+        "median": null,
+        "mean": null,
+        "max": null
+      },
+      "output_chars": {
+        "min": null,
+        "median": null,
+        "mean": null,
+        "max": null
+      },
+      "errors": [
+        "trial 1: stream ended without non-empty delta.content",
+        "trial 2: stream ended without non-empty delta.content",
+        "trial 3: stream ended without non-empty delta.content"
+      ]
+    },
+    {
+      "model": "Qwen/Qwen3.6-35B-A3B",
+      "ok_trials": 0,
+      "failed_trials": 3,
+      "ttft_ms": {
+        "min": null,
+        "median": null,
+        "mean": null,
+        "max": null
+      },
+      "first_event_ms": {
+        "min": null,
+        "median": null,
+        "mean": null,
+        "max": null
+      },
+      "total_ms": {
+        "min": null,
+        "median": null,
+        "mean": null,
+        "max": null
+      },
+      "output_chars": {
+        "min": null,
+        "median": null,
+        "mean": null,
+        "max": null
+      },
+      "errors": [
+        "trial 1: stream ended without non-empty delta.content",
+        "trial 2: stream ended without non-empty delta.content",
+        "trial 3: ReadTimeout: The read operation timed out"
+      ]
+    },
+    {
+      "model": "deepseek-ai/DeepSeek-V4-Flash",
+      "ok_trials": 3,
+      "failed_trials": 0,
+      "ttft_ms": {
+        "min": 646.1,
+        "median": 679.8,
+        "mean": 671.2,
+        "max": 687.7
+      },
+      "first_event_ms": {
+        "min": 646.1,
+        "median": 679.7,
+        "mean": 671.2,
+        "max": 687.7
+      },
+      "total_ms": {
+        "min": 21771.8,
+        "median": 23960.7,
+        "mean": 24165.4,
+        "max": 26763.6
+      },
+      "output_chars": {
+        "min": 478.0,
+        "median": 523.0,
+        "mean": 546.0,
+        "max": 637.0
+      },
+      "errors": []
+    },
+    {
+      "model": "Pro/zai-org/GLM-5.1",
+      "ok_trials": 3,
+      "failed_trials": 0,
+      "ttft_ms": {
+        "min": 20462.9,
+        "median": 20901.9,
+        "mean": 20957.9,
+        "max": 21508.8
+      },
+      "first_event_ms": {
+        "min": 622.2,
+        "median": 639.0,
+        "mean": 662.6,
+        "max": 726.5
+      },
+      "total_ms": {
+        "min": 23401.0,
+        "median": 24778.9,
+        "mean": 24541.5,
+        "max": 25444.7
+      },
+      "output_chars": {
+        "min": 645.0,
+        "median": 777.0,
+        "mean": 747.3,
+        "max": 820.0
+      },
+      "errors": []
+    },
+    {
+      "model": "Pro/moonshotai/Kimi-K2.6",
+      "ok_trials": 3,
+      "failed_trials": 0,
+      "ttft_ms": {
+        "min": 43637.4,
+        "median": 47902.4,
+        "mean": 47562.7,
+        "max": 51148.2
+      },
+      "first_event_ms": {
+        "min": 354.7,
+        "median": 618.3,
+        "mean": 759.7,
+        "max": 1306.0
+      },
+      "total_ms": {
+        "min": 46731.4,
+        "median": 51259.8,
+        "mean": 50679.9,
+        "max": 54048.6
+      },
+      "output_chars": {
+        "min": 809.0,
+        "median": 865.0,
+        "mean": 849.3,
+        "max": 874.0
+      },
+      "errors": []
+    }
+  ]
+}
