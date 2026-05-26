@@ -11,6 +11,7 @@ It manages service lifecycle only and keeps launchd-specific behavior out of
 | `com.shengji.qdrant` | `6333`, `6334` | Qdrant vector store |
 | `com.shengji.mineru` | `8000` | MinerU PDF parser API |
 | `com.shengji.api` | `8001` | FastAPI backend |
+| `com.shengji.ingestion-worker` | n/a | Queued PDF ingestion worker |
 | `com.shengji.web` | `5173` | Static frontend |
 | `com.shengji.logrotate` | n/a | Daily log rotation |
 
@@ -54,6 +55,7 @@ Use:
 
 ```bash
 deploy/local/bin/logs.sh api --tail 100
+deploy/local/bin/logs.sh ingestion-worker --tail 100
 deploy/local/bin/logs.sh all --follow
 ```
 
@@ -91,10 +93,11 @@ Qdrant storage in the runtime mirror is:
 The repository `.local/qdrant/storage` remains the development source copy and
 is not committed.
 
-The current collection name `enzyme_immobilization_b10` is historical. It now
-contains the local MVP literature index, not only the B10 PDF. Collection
-rename, storage migration, and reindexing must be handled as a separate data
-governance task.
+The live production-like literature collection is the semantic BGE collection
+`enzyme_immobilization_literature_sentence_baai_bge_base_en_v1_5_768_point_schema_v1`.
+The hash baseline `enzyme_immobilization_literature` and historical
+`enzyme_immobilization_b10` collection are kept as rollback data and must not
+be deleted during collection rebuilds.
 
 ## Local Overrides
 
@@ -102,8 +105,26 @@ Copy `deploy/local/env.example` to `deploy/local/env.local` to override ports,
 log path, or runtime config. Do not put API keys in LaunchAgent plist files.
 The API continues to load secrets from `.env.local`.
 
+When enabling `com.shengji.ingestion-worker`, set `INGESTION_COLLECTION` only
+when intentionally overriding the runtime config collection. The default local
+runtime now points to the semantic BGE collection.
+
 ## Docker Boundary
 
 Future Docker deployment should reuse the same service contracts and introduce
 Docker-specific config separately. Do not make business code depend on launchd
 paths or plist behavior.
+
+## PDF Ingestion Worker
+
+Uploaded PDFs are registered through the API and processed by
+`com.shengji.ingestion-worker`. The worker reads queued jobs from
+`artifacts/ingestion_registry/jobs.jsonl` and runs:
+
+```text
+MinerU -> RAG inputs -> evidence records -> Qdrant -> retrieval verification
+```
+
+The worker is intentionally single-process for the local MVP to keep MinerU
+load bounded. Override polling and batch-size parameters in
+`deploy/local/env.local` with `INGESTION_*` variables when needed.

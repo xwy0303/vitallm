@@ -12,13 +12,13 @@ Usage:
   deploy/local/restart_launchagents.sh <service|all>
 
 Services:
-  qdrant mineru api web logrotate all
+  qdrant mineru api ingestion-worker web logrotate all
 EOF
 }
 
 label_for_service() {
   case "$1" in
-    qdrant|mineru|api|web|logrotate) printf 'com.shengji.%s\n' "$1" ;;
+    qdrant|mineru|api|web|logrotate|ingestion-worker) printf 'com.shengji.%s\n' "$1" ;;
     *) return 1 ;;
   esac
 }
@@ -30,7 +30,7 @@ if [[ -z "${target}" || "${target}" == "--help" || "${target}" == "-h" ]]; then
 fi
 
 if [[ "${target}" == "all" ]]; then
-  services=(qdrant mineru api web logrotate)
+  services=(qdrant mineru api ingestion-worker web logrotate)
 else
   services=("${target}")
 fi

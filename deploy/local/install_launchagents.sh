@@ -16,6 +16,7 @@ labels=(
   com.shengji.qdrant
   com.shengji.mineru
   com.shengji.api
+  com.shengji.ingestion-worker
   com.shengji.web
   com.shengji.logrotate
 )
@@ -63,9 +64,13 @@ done
 
 "${SCRIPT_DIR}/bin/check_ports.sh"
 
-for path in src web configs schemas scripts artifacts .local .venv .venv-mineru; do
+for path in src web configs schemas scripts .local .venv .venv-mineru "MOF固定化脂肪酶文献调研"; do
   sync_runtime_path "${path}"
 done
+
+if [[ ! -d "${APP_ROOT}/artifacts" ]]; then
+  sync_runtime_path artifacts
+fi
 
 mkdir -p "${APP_ROOT}/deploy/local"
 if [[ -f "${PROJECT_DIR}/deploy/local/env.local" ]]; then
@@ -196,7 +201,90 @@ if [[ ! -x "\${PYTHON_BIN}" ]]; then
   exit 1
 fi
 
-exec "\${PYTHON_BIN}" -m http.server "\${WEB_PORT}" --bind "\${WEB_HOST}" -d web
+exec "\${PYTHON_BIN}" - <<PY
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+
+
+class NoCacheHandler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
+
+
+server = ThreadingHTTPServer(
+    ("\${WEB_HOST}", int("\${WEB_PORT}")),
+    partial(NoCacheHandler, directory="web"),
+)
+server.serve_forever()
+PY
+EOF
+
+cat > "${WRAPPER_DIR}/run_ingestion_worker.sh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="${APP_ROOT}"
+cd "\${APP_ROOT}"
+if [[ -f deploy/local/env.local ]]; then
+  set -a
+  source deploy/local/env.local
+  set +a
+fi
+if [[ -f .env.local ]]; then
+  set -a
+  source .env.local
+  set +a
+fi
+
+QDRANT_HTTP_PORT="\${QDRANT_HTTP_PORT:-6333}"
+MINERU_PORT="\${MINERU_PORT:-8000}"
+ENZYME_RUNTIME_CONFIG="\${ENZYME_RUNTIME_CONFIG:-configs/local.yaml}"
+INGESTION_POLL_SECONDS="\${INGESTION_POLL_SECONDS:-10}"
+INGESTION_MINERU_TIMEOUT_SECONDS="\${INGESTION_MINERU_TIMEOUT_SECONDS:-1800}"
+INGESTION_MINERU_INTERVAL_SECONDS="\${INGESTION_MINERU_INTERVAL_SECONDS:-10}"
+INGESTION_QDRANT_BATCH_SIZE="\${INGESTION_QDRANT_BATCH_SIZE:-64}"
+INGESTION_COLLECTION="\${INGESTION_COLLECTION:-}"
+started_at="\$(date +%s)"
+
+until curl -fsS "http://127.0.0.1:\${QDRANT_HTTP_PORT}/collections" >/dev/null 2>&1; do
+  if (( "\$(date +%s)" - started_at >= 60 )); then
+    echo "Timed out waiting for Qdrant on port \${QDRANT_HTTP_PORT}" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+started_at="\$(date +%s)"
+until curl -fsS "http://127.0.0.1:\${MINERU_PORT}/docs" >/dev/null 2>&1 || curl -fsS "http://127.0.0.1:\${MINERU_PORT}/openapi.json" >/dev/null 2>&1; do
+  if (( "\$(date +%s)" - started_at >= 120 )); then
+    echo "Timed out waiting for MinerU on port \${MINERU_PORT}" >&2
+    exit 1
+  fi
+  sleep 2
+done
+
+run_worker() {
+  exec env \\
+    PYTHONPATH=src \\
+    ENZYME_RUNTIME_CONFIG="\${ENZYME_RUNTIME_CONFIG}" \\
+    .venv/bin/python scripts/run_ingestion_worker.py \\
+      --config "\${ENZYME_RUNTIME_CONFIG}" \\
+      --artifact-root artifacts \\
+      --poll-seconds "\${INGESTION_POLL_SECONDS}" \\
+      --mineru-timeout-seconds "\${INGESTION_MINERU_TIMEOUT_SECONDS}" \\
+      --mineru-interval-seconds "\${INGESTION_MINERU_INTERVAL_SECONDS}" \\
+      --qdrant-batch-size "\${INGESTION_QDRANT_BATCH_SIZE}" \\
+      "\$@"
+}
+
+if [[ -n "\${INGESTION_COLLECTION}" ]]; then
+  run_worker --collection "\${INGESTION_COLLECTION}"
+else
+  run_worker
+fi
 EOF
 
 cat > "${WRAPPER_DIR}/rotate_logs.sh" <<EOF
