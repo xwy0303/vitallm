@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 
 from enzyme_recommender.generators.openai_compatible import OpenAICompatibleGeneratorClient
@@ -35,6 +36,10 @@ class RuntimeServices:
         )
 
     def embedding_model(self) -> HashEmbeddingModel | SentenceEmbeddingModel:
+        return self._embedding_model
+
+    @cached_property
+    def _embedding_model(self) -> HashEmbeddingModel | SentenceEmbeddingModel:
         embedding_config = self.config.embedding
         if embedding_config.provider == "sentence":
             return SentenceEmbeddingModel(

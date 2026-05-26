@@ -181,7 +181,9 @@ rerank 会合并 vector score、route weight、record_type match、numeric overl
 
 260525 更新：rerank 已加入 lightweight lexical+dense hybrid signal，不新增外部依赖。lexical signal 覆盖 domain/material token、数值 token、英文数字词归一化（如 `ten` -> `10`）、unit token 和短语 overlap，用于提升 exact material/numeric/condition 命中。当前已补充 rare material / `enzyme@material` construct signal，并对 MinerU OCR split（如 `Lipa se@NKMOF-101-Mn`）做归一化，避免稀有 MOF 精确命中被泛化 `ZIF-8/activity` 结果压低。
 
-为避免 fallback 新文档中的同一张表多行 evidence 刷满 top-k，rerank 后增加 result diversity：同一 `parent_source_id` 或同一 `table_id` 的重复候选保留首条代表性结果，后续重复行递增小幅降权。该规则只影响排序多样性，不覆盖 `usable_for_ranking`、`requires_review` 和 QA gate 边界。
+为避免 fallback 新文档中的同一张表或同一文档 evidence 刷满 top-k，rerank 后增加 result diversity：精确重复的长文本 evidence 会去重；同一 `parent_source_id`、同一 `table_id`、同一文档内多条 table row 会递增降权。该规则只影响排序多样性，不覆盖 `usable_for_ranking`、`requires_review` 和 QA gate 边界。
+
+260526 更新：推荐入口的 retrieval query 不再默认注入 `activity/recovery/reusability/stability` 这类宽泛推荐词。只有用户问题包含明确推荐/优化/最佳/should/better 等强意图时才启用推荐扩展；普通 evidence QA 走 `answer_evidence_question`，前端标题和 stream prompt 也会按证据问答处理，避免自然语言问答被错误拉向 B10 表格型推荐结果。
 
 ## Ranking 边界
 

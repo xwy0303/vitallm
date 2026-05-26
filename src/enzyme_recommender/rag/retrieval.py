@@ -556,16 +556,39 @@ def apply_result_diversity(hits: Sequence[RetrievalHit]) -> List[RetrievalHit]:
         reverse=True,
     )
     parent_counts: Dict[str, int] = {}
+    document_counts: Dict[str, int] = {}
+    document_table_counts: Dict[str, int] = {}
+    seen_fingerprints: set[str] = set()
     diversified: List[RetrievalHit] = []
     for hit in sorted_hits:
+        fingerprint = duplicate_hit_fingerprint(hit)
+        if fingerprint and fingerprint in seen_fingerprints:
+            continue
+        if fingerprint:
+            seen_fingerprints.add(fingerprint)
+
         parent_key = result_parent_key(hit)
         duplicate_penalty = 0.0
         if parent_key:
             seen = parent_counts.get(parent_key, 0)
             if seen:
-                duplicate_penalty = min(0.16, 0.04 * seen)
+                duplicate_penalty += min(0.70, 0.35 * seen)
             parent_counts[parent_key] = seen + 1
-        if not duplicate_penalty:
+
+        document_key = hit.document_id or hit.source_pdf or ""
+        if document_key:
+            seen = document_counts.get(document_key, 0)
+            if seen:
+                duplicate_penalty += min(0.28, 0.08 * seen)
+            document_counts[document_key] = seen + 1
+
+        if document_key and hit.record_type == "table_comparison_row":
+            table_seen = document_table_counts.get(document_key, 0)
+            if table_seen:
+                duplicate_penalty += min(0.54, 0.18 * table_seen)
+            document_table_counts[document_key] = table_seen + 1
+
+        if duplicate_penalty <= 0:
             diversified.append(hit)
             continue
         adjusted_score = (hit.rerank_score if hit.rerank_score is not None else hit.score) - duplicate_penalty
@@ -584,6 +607,19 @@ def result_parent_key(hit: RetrievalHit) -> str:
     if table_id:
         return f"{hit.document_id or ''}:{table_id}"
     return ""
+
+
+def duplicate_hit_fingerprint(hit: RetrievalHit) -> str:
+    text = normalize_duplicate_text(hit.text or hit.source_chunk_text or hit.embedding_text or "")
+    if len(text) < 80:
+        return ""
+    return f"{hit.record_type or hit.point_type}:{text[:520]}"
+
+
+def normalize_duplicate_text(text: str) -> str:
+    normalized = normalize_lexical_text(text).lower()
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized.strip()
 
 
 def hit_searchable_text(hit: RetrievalHit) -> str:

@@ -7,7 +7,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from enzyme_recommender.rag.embedding import HashEmbeddingConfig, HashEmbeddingModel, SentenceEmbeddingConfig, SentenceEmbeddingModel
+from enzyme_recommender.rag.embedding import (
+    HashEmbeddingConfig,
+    HashEmbeddingModel,
+    SentenceEmbeddingConfig,
+    SentenceEmbeddingModel,
+    is_meta_tensor_load_error,
+)
 from enzyme_recommender.rag.indexing import (
     POINT_SCHEMA_VERSION,
     build_collection_name,
@@ -27,7 +33,13 @@ from enzyme_recommender.rag.qdrant import (
     extract_collection_vector_size,
 )
 from enzyme_recommender.ingestion.qa import MinerUQAGateConfig, apply_qa_gate
-from enzyme_recommender.rag.retrieval import RetrievalHit, RetrievalResponse, build_query_plan, rerank_hits
+from enzyme_recommender.rag.retrieval import (
+    RetrievalHit,
+    RetrievalResponse,
+    apply_result_diversity,
+    build_query_plan,
+    rerank_hits,
+)
 from enzyme_recommender.generators import ChatMessage, GenerationRequest, MockGeneratorClient
 from enzyme_recommender.generators.openai_compatible import OpenAICompatibleGeneratorClient
 from enzyme_recommender.api.models import DashboardSummaryResponse
@@ -41,7 +53,13 @@ from enzyme_recommender.api.app import (
     runtime_with_collection,
     summarize_qdrant_payloads,
 )
-from enzyme_recommender.recommendation.enzyme import EnzymeRecommendationRequest, RecommendationService, resolve_evidence_refs
+from enzyme_recommender.recommendation.enzyme import (
+    EnzymeRecommendationRequest,
+    RecommendationService,
+    build_retrieval_query,
+    build_stream_generation_prompt,
+    resolve_evidence_refs,
+)
 from enzyme_recommender.recommendation.formulation import FormulationOptimizationRequest, FormulationOptimizationService
 from enzyme_recommender.runtime import RuntimeServices
 from enzyme_recommender.runtime.config import RuntimeConfig
@@ -76,6 +94,17 @@ class RuntimeConfigTests(unittest.TestCase):
 
         self.assertEqual(config.embedding.provider, "hash_v1")
         self.assertEqual(config.vector_store.collection, "enzyme_immobilization_literature")
+
+    def test_runtime_reuses_embedding_model_instance(self) -> None:
+        runtime = RuntimeServices(config=RuntimeConfig.from_file(Path("configs/local.yaml")))
+
+        self.assertIs(runtime.embedding_model(), runtime.embedding_model())
+
+    def test_meta_tensor_load_error_is_detected_for_embedding_fallback(self) -> None:
+        error = RuntimeError("Cannot copy out of meta tensor; no data! Please use torch.nn.Module.to_empty()")
+
+        self.assertTrue(is_meta_tensor_load_error(error))
+        self.assertFalse(is_meta_tensor_load_error(RuntimeError("connection timeout")))
 
 
 class QdrantContractTests(unittest.TestCase):
@@ -1119,6 +1148,69 @@ class RetrievalPlanningTests(unittest.TestCase):
         self.assertEqual(reranked[0].source_id, "ev_table_1")
         self.assertIn("ev_b10", [hit.source_id for hit in reranked[:3]])
 
+    def test_diversity_drops_exact_duplicate_evidence_text(self) -> None:
+        duplicate_text = (
+            "Columns: Enzyme | Carrier | Yield | Reuse. "
+            "Row 1: Enzyme: BCL | Carrier: ZIF-8 | Yield: 93.4% | Reuse: 8 cycles. "
+            "This sentence makes the fingerprint long enough to detect duplicated rows."
+        )
+        hits = [
+            RetrievalHit(
+                score=0.92,
+                rerank_score=0.92,
+                point_type="evidence_record",
+                source_id="ev_dup_1",
+                document_id="B10",
+                record_type="table_comparison_row",
+                text=duplicate_text,
+            ),
+            RetrievalHit(
+                score=0.91,
+                rerank_score=0.91,
+                point_type="evidence_record",
+                source_id="ev_dup_2",
+                document_id="B10",
+                record_type="table_comparison_row",
+                text=duplicate_text,
+            ),
+            RetrievalHit(
+                score=0.86,
+                rerank_score=0.86,
+                point_type="evidence_record",
+                source_id="ev_other_doc",
+                document_id="C6",
+                record_type="immobilization_strategy",
+                text="Warfarin synthesis used supported lipase evidence in a different document.",
+            ),
+        ]
+
+        diversified = apply_result_diversity(hits)
+
+        self.assertEqual([hit.source_id for hit in diversified], ["ev_dup_1", "ev_other_doc"])
+
+    def test_retrieval_query_for_evidence_question_does_not_inject_recommendation_terms(self) -> None:
+        query = build_retrieval_query(
+            EnzymeRecommendationRequest(
+                enzyme_name="Burkholderia cepacia lipase",
+                objective="answer_evidence_question",
+                application_context="B10 这篇文章用了什么固定化载体？",
+            )
+        )
+
+        self.assertIn("B10 这篇文章用了什么固定化载体？", query)
+        self.assertIn("immobilization enzyme evidence", query)
+        self.assertNotIn("activity recovery reusability stability", query)
+
+    def test_retrieval_query_for_explicit_recommendation_keeps_recommendation_terms(self) -> None:
+        query = build_retrieval_query(
+            EnzymeRecommendationRequest(
+                enzyme_name="BCL",
+                application_context="请推荐 BCL 用于 biodiesel 的固定化载体",
+            )
+        )
+
+        self.assertIn("activity recovery reusability stability", query)
+
 
 class PostMinerUQAGateTests(unittest.TestCase):
     def test_placeholder_pages_are_marked_unusable(self) -> None:
@@ -1258,6 +1350,18 @@ class LiveStreamPromptTests(unittest.TestCase):
         self.assertEqual(generation_request.response_format, "text")
         self.assertEqual(generation_request.max_retries, 0)
         self.assertIn("不输出 JSON", generation_request.messages[-1].content)
+
+    def test_evidence_question_stream_prompt_does_not_force_recommendation(self) -> None:
+        request = EnzymeRecommendationRequest(
+            enzyme_name="B10 这篇文章",
+            objective="answer_evidence_question",
+            application_context="B10 这篇文章用了什么固定化载体？",
+        )
+        prompt = build_stream_generation_prompt(request, sample_retrieval_response())
+
+        self.assertIn("回答用户问题", prompt)
+        self.assertIn("不要默认改写成固定化推荐", prompt)
+        self.assertIn("直接回答用户问题", prompt)
 
     def test_formulation_live_stream_uses_text_response_format(self) -> None:
         service = FormulationOptimizationService(runtime=runtime_with_config())

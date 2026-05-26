@@ -23,7 +23,8 @@ const JSON_REQUEST_TIMEOUT_MS = 120000;
 const STREAM_REQUEST_TIMEOUT_MS = 300000;
 const STREAM_FIRST_TOKEN_TIMEOUT_MS = 45000;
 const STREAM_IDLE_TIMEOUT_MS = 45000;
-const STREAM_TOP_K = 3;
+const STREAM_TOP_K = 6;
+const SEARCH_TOP_K = 8;
 
 let activeMode = "recommend";
 let loadingTimer = null;
@@ -181,7 +182,7 @@ async function runQuery() {
         body: JSON.stringify({
           query: rawInput,
           ...(DEFAULT_COLLECTION ? { collection: DEFAULT_COLLECTION } : {}),
-          top_k: 5,
+          top_k: SEARCH_TOP_K,
           usable_only: true,
         }),
       });
@@ -211,8 +212,10 @@ async function runQuery() {
 }
 
 function buildRecommendPayload(rawInput) {
+  const recommendationIntent = hasRecommendationIntent(rawInput);
   return {
     enzyme_name: extractEnzymeName(rawInput),
+    objective: recommendationIntent ? "recommend_best_immobilization_agent" : "answer_evidence_question",
     application_context: rawInput,
     ...(DEFAULT_COLLECTION ? { collection: DEFAULT_COLLECTION } : {}),
     top_k: STREAM_TOP_K,
@@ -242,6 +245,11 @@ function extractEnzymeName(rawInput) {
   const lower = rawInput.toLowerCase();
   const match = knownNames.find((name) => lower.includes(name.toLowerCase()));
   return match === "BCL" ? "Burkholderia cepacia lipase" : match || rawInput.split(/[，,。.\n]/)[0].trim();
+}
+
+function hasRecommendationIntent(rawInput) {
+  const value = String(rawInput || "").toLowerCase();
+  return /recommend|recommendation|best|optimal|optimise|optimize|suggest|should|better|prefer|推荐|最适合|最佳|最优|优化|建议|应该|该用|更好|效果好|方案/.test(value);
 }
 
 async function requestJson(path, options) {
@@ -539,7 +547,7 @@ function appendStreamDelta(delta) {
 
 function renderRecommendation(data) {
   setReferenceHits(data.evidence_hits);
-  resultTitle.textContent = "固定化推荐结果";
+  resultTitle.textContent = data.objective === "answer_evidence_question" ? "证据问答结果" : "固定化推荐结果";
   resultBody.innerHTML = [
     renderMeta(data.generator_provider, data.generator_model, data.limitations),
     renderLiveAnswer(data),
@@ -778,9 +786,9 @@ function renderReferenceModalContent() {
   }
   const hit = activeReferenceHit;
   const citation = formatReferenceCitation(hit);
-  const text = cleanDisplayText(getReferenceText(hit)) || "无 chunk 文本";
+  const text = cleanReferenceText(getReferenceText(hit)) || "无 chunk 文本";
   const isLong = text.length > CHUNK_PREVIEW_LIMIT;
-  const visibleText = isLong && !activeReferenceExpanded ? `${text.slice(0, CHUNK_PREVIEW_LIMIT).trimEnd()}...` : text;
+  const renderedText = isReferenceTableText(text) ? text : isLong && !activeReferenceExpanded ? `${text.slice(0, CHUNK_PREVIEW_LIMIT).trimEnd()}...` : text;
   const pdfName = hit.source_pdf || parsePdfName(citation) || "-";
   const pdfUrl = buildPdfUrl(hit);
 
@@ -790,9 +798,9 @@ function renderReferenceModalContent() {
     <span>${escapeHtml(formatPageLabel(hit))}</span>
     <span>score ${Number(hit.score || 0).toFixed(3)}</span>
   `;
-  referenceModalText.innerHTML = renderReferenceText(visibleText);
+  referenceModalText.innerHTML = renderReferenceText(renderedText);
   referenceModalFooter.innerHTML = `
-    ${isLong ? `<button class="ghost-button" type="button" data-reference-more>${activeReferenceExpanded ? "收起" : "更多"}</button>` : ""}
+    ${isLong && !isReferenceTableText(text) ? `<button class="ghost-button" type="button" data-reference-more>${activeReferenceExpanded ? "收起" : "更多"}</button>` : ""}
     <a class="pdf-file-link" href="${escapeHtml(pdfUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(pdfName)}</a>
   `;
 }
@@ -860,6 +868,26 @@ function formatCandidateTitle(item) {
 }
 
 function cleanDisplayText(value) {
+  return String(value || "")
+    .split("\n")
+    .map((line) => cleanDisplayLine(line))
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanReferenceText(value) {
+  return String(value || "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => cleanDisplayLine(line))
+    .join("\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function cleanDisplayLine(value) {
   return String(value || "")
     .replace(/\$\s*\^\s*\{\s*-\s*1\s*\}/g, "-1")
     .replace(/\$\s*([^$]+?)\s*\$/g, "$1")
@@ -934,6 +962,7 @@ function renderReferenceText(text) {
   }
   return `
     <div class="extracted-table-wrap">
+      ${table.caption ? `<p class="extracted-table-caption">${escapeHtml(cleanMathText(table.caption))}</p>` : ""}
       <table class="extracted-table">
         <thead>
           <tr>${table.columns.map((column) => `<th>${escapeHtml(cleanMathText(column))}</th>`).join("")}</tr>
@@ -952,25 +981,31 @@ function renderReferenceText(text) {
   `;
 }
 
-function parseLinearizedTable(text) {
-  const lines = String(text || "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-  if (!lines.length || !lines[0].startsWith("Columns:")) return null;
+function isReferenceTableText(text) {
+  return /\bColumns:\s+/i.test(String(text || "")) && /\bRow\s+\d+:\s+/i.test(String(text || ""));
+}
 
-  const columns = lines[0]
-    .replace(/^Columns:\s*/, "")
+function parseLinearizedTable(text) {
+  const source = String(text || "").trim();
+  const columnsMatch = source.match(/\bColumns:\s*/i);
+  if (!columnsMatch) return null;
+
+  const columnsStart = columnsMatch.index + columnsMatch[0].length;
+  const beforeColumns = source.slice(0, columnsMatch.index).trim();
+  const afterColumns = source.slice(columnsStart);
+  const firstRowMatch = afterColumns.match(/\bRow\s+\d+:\s*/i);
+  if (!firstRowMatch) return null;
+
+  const columnsText = afterColumns.slice(0, firstRowMatch.index).trim();
+  const rowsText = afterColumns.slice(firstRowMatch.index).trim();
+  const columns = columnsText
     .split("|")
     .map((column) => column.trim())
     .filter(Boolean);
   if (!columns.length) return null;
 
   const rows = [];
-  for (const line of lines.slice(1)) {
-    const match = line.match(/^Row\s+\d+:\s*(.+)$/i);
-    if (!match) continue;
-    const body = match[1].trim();
+  for (const body of splitLinearizedRows(rowsText)) {
     const cells = columns.map((column, index) => {
       const nextColumn = columns[index + 1];
       const pattern = nextColumn
@@ -984,7 +1019,18 @@ function parseLinearizedTable(text) {
     }
   }
 
-  return rows.length ? { columns, rows } : null;
+  return rows.length ? { caption: beforeColumns, columns, rows } : null;
+}
+
+function splitLinearizedRows(rowsText) {
+  const matches = Array.from(String(rowsText || "").matchAll(/\bRow\s+\d+:\s*/gi));
+  return matches
+    .map((match, index) => {
+      const start = match.index + match[0].length;
+      const end = matches[index + 1]?.index ?? rowsText.length;
+      return rowsText.slice(start, end).trim();
+    })
+    .filter(Boolean);
 }
 
 function cleanMathText(value) {

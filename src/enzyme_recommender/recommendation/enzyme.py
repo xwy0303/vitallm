@@ -158,14 +158,58 @@ STREAM_SYSTEM_PROMPT = """你是一个面向生物酶固定化的 evidence-first
 
 
 def build_retrieval_query(request: EnzymeRecommendationRequest) -> str:
-    parts = [
-        request.enzyme_name,
-        "immobilization carrier support method conditions activity recovery yield reusability stability",
-        request.objective,
-        request.application_context or "",
-        " ".join(request.constraints),
-    ]
+    application_context = request.application_context or ""
+    constraints = " ".join(request.constraints)
+    user_text = " ".join(part for part in [application_context, constraints] if part).strip()
+    parts = []
+    if user_text:
+        parts.append(user_text)
+        if request.enzyme_name and request.enzyme_name.lower() not in user_text.lower():
+            parts.append(request.enzyme_name)
+    else:
+        parts.append(request.enzyme_name)
+
+    if should_expand_recommendation_query(request, user_text):
+        parts.append("immobilization carrier support method conditions activity recovery reusability stability")
+    else:
+        parts.append("immobilization enzyme evidence")
     return " ".join(part for part in parts if part).strip()
+
+
+EVIDENCE_QA_OBJECTIVE = "answer_evidence_question"
+
+RECOMMENDATION_INTENT_TERMS = {
+    "recommend",
+    "recommendation",
+    "best",
+    "optimal",
+    "optimize",
+    "suggest",
+    "should",
+    "better",
+    "prefer",
+    "preferred",
+    "推荐",
+    "最适合",
+    "最佳",
+    "最优",
+    "优化",
+    "建议",
+    "应该",
+    "该用",
+    "更好",
+    "效果好",
+    "方案",
+}
+
+
+def should_expand_recommendation_query(request: EnzymeRecommendationRequest, user_text: str) -> bool:
+    if request.objective == EVIDENCE_QA_OBJECTIVE:
+        return False
+    if not user_text:
+        return True
+    text = user_text.lower()
+    return any(term in text for term in RECOMMENDATION_INTENT_TERMS)
 
 
 def build_generation_prompt(request: EnzymeRecommendationRequest, retrieval: RetrievalResponse) -> str:
@@ -187,6 +231,22 @@ def build_generation_prompt(request: EnzymeRecommendationRequest, retrieval: Ret
 
 
 def build_stream_generation_prompt(request: EnzymeRecommendationRequest, retrieval: RetrievalResponse) -> str:
+    if request.objective == EVIDENCE_QA_OBJECTIVE:
+        return "\n\n".join(
+            [
+                "任务：基于 evidence context 回答用户问题，不要默认改写成固定化推荐。",
+                f"用户问题：{request.application_context or request.enzyme_name}",
+                f"检索关键词/目标酶：{request.enzyme_name}",
+                f"用户约束：{request.constraints or '未提供'}",
+                "Evidence context:",
+                retrieval.context_text(max_chars_per_hit=600),
+                "输出要求：",
+                "- 直接回答用户问题；如果 evidence 不足，明确说不足。",
+                "- 每个关键事实必须带 [1]、[2] 这类 reference index。",
+                "- 不要引入 evidence context 之外的新事实。",
+                "- 不输出 JSON。",
+            ]
+        )
     return "\n\n".join(
         [
             "任务：快速给出面向前端 live stream 的首答。",

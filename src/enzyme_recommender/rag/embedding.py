@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Sequence
@@ -112,6 +113,7 @@ class SentenceEmbeddingModel:
     def __init__(self, config: Optional[SentenceEmbeddingConfig] = None) -> None:
         self.config = config or SentenceEmbeddingConfig()
         self._model: Any = None
+        self._load_lock = threading.Lock()
 
     @property
     def dimensions(self) -> int:
@@ -137,22 +139,30 @@ class SentenceEmbeddingModel:
     def _load_model(self) -> Any:
         if self._model is not None:
             return self._model
-        from sentence_transformers import SentenceTransformer
+        with self._load_lock:
+            if self._model is not None:
+                return self._model
+            from sentence_transformers import SentenceTransformer
 
-        cache_folder = str(Path(self.config.cache_folder).expanduser()) if self.config.cache_folder else None
-        self._model = SentenceTransformer(
-            self.config.model_name,
-            device=self.config.device,
-            cache_folder=cache_folder,
-            local_files_only=self.config.local_files_only,
-        )
-        actual_dimensions = self._model.get_sentence_embedding_dimension()
-        if actual_dimensions != self.config.dimensions:
-            raise ValueError(
-                f"embedding dimension mismatch for {self.config.model_name}: "
-                f"config={self.config.dimensions}, model={actual_dimensions}"
-            )
-        return self._model
+            cache_folder = str(Path(self.config.cache_folder).expanduser()) if self.config.cache_folder else None
+            try:
+                self._model = SentenceTransformer(
+                    self.config.model_name,
+                    device=self.config.device,
+                    cache_folder=cache_folder,
+                    local_files_only=self.config.local_files_only,
+                )
+            except RuntimeError as exc:
+                if not is_meta_tensor_load_error(exc):
+                    raise
+                self._model = TransformersClsPoolingEncoder(self.config, cache_folder=cache_folder)
+            actual_dimensions = self._model.get_sentence_embedding_dimension()
+            if actual_dimensions != self.config.dimensions:
+                raise ValueError(
+                    f"embedding dimension mismatch for {self.config.model_name}: "
+                    f"config={self.config.dimensions}, model={actual_dimensions}"
+                )
+            return self._model
 
     def _normalize_vector(self, vector: Any) -> List[float]:
         values = list(map(float, vector))
@@ -162,3 +172,50 @@ class SentenceEmbeddingModel:
                 f"config={self.config.dimensions}, vector={len(values)}"
             )
         return values
+
+
+class TransformersClsPoolingEncoder:
+    def __init__(self, config: SentenceEmbeddingConfig, cache_folder: Optional[str]) -> None:
+        import torch
+        from transformers import AutoModel, AutoTokenizer
+
+        self.config = config
+        self._torch = torch
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            config.model_name,
+            cache_dir=cache_folder,
+            local_files_only=config.local_files_only,
+        )
+        self._model = AutoModel.from_pretrained(
+            config.model_name,
+            cache_dir=cache_folder,
+            local_files_only=config.local_files_only,
+        )
+        self._device = torch.device(config.device or "cpu")
+        self._model.to(self._device)
+        self._model.eval()
+
+    def get_sentence_embedding_dimension(self) -> Optional[int]:
+        return getattr(self._model.config, "hidden_size", None)
+
+    def encode(self, texts: str | Iterable[str], normalize_embeddings: bool = True) -> Any:
+        import torch.nn.functional as functional
+
+        is_single = isinstance(texts, str)
+        batch = [texts] if is_single else list(texts)
+        if not batch:
+            return []
+        encoded = self._tokenizer(batch, padding=True, truncation=True, return_tensors="pt")
+        encoded = {key: value.to(self._device) for key, value in encoded.items()}
+        with self._torch.no_grad():
+            outputs = self._model(**encoded)
+        sentence_embeddings = outputs.last_hidden_state[:, 0]
+        if normalize_embeddings:
+            sentence_embeddings = functional.normalize(sentence_embeddings, p=2, dim=1)
+        vectors = sentence_embeddings.cpu().tolist()
+        return vectors[0] if is_single else vectors
+
+
+def is_meta_tensor_load_error(error: RuntimeError) -> bool:
+    message = str(error).lower()
+    return "meta tensor" in message and "to_empty" in message
