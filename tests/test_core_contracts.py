@@ -32,13 +32,22 @@ from enzyme_recommender.rag.qdrant import (
     citation,
     extract_collection_vector_size,
 )
+from enzyme_recommender.rag.documents import (
+    DocumentCatalogItem,
+    build_document_catalog_from_payloads,
+    resolve_document_reference,
+    resolve_document_reference_from_hits,
+)
 from enzyme_recommender.ingestion.qa import MinerUQAGateConfig, apply_qa_gate
 from enzyme_recommender.rag.retrieval import (
     RetrievalHit,
     RetrievalResponse,
     apply_result_diversity,
+    build_qdrant_filter,
     build_query_plan,
+    is_paper_process_query,
     rerank_hits,
+    rerank_document_hits,
 )
 from enzyme_recommender.generators import ChatMessage, GenerationRequest, MockGeneratorClient
 from enzyme_recommender.generators.openai_compatible import OpenAICompatibleGeneratorClient
@@ -55,9 +64,11 @@ from enzyme_recommender.api.app import (
 )
 from enzyme_recommender.recommendation.enzyme import (
     EnzymeRecommendationRequest,
+    PAPER_PROCESS_OBJECTIVE,
     RecommendationService,
     build_retrieval_query,
     build_stream_generation_prompt,
+    is_paper_process_question,
     resolve_evidence_refs,
 )
 from enzyme_recommender.recommendation.formulation import FormulationOptimizationRequest, FormulationOptimizationService
@@ -130,6 +141,186 @@ class QdrantContractTests(unittest.TestCase):
     def test_citation_displays_mineru_page_idx_as_one_based_pdf_page(self) -> None:
         self.assertEqual(citation({"source_pdf": "A21.pdf", "page_start": 9, "page_end": 9}), "A21.pdf:p10")
         self.assertEqual(citation({"source_pdf": "A21.pdf", "page_start": 9, "page_end": 10}), "A21.pdf:p10-p11")
+
+    def test_document_scope_filter_uses_existing_metadata_fields(self) -> None:
+        query_filter = build_qdrant_filter(
+            point_type="evidence_record",
+            usable_only=False,
+            record_type="formulation_condition",
+            document_id="B10",
+            source_pdf="B10.pdf",
+        )
+
+        self.assertEqual(
+            query_filter,
+            {
+                "must": [
+                    {"key": "point_type", "match": {"value": "evidence_record"}},
+                    {"key": "record_type", "match": {"value": "formulation_condition"}},
+                    {"key": "document_id", "match": {"value": "B10"}},
+                    {"key": "source_pdf", "match": {"value": "B10.pdf"}},
+                ]
+            },
+        )
+
+
+class DocumentResolverTests(unittest.TestCase):
+    def test_explicit_document_id_resolves_before_title_matching(self) -> None:
+        catalog = [
+            DocumentCatalogItem(document_id="A12", source_pdf="A12.pdf", title_candidate="Other title"),
+            DocumentCatalogItem(document_id="B10", source_pdf="B10.pdf", title_candidate="BCL ZIF-8 biodiesel"),
+        ]
+
+        result = resolve_document_reference("B10论文对酶固定化剂的优化过程是怎么样的", catalog)
+
+        self.assertEqual(result.status, "resolved")
+        self.assertTrue(result.explicit)
+        self.assertEqual(result.document.document_id if result.document else None, "B10")
+
+    def test_title_match_resolves_when_single_candidate_is_strong(self) -> None:
+        catalog = [
+            DocumentCatalogItem(
+                document_id="A1",
+                source_pdf="A1.pdf",
+                title_candidate="Immobilization of lipase on UiO-66 for esterification",
+                aliases=["Immobilization of lipase on UiO-66 for esterification"],
+            ),
+            DocumentCatalogItem(
+                document_id="B10",
+                source_pdf="B10.pdf",
+                title_candidate="BCL immobilized on ZIF-8 for soybean oil ethanol biodiesel",
+                aliases=["BCL immobilized on ZIF-8 for soybean oil ethanol biodiesel"],
+            ),
+        ]
+
+        result = resolve_document_reference("BCL immobilized on ZIF-8 soybean oil ethanol 这篇论文优化过程", catalog)
+
+        self.assertEqual(result.status, "resolved")
+        self.assertFalse(result.explicit)
+        self.assertEqual(result.document.document_id if result.document else None, "B10")
+
+    def test_title_match_reports_ambiguity_for_close_candidates(self) -> None:
+        catalog = [
+            DocumentCatalogItem(
+                document_id="A1",
+                source_pdf="A1.pdf",
+                title_candidate="lipase immobilization on ZIF-8 carrier",
+                aliases=["lipase immobilization on ZIF-8 carrier"],
+            ),
+            DocumentCatalogItem(
+                document_id="A2",
+                source_pdf="A2.pdf",
+                title_candidate="lipase immobilization on ZIF-8 support",
+                aliases=["lipase immobilization on ZIF-8 support"],
+            ),
+        ]
+
+        result = resolve_document_reference("lipase ZIF-8 论文优化过程", catalog)
+
+        self.assertEqual(result.status, "ambiguous")
+        self.assertEqual({item.document_id for item in result.candidates}, {"A1", "A2"})
+
+    def test_retrieval_hit_fallback_resolves_weak_title_catalog(self) -> None:
+        catalog = [
+            DocumentCatalogItem(document_id="A61", source_pdf="A61.pdf", title_candidate="Abstract: immobilized lipase"),
+            DocumentCatalogItem(document_id="B10", source_pdf="B10.pdf", title_candidate="Abstract: hierarchical ZIF-8"),
+        ]
+        hits = [
+            RetrievalHit(
+                score=1.4,
+                point_type="evidence_record",
+                source_id="ev_b10_1",
+                document_id="B10",
+                source_pdf="B10.pdf",
+                record_type="immobilization_strategy",
+                text="BCL immobilized on ZIF-8 for soybean oil ethanol biodiesel.",
+            ),
+            RetrievalHit(
+                score=1.2,
+                point_type="evidence_record",
+                source_id="ev_b10_2",
+                document_id="B10",
+                source_pdf="B10.pdf",
+                record_type="table_comparison_row",
+                text="B. cepacia lipase soybean oil ethanol biodiesel yield 93.4.",
+            ),
+            RetrievalHit(
+                score=1.1,
+                point_type="evidence_record",
+                source_id="ev_a61",
+                document_id="A61",
+                source_pdf="A61.pdf",
+                record_type="immobilization_strategy",
+                text="CALB immobilization on MOF-199 for biodiesel.",
+            ),
+        ]
+
+        result = resolve_document_reference_from_hits(
+            "BCL immobilized on ZIF-8 soybean oil ethanol biodiesel 论文优化流程",
+            catalog,
+            hits,
+        )
+
+        self.assertEqual(result.status, "resolved")
+        self.assertEqual(result.document.document_id if result.document else None, "B10")
+
+    def test_retrieval_hit_fallback_reports_ambiguity_for_close_documents(self) -> None:
+        catalog = [
+            DocumentCatalogItem(document_id="A1", source_pdf="A1.pdf"),
+            DocumentCatalogItem(document_id="A2", source_pdf="A2.pdf"),
+        ]
+        hits = [
+            RetrievalHit(
+                score=1.2,
+                point_type="evidence_record",
+                source_id="ev_a1",
+                document_id="A1",
+                source_pdf="A1.pdf",
+                text="lipase ZIF-8 biodiesel immobilization process",
+            ),
+            RetrievalHit(
+                score=1.18,
+                point_type="evidence_record",
+                source_id="ev_a2",
+                document_id="A2",
+                source_pdf="A2.pdf",
+                text="lipase ZIF-8 biodiesel immobilization process",
+            ),
+        ]
+
+        result = resolve_document_reference_from_hits("lipase ZIF-8 biodiesel 论文优化流程", catalog, hits)
+
+        self.assertEqual(result.status, "ambiguous")
+        self.assertEqual({item.document_id for item in result.candidates[:2]}, {"A1", "A2"})
+
+    def test_catalog_summary_counts_review_and_quality_flags(self) -> None:
+        catalog = build_document_catalog_from_payloads(
+            [
+                {
+                    "document_id": "B10",
+                    "source_pdf": "B10.pdf",
+                    "point_type": "rag_chunk",
+                    "page_start": 0,
+                    "section": "Title",
+                    "text": "BCL immobilized on hierarchical ZIF-8 for biodiesel production",
+                    "qa_status": "pass",
+                },
+                {
+                    "document_id": "B10",
+                    "source_pdf": "B10.pdf",
+                    "point_type": "evidence_record",
+                    "text": "bad table",
+                    "requires_review": True,
+                    "quality_flags": ["bad_table_structure"],
+                },
+            ]
+        )
+
+        self.assertEqual(len(catalog), 1)
+        self.assertEqual(catalog[0].indexed_points, 2)
+        self.assertIn("BCL immobilized", catalog[0].title_candidate or "")
+        self.assertEqual(catalog[0].qa_summary["requires_review"], 1)
+        self.assertEqual(catalog[0].qa_summary["quality_flags"]["bad_table_structure"], 1)
 
 
 class IndexPointTests(unittest.TestCase):
@@ -1148,6 +1339,131 @@ class RetrievalPlanningTests(unittest.TestCase):
         self.assertEqual(reranked[0].source_id, "ev_table_1")
         self.assertIn("ev_b10", [hit.source_id for hit in reranked[:3]])
 
+    def test_paper_process_intent_promotes_formulation_conditions(self) -> None:
+        plan = build_query_plan("B10论文对酶固定化剂的优化过程是怎么样的", top_k=4)
+        hits = [
+            RetrievalHit(
+                score=0.95,
+                vector_score=0.95,
+                point_type="evidence_record",
+                source_id="ev_table",
+                document_id="B10",
+                source_pdf="B10.pdf",
+                page_start=8,
+                record_type="table_comparison_row",
+                text="BCL-ZIF-8 biodiesel yield 93.4%",
+            ),
+            RetrievalHit(
+                score=0.82,
+                vector_score=0.82,
+                point_type="evidence_record",
+                source_id="ev_condition",
+                document_id="B10",
+                source_pdf="B10.pdf",
+                page_start=5,
+                record_type="formulation_condition",
+                text="BCL-ZIF-8 loading 700 mg adsorption time 30 min pH 7.5 temperature 25 C.",
+            ),
+        ]
+
+        reranked = rerank_document_hits("B10论文对酶固定化剂的优化过程是怎么样的", hits, plan)
+
+        self.assertEqual(reranked[0].source_id, "ev_condition")
+        self.assertIn("paper", plan.intents)
+        self.assertIn("process", plan.intents)
+
+    def test_document_rerank_keeps_performance_and_table_context_in_top_k(self) -> None:
+        plan = build_query_plan("B10 paper optimization process reusability biodiesel 8 cycles 93.4", top_k=12)
+        hits = [
+            *[
+                RetrievalHit(
+                    score=0.90 - index * 0.01,
+                    vector_score=0.90 - index * 0.01,
+                    point_type="evidence_record",
+                    source_id=f"ev_condition_{index}",
+                    document_id="B10",
+                    source_pdf="B10.pdf",
+                    page_start=5 + index,
+                    record_type="formulation_condition",
+                    text=f"BCL-ZIF-8 formulation condition {index}",
+                )
+                for index in range(8)
+            ],
+            RetrievalHit(
+                score=0.70,
+                vector_score=0.70,
+                point_type="evidence_record",
+                source_id="ev_performance",
+                document_id="B10",
+                source_pdf="B10.pdf",
+                page_start=8,
+                record_type="performance_metric",
+                text="BCL-ZIF-8 reusability 8 cycles with last yield 71.3%.",
+                metrics=[{"name": "reuse_cycles", "value": 8, "unit": "cycle"}],
+            ),
+            RetrievalHit(
+                score=0.68,
+                vector_score=0.68,
+                point_type="evidence_record",
+                source_id="ev_table",
+                document_id="B10",
+                source_pdf="B10.pdf",
+                page_start=9,
+                record_type="table_comparison_row",
+                text="B. cepacia lipase soybean oil ethanol yield 93.4 and 8 cycles.",
+                metrics=[{"name": "biodiesel_yield", "value": 93.4, "unit": "%"}],
+            ),
+        ]
+
+        reranked = rerank_document_hits(
+            "B10 paper optimization process reusability biodiesel 8 cycles 93.4",
+            hits,
+            plan,
+            top_k=6,
+        )
+
+        self.assertIn("ev_performance", [hit.source_id for hit in reranked])
+        self.assertIn("ev_table", [hit.source_id for hit in reranked])
+
+    def test_document_rerank_keeps_review_evidence_behind_usable_evidence(self) -> None:
+        plan = build_query_plan("B10论文对酶固定化剂的优化过程是怎么样的", top_k=4)
+        hits = [
+            RetrievalHit(
+                score=0.95,
+                vector_score=0.95,
+                point_type="evidence_record",
+                source_id="ev_review",
+                document_id="B10",
+                source_pdf="B10.pdf",
+                page_start=4,
+                record_type="formulation_condition",
+                requires_review=True,
+                quality_flags=["suspicious_percent_gt_300"],
+                text="BCL loading range with suspicious OCR duplicate text.",
+            ),
+            RetrievalHit(
+                score=0.80,
+                vector_score=0.80,
+                point_type="evidence_record",
+                source_id="ev_usable",
+                document_id="B10",
+                source_pdf="B10.pdf",
+                page_start=5,
+                record_type="formulation_condition",
+                usable_for_ranking=True,
+                text="BCL-ZIF-8 loading 700 mg adsorption time 30 min pH 7.5.",
+            ),
+        ]
+
+        reranked = rerank_document_hits("B10论文对酶固定化剂的优化过程是怎么样的", hits, plan)
+
+        self.assertEqual(reranked[0].source_id, "ev_usable")
+
+    def test_paper_process_query_detector(self) -> None:
+        self.assertTrue(is_paper_process_query("B10论文对酶固定化剂的优化过程是怎么样的"))
+        self.assertTrue(is_paper_process_question("B10 paper BCL-ZIF-8 optimization process"))
+        self.assertFalse(is_paper_process_question("优化固定化载体推荐"))
+
     def test_diversity_drops_exact_duplicate_evidence_text(self) -> None:
         duplicate_text = (
             "Columns: Enzyme | Carrier | Yield | Reuse. "
@@ -1210,6 +1526,18 @@ class RetrievalPlanningTests(unittest.TestCase):
         )
 
         self.assertIn("activity recovery reusability stability", query)
+
+    def test_retrieval_query_for_paper_process_does_not_inject_recommendation_terms(self) -> None:
+        query = build_retrieval_query(
+            EnzymeRecommendationRequest(
+                enzyme_name="B10论文",
+                objective=PAPER_PROCESS_OBJECTIVE,
+                application_context="B10论文对酶固定化剂的优化过程是怎么样的",
+            )
+        )
+
+        self.assertIn("B10论文对酶固定化剂的优化过程是怎么样的", query)
+        self.assertNotIn("activity recovery reusability stability", query)
 
 
 class PostMinerUQAGateTests(unittest.TestCase):
@@ -1362,6 +1690,83 @@ class LiveStreamPromptTests(unittest.TestCase):
         self.assertIn("回答用户问题", prompt)
         self.assertIn("不要默认改写成固定化推荐", prompt)
         self.assertIn("直接回答用户问题", prompt)
+
+    def test_paper_process_stream_prompt_has_required_structure_and_warnings(self) -> None:
+        request = EnzymeRecommendationRequest(
+            enzyme_name="B10论文",
+            objective=PAPER_PROCESS_OBJECTIVE,
+            application_context="B10论文对酶固定化剂的优化过程是怎么样的",
+            paper_document_id="B10",
+            paper_source_pdf="B10.pdf",
+            paper_resolution_status="resolved",
+        )
+        retrieval = RetrievalResponse(
+            query="B10论文优化过程",
+            collection="enzyme_immobilization_b10",
+            embedding_model="hash-v1-64",
+            top_k=1,
+            usable_only=False,
+            hits=[
+                RetrievalHit(
+                    score=0.8,
+                    point_type="evidence_record",
+                    source_id="ev_condition",
+                    citation="B10.pdf:p6",
+                    document_id="B10",
+                    source_pdf="B10.pdf",
+                    record_type="formulation_condition",
+                    requires_review=True,
+                    qa_status="fail",
+                    text="loading 700 mg adsorption time 30 min pH 7.5",
+                )
+            ],
+        )
+
+        prompt = build_stream_generation_prompt(request, retrieval)
+
+        self.assertIn("论文定位", prompt)
+        self.assertIn("优化变量", prompt)
+        self.assertIn("证据缺口与需复核项", prompt)
+        self.assertIn("requires_review=true", prompt)
+        self.assertIn("qa_status=fail", prompt)
+
+    def test_evidence_qa_response_does_not_fallback_to_recommendation_candidates(self) -> None:
+        service = RecommendationService(runtime=runtime_with_config())
+        request = EnzymeRecommendationRequest(
+            enzyme_name="你好",
+            objective="answer_evidence_question",
+            application_context="你好",
+        )
+        retrieval = RetrievalResponse(
+            query="你好",
+            collection="enzyme_immobilization_b10",
+            embedding_model="hash-v1-64",
+            top_k=1,
+            usable_only=True,
+            hits=[
+                RetrievalHit(
+                    score=0.5,
+                    point_type="evidence_record",
+                    source_id="ev_noise",
+                    citation="A48.pdf:p5",
+                    record_type="immobilization_strategy",
+                    text="adsorption on carrier",
+                    extracted={"immobilization_method": "adsorption"},
+                )
+            ],
+        )
+        generation = MockGeneratorClient().generate(
+            GenerationRequest(
+                messages=[ChatMessage(role="user", content="hello")],
+                model="mock-generator-v1",
+                response_format="text",
+            )
+        )
+
+        response = service.build_response(request, retrieval, generation)
+
+        self.assertEqual(response.candidates, [])
+        self.assertEqual(response.next_experiment_suggestions, [])
 
     def test_formulation_live_stream_uses_text_response_format(self) -> None:
         service = FormulationOptimizationService(runtime=runtime_with_config())

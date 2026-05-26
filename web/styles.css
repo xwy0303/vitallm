@@ -331,6 +331,105 @@ a {
   border: 1px solid var(--line);
 }
 
+.paper-selector {
+  display: grid;
+  gap: 10px;
+  width: min(900px, 100%);
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  text-align: left;
+}
+
+.paper-selector[hidden] {
+  display: none;
+}
+
+.paper-selector-head,
+.selected-paper,
+.paper-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.paper-selector-head label {
+  color: var(--green-900);
+  font-weight: 800;
+}
+
+.paper-selector-head span,
+.selected-paper span,
+.paper-option span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.paper-selector input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: 0;
+  color: var(--text);
+  background: #fbfefb;
+}
+
+.paper-options {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.paper-option {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: #fbfefb;
+  cursor: pointer;
+  text-align: left;
+}
+
+.paper-option:hover,
+.paper-option.selected {
+  border-color: rgba(31, 122, 62, 0.42);
+  background: #eef8ef;
+}
+
+.paper-option strong,
+.selected-paper strong {
+  flex: 0 0 auto;
+  color: var(--green-900);
+}
+
+.selected-paper {
+  padding: 10px 12px;
+  border: 1px solid rgba(31, 122, 62, 0.24);
+  border-radius: 8px;
+  background: #eef8ef;
+}
+
+.selected-paper button,
+.paper-followup {
+  border: 0;
+  border-radius: 999px;
+  color: var(--green-700);
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.selected-paper button {
+  padding: 6px 10px;
+}
+
 .result-panel {
   width: min(900px, 100%);
   margin-top: 6px;
@@ -687,6 +786,11 @@ a {
 .pdf-file-link {
   color: var(--green-900);
   font-weight: 800;
+}
+
+.paper-followup {
+  margin-left: 8px;
+  padding: 5px 9px;
 }
 
 .reference-modal[hidden] {

@@ -91,6 +91,33 @@ CONDITION_QUERY_TERMS = {
     "hour",
     "hours",
 }
+PROCESS_QUERY_TERMS = {
+    "process",
+    "procedure",
+    "workflow",
+    "optimization",
+    "optimisation",
+    "optimized",
+    "optimal",
+    "screening",
+    "loading",
+    "过程",
+    "流程",
+    "步骤",
+    "优化",
+    "筛选",
+}
+PAPER_QUERY_TERMS = {
+    "paper",
+    "article",
+    "study",
+    "document",
+    "pdf",
+    "论文",
+    "文章",
+    "文献",
+    "这篇",
+}
 PERFORMANCE_QUERY_TERMS = {
     "yield",
     "activity",
@@ -108,9 +135,11 @@ APPLICATION_QUERY_TERMS = {
     "biodiesel",
     "transesterification",
     "esterification",
+    "acetate",
     "epoxidation",
     "furfural",
     "furfuryl",
+    "isoamyl",
     "substrate",
     "soybean",
     "oil",
@@ -255,6 +284,14 @@ UNICODE_HYPHEN_TRANSLATION = str.maketrans(
         "\u2212": "-",
     }
 )
+DOCUMENT_PROCESS_RECORD_TYPES: List[RecordType] = [
+    "formulation_condition",
+    "immobilization_strategy",
+    "performance_metric",
+    "table_comparison_row",
+    "enzyme_identity",
+]
+DOCUMENT_PROCESS_POINT_TYPES: List[PointType] = ["evidence_record", "rag_chunk", "table_record"]
 
 
 class SearchRoute(BaseModel):
@@ -338,7 +375,11 @@ class RetrievalResponse(BaseModel):
                 "\n".join(
                     [
                         f"[{index}] score={hit.score:.4f} type={hit.point_type} record_type={hit.record_type or '-'}",
-                        f"source_id={hit.source_id} citation={hit.citation or '-'} usable={hit.usable_for_ranking} flags={hit.quality_flags}",
+                        (
+                            f"source_id={hit.source_id} citation={hit.citation or '-'} usable={hit.usable_for_ranking} "
+                            f"requires_review={hit.requires_review} qa_status={hit.qa_status or '-'} "
+                            f"quality_flags={hit.quality_flags} qa_flags={hit.qa_flags} review_reasons={hit.review_reasons}"
+                        ),
                         f"extracted={hit.extracted}",
                         f"metrics={hit.metrics}",
                         f"text={text}",
@@ -393,17 +434,62 @@ class EvidenceRetriever:
             hits=hits,
         )
 
+    def retrieve_document_scope(
+        self,
+        query: str,
+        document_id: Optional[str] = None,
+        source_pdf: Optional[str] = None,
+        top_k: int = 12,
+        include_review: bool = True,
+    ) -> RetrievalResponse:
+        plan = build_document_query_plan(query, top_k=top_k)
+        with QdrantRestClient(self.qdrant_config) as client:
+            query_vector = self.embedding_model.embed(query)
+            hits = []
+            for route in plan.routes:
+                raw_hits = client.search(
+                    vector=query_vector,
+                    top_k=max(route.limit, 1),
+                    query_filter=build_qdrant_filter(
+                        point_type=route.point_type,
+                        usable_only=not include_review,
+                        record_type=route.record_type,
+                        document_id=document_id,
+                        source_pdf=source_pdf,
+                    ),
+                )
+                hits.extend(raw_hit_to_retrieval_hit(raw_hit, route) for raw_hit in raw_hits)
+
+        hits = merge_route_hits(hits)
+        hits = rerank_document_hits(query, hits, plan, top_k=top_k)[:top_k]
+        return RetrievalResponse(
+            query=query,
+            collection=self.qdrant_config.collection,
+            embedding_model=self.embedding_model.name,
+            top_k=top_k,
+            usable_only=not include_review,
+            point_type=None,
+            query_plan=plan,
+            hits=hits,
+        )
+
 
 def build_qdrant_filter(
     point_type: Optional[str],
     usable_only: bool,
     record_type: Optional[str] = None,
+    document_id: Optional[str] = None,
+    source_pdf: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     must: List[Dict[str, Any]] = []
     if point_type:
         must.append({"key": "point_type", "match": {"value": point_type}})
     if record_type:
         must.append({"key": "record_type", "match": {"value": record_type}})
+    if document_id:
+        must.append({"key": "document_id", "match": {"value": document_id}})
+    if source_pdf:
+        must.append({"key": "source_pdf", "match": {"value": source_pdf}})
     if usable_only:
         must.append({"key": "usable_for_ranking", "match": {"value": True}})
     if not must:
@@ -535,6 +621,163 @@ def rerank_hits(query: str, hits: List[RetrievalHit], plan: Optional[QueryPlan] 
             )
         )
     return apply_result_diversity(reranked)
+
+
+def rerank_document_hits(
+    query: str,
+    hits: List[RetrievalHit],
+    plan: Optional[QueryPlan] = None,
+    top_k: Optional[int] = None,
+) -> List[RetrievalHit]:
+    reranked = rerank_hits(query, hits, plan)
+    adjusted: List[RetrievalHit] = []
+    for hit in reranked:
+        score = hit.rerank_score if hit.rerank_score is not None else hit.score
+        score += document_process_bonus(hit)
+        adjusted.append(hit.model_copy(update={"score": score, "rerank_score": score}))
+    ordered = sorted(
+        adjusted,
+        key=document_hit_order_key,
+    )
+    if top_k is None or top_k <= 0:
+        return ordered
+    return select_document_evidence_coverage(ordered, plan or build_document_query_plan(query, top_k=top_k), top_k)
+
+
+def select_document_evidence_coverage(
+    hits: Sequence[RetrievalHit],
+    plan: QueryPlan,
+    top_k: int,
+) -> List[RetrievalHit]:
+    buckets: Dict[str, List[RetrievalHit]] = {}
+    for hit in hits:
+        buckets.setdefault(document_bucket_key(hit), []).append(hit)
+
+    selected: List[RetrievalHit] = []
+    seen = set()
+    bucket_order = document_bucket_order(plan)
+    quotas = document_bucket_quotas(top_k)
+    for bucket in bucket_order:
+        take = min(quotas.get(bucket, 1), max(0, top_k - len(selected)))
+        for hit in buckets.get(bucket, [])[:take]:
+            if hit.source_id in seen:
+                continue
+            selected.append(hit)
+            seen.add(hit.source_id)
+            if len(selected) >= top_k:
+                return selected
+
+    for hit in hits:
+        if hit.source_id in seen:
+            continue
+        selected.append(hit)
+        seen.add(hit.source_id)
+        if len(selected) >= top_k:
+            break
+    return selected
+
+
+def document_bucket_order(plan: QueryPlan) -> List[str]:
+    intents = set(plan.intents)
+    if "performance" in intents:
+        return [
+            "formulation_condition",
+            "performance_metric",
+            "table_comparison_row",
+            "immobilization_strategy",
+            "enzyme_identity",
+            "rag_chunk",
+            "table_record",
+            "other",
+        ]
+    return [
+        "formulation_condition",
+        "immobilization_strategy",
+        "performance_metric",
+        "table_comparison_row",
+        "enzyme_identity",
+        "rag_chunk",
+        "table_record",
+        "other",
+    ]
+
+
+def document_bucket_quotas(top_k: int) -> Dict[str, int]:
+    if top_k <= 8:
+        return {
+            "formulation_condition": 3,
+            "immobilization_strategy": 2,
+            "performance_metric": 2,
+            "table_comparison_row": 1,
+            "enzyme_identity": 1,
+            "rag_chunk": 1,
+            "table_record": 1,
+            "other": 1,
+        }
+    return {
+        "formulation_condition": 4,
+        "immobilization_strategy": 3,
+        "performance_metric": 3,
+        "table_comparison_row": 2,
+        "enzyme_identity": 1,
+        "rag_chunk": 2,
+        "table_record": 1,
+        "other": 1,
+    }
+
+
+def document_bucket_key(hit: RetrievalHit) -> str:
+    if hit.record_type in DOCUMENT_PROCESS_RECORD_TYPES:
+        return str(hit.record_type)
+    if hit.point_type in {"rag_chunk", "table_record"}:
+        return hit.point_type
+    return "other"
+
+
+def document_hit_order_key(hit: RetrievalHit) -> tuple[int, int, bool, int, float, str]:
+    return (
+        document_record_rank(hit),
+        document_quality_rank(hit),
+        hit.page_start is None,
+        hit.page_start if hit.page_start is not None else 9999,
+        -(hit.rerank_score if hit.rerank_score is not None else hit.score),
+        hit.source_id,
+    )
+
+
+def document_quality_rank(hit: RetrievalHit) -> int:
+    flags = set(hit.quality_flags) | set(hit.qa_flags)
+    if hit.qa_status == "fail" or bool(flags & BAD_QUALITY_FLAGS):
+        return 2
+    if hit.requires_review or flags or hit.qa_status == "warning":
+        return 1
+    return 0
+
+
+def document_process_bonus(hit: RetrievalHit) -> float:
+    if hit.record_type == "formulation_condition":
+        return 0.34
+    if hit.record_type == "immobilization_strategy":
+        return 0.24
+    if hit.record_type == "performance_metric":
+        return 0.16
+    if hit.record_type == "table_comparison_row":
+        return 0.08
+    if hit.record_type == "enzyme_identity":
+        return 0.06
+    if hit.point_type == "rag_chunk":
+        return 0.03
+    return 0.0
+
+
+def document_record_rank(hit: RetrievalHit) -> int:
+    if hit.record_type in DOCUMENT_PROCESS_RECORD_TYPES:
+        return DOCUMENT_PROCESS_RECORD_TYPES.index(hit.record_type)
+    if hit.point_type == "rag_chunk":
+        return len(DOCUMENT_PROCESS_RECORD_TYPES)
+    if hit.point_type == "table_record":
+        return len(DOCUMENT_PROCESS_RECORD_TYPES) + 1
+    return len(DOCUMENT_PROCESS_RECORD_TYPES) + 2
 
 
 def normalize_tokens(text: str) -> List[str]:
@@ -819,6 +1062,18 @@ def build_query_plan(query: str, top_k: int = 8, point_type: Optional[PointType]
         record_types.append("enzyme_identity")
     if token_set & APPLICATION_QUERY_TERMS:
         intents.append("application")
+    if is_paper_process_query(query):
+        intents.append("paper")
+        intents.append("process")
+        record_types = [
+            "formulation_condition",
+            "immobilization_strategy",
+            "performance_metric",
+            "table_comparison_row",
+            "enzyme_identity",
+            *record_types,
+        ]
+        point_types = ["evidence_record", "rag_chunk", "table_record", *point_types]
     if not intents:
         intents.append("general")
     if not point_types:
@@ -842,6 +1097,40 @@ def build_query_plan(query: str, top_k: int = 8, point_type: Optional[PointType]
         query_tokens=tokens,
         numeric_tokens=numeric_tokens,
     )
+
+
+def build_document_query_plan(query: str, top_k: int = 12) -> QueryPlan:
+    base = build_query_plan(query, top_k=top_k)
+    intents = dedupe_ordered(["paper", "process", *base.intents])
+    record_types = dedupe_ordered([*DOCUMENT_PROCESS_RECORD_TYPES, *base.record_type_priorities])
+    point_types = dedupe_ordered([*DOCUMENT_PROCESS_POINT_TYPES, *base.point_type_priorities])
+    routes = build_search_routes(
+        top_k=top_k,
+        point_type=None,
+        record_types=record_types,
+        point_types=point_types,
+        intents=intents,
+    )
+    return QueryPlan(
+        intents=intents,
+        record_type_priorities=record_types,
+        point_type_priorities=point_types,
+        routes=routes,
+        query_tokens=base.query_tokens,
+        numeric_tokens=base.numeric_tokens,
+    )
+
+
+def is_paper_process_query(query: str) -> bool:
+    text = (query or "").lower()
+    tokens = set(normalize_tokens(text))
+    has_paper_hint = (
+        bool(tokens & PAPER_QUERY_TERMS)
+        or bool(re.search(r"(?<![A-Za-z0-9])[A-Z]\d{1,3}(?:\.pdf)?(?![A-Za-z0-9])", query or "", re.I))
+        or bool(re.search(r"论文|文章|文献|这篇", query or ""))
+    )
+    has_process_hint = bool(tokens & PROCESS_QUERY_TERMS) or bool(re.search(r"优化|流程|过程|步骤|筛选", query or ""))
+    return has_paper_hint and has_process_hint
 
 
 def build_search_routes(

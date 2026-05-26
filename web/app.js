@@ -18,6 +18,11 @@ const pdfDocsMetric = document.querySelector("[data-pdf-docs]");
 const pdfPagesMetric = document.querySelector("[data-pdf-pages]");
 const qdrantPointsMetric = document.querySelector("[data-qdrant-points]");
 const reviewItemsMetric = document.querySelector("[data-review-items]");
+const paperSelector = document.querySelector("[data-paper-selector]");
+const paperSearch = document.querySelector("[data-paper-search]");
+const paperOptions = document.querySelector("[data-paper-options]");
+const selectedPaperBox = document.querySelector("[data-selected-paper]");
+const paperCount = document.querySelector("[data-paper-count]");
 
 const JSON_REQUEST_TIMEOUT_MS = 120000;
 const STREAM_REQUEST_TIMEOUT_MS = 300000;
@@ -34,30 +39,40 @@ let activeReferenceHits = [];
 let activeReferenceLookup = new Map();
 let activeReferenceHit = null;
 let activeReferenceExpanded = false;
+let documentCatalog = [];
+let selectedPaper = null;
 
 const CHUNK_PREVIEW_LIMIT = 900;
 
 modeButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    activeMode = button.dataset.mode || "recommend";
-    modeButtons.forEach((item) => item.classList.toggle("active", item === button));
-    if (activeMode === "optimize") {
-      textarea.placeholder =
-        '输入配方 JSON，例如：{"enzyme_loading":{"value":500,"unit":"mg"},"buffer":{"pH":7},"immobilization_conditions":{"time":{"value":60,"unit":"min"}}}';
-    } else if (activeMode === "search") {
-      textarea.placeholder = "输入证据检索 query，例如：soybean oil ethanol yield 93.4 8 cycles last yield";
-    } else {
-      textarea.placeholder =
-        "例如：Burkholderia cepacia lipase，用于大豆油乙醇酯交换制备 biodiesel，推荐固定化载体和条件。";
-    }
+    setActiveMode(button.dataset.mode || "recommend");
   });
 });
 
 promptButtons.forEach((button) => {
   button.addEventListener("click", () => {
+    if (button.dataset.modePrompt) {
+      setActiveMode(button.dataset.modePrompt);
+    }
     textarea.value = button.dataset.prompt || button.textContent.trim();
     textarea.focus();
   });
+});
+
+paperSearch?.addEventListener("input", () => {
+  renderPaperOptions(paperSearch.value);
+});
+
+paperOptions?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-paper-id]");
+  if (!button) return;
+  event.preventDefault();
+  const documentId = button.dataset.paperId || "";
+  const item = documentCatalog.find((document) => document.document_id === documentId);
+  if (item) {
+    selectPaper(item);
+  }
 });
 
 sendButton.addEventListener("click", () => {
@@ -98,6 +113,29 @@ document.addEventListener("keydown", (event) => {
 
 checkHealth();
 loadDashboardSummary();
+loadDocumentCatalog();
+
+function setActiveMode(mode) {
+  activeMode = mode || "recommend";
+  modeButtons.forEach((item) => item.classList.toggle("active", item.dataset.mode === activeMode));
+  if (paperSelector) {
+    paperSelector.hidden = activeMode !== "paper";
+  }
+  if (activeMode === "optimize") {
+    textarea.placeholder =
+      '输入配方 JSON，例如：{"enzyme_loading":{"value":500,"unit":"mg"},"buffer":{"pH":7},"immobilization_conditions":{"time":{"value":60,"unit":"min"}}}';
+  } else if (activeMode === "search") {
+    textarea.placeholder = "输入证据检索 query，例如：soybean oil ethanol yield 93.4 8 cycles last yield";
+  } else if (activeMode === "paper") {
+    textarea.placeholder = "例如：B10论文对酶固定化剂的优化过程是怎么样的？";
+    if (!documentCatalog.length) {
+      loadDocumentCatalog();
+    }
+  } else {
+    textarea.placeholder =
+      "例如：Burkholderia cepacia lipase，用于大豆油乙醇酯交换制备 biodiesel，推荐固定化载体和条件。";
+  }
+}
 
 async function checkHealth() {
   try {
@@ -114,6 +152,25 @@ async function loadDashboardSummary() {
     renderDashboardSummary(data);
   } catch (_error) {
     renderDashboardSummaryFallback();
+  }
+}
+
+async function loadDocumentCatalog() {
+  if (!paperSelector) return;
+  try {
+    const data = await requestJson(`/api/documents${DEFAULT_COLLECTION ? `?collection=${encodeURIComponent(DEFAULT_COLLECTION)}` : ""}`, {
+      method: "GET",
+    });
+    documentCatalog = Array.isArray(data.documents) ? data.documents : [];
+    if (paperCount) {
+      paperCount.textContent = `${documentCatalog.length} 篇可选论文`;
+    }
+    renderPaperOptions(paperSearch?.value || "");
+  } catch (_error) {
+    documentCatalog = [];
+    if (paperCount) {
+      paperCount.textContent = "文献目录加载失败";
+    }
   }
 }
 
@@ -190,7 +247,7 @@ async function runQuery() {
     } else {
       const payload = buildRecommendPayload(rawInput);
       if (streamingMode) {
-        prepareStreamView("固定化推荐结果");
+        prepareStreamView(activeMode === "paper" || payload.objective === "answer_paper_process_question" ? "论文问答结果" : "固定化推荐结果");
         const data = await requestNdjsonStream("/api/recommend/by-enzyme/stream", payload, {
           onStatus: updateStreamStatus,
           onDelta: appendStreamDelta,
@@ -212,13 +269,20 @@ async function runQuery() {
 }
 
 function buildRecommendPayload(rawInput) {
-  const recommendationIntent = hasRecommendationIntent(rawInput);
+  const paperIntent = activeMode === "paper" || hasPaperQuestionIntent(rawInput);
+  const recommendationIntent = !paperIntent && hasRecommendationIntent(rawInput);
+  const constraints = paperIntent && selectedPaper ? [paperConstraint(selectedPaper)] : [];
   return {
     enzyme_name: extractEnzymeName(rawInput),
-    objective: recommendationIntent ? "recommend_best_immobilization_agent" : "answer_evidence_question",
+    objective: paperIntent
+      ? "answer_paper_process_question"
+      : recommendationIntent
+        ? "recommend_best_immobilization_agent"
+        : "answer_evidence_question",
     application_context: rawInput,
+    constraints,
     ...(DEFAULT_COLLECTION ? { collection: DEFAULT_COLLECTION } : {}),
-    top_k: STREAM_TOP_K,
+    top_k: paperIntent ? Math.max(STREAM_TOP_K, 12) : STREAM_TOP_K,
   };
 }
 
@@ -249,7 +313,105 @@ function extractEnzymeName(rawInput) {
 
 function hasRecommendationIntent(rawInput) {
   const value = String(rawInput || "").toLowerCase();
+  if (hasPaperQuestionIntent(value)) return false;
   return /recommend|recommendation|best|optimal|optimise|optimize|suggest|should|better|prefer|推荐|最适合|最佳|最优|优化|建议|应该|该用|更好|效果好|方案/.test(value);
+}
+
+function hasPaperQuestionIntent(rawInput) {
+  const value = String(rawInput || "").toLowerCase();
+  const hasPaperHint = /\b[a-z]\d{1,3}(?:\.pdf)?\b/.test(value) || /paper|article|study|pdf|论文|文章|文献|这篇/.test(value);
+  const hasProcessHint = /optimization process|optimisation process|procedure|workflow|optimi[sz]e|优化过程|优化流程|固定化剂.*优化|流程|过程|步骤/.test(value);
+  return hasPaperHint && hasProcessHint;
+}
+
+function paperConstraint(item) {
+  return [
+    `document_id:${item.document_id}`,
+    `source_pdf:${item.source_pdf}`,
+    item.title_candidate ? `title:${item.title_candidate}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function renderPaperOptions(query = "") {
+  if (!paperOptions) return;
+  const normalizedQuery = normalizePaperText(query);
+  const options = documentCatalog
+    .map((item) => ({ item, score: paperMatchScore(item, normalizedQuery) }))
+    .filter(({ score }) => !normalizedQuery || score > 0)
+    .sort((left, right) => right.score - left.score || naturalDocumentCompare(left.item.document_id, right.item.document_id))
+    .slice(0, 8);
+  if (!options.length) {
+    paperOptions.innerHTML = '<p class="result-muted">没有匹配的论文。可直接在问题里输入 A12 / B10 / PDF 文件名。</p>';
+    return;
+  }
+  paperOptions.innerHTML = options
+    .map(({ item }) => {
+      const selected = selectedPaper?.document_id === item.document_id;
+      return `
+        <button class="paper-option${selected ? " selected" : ""}" type="button" data-paper-id="${escapeHtml(item.document_id)}">
+          <strong>${escapeHtml(item.document_id)} · ${escapeHtml(item.source_pdf || "-")}</strong>
+          <span>${escapeHtml(truncateDisplayText(item.title_candidate || "无标题候选", 140))}</span>
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function selectPaper(item) {
+  selectedPaper = item;
+  if (selectedPaperBox) {
+    selectedPaperBox.hidden = false;
+    selectedPaperBox.innerHTML = `
+      <strong>${escapeHtml(item.document_id)} · ${escapeHtml(item.source_pdf || "-")}</strong>
+      <span>${escapeHtml(truncateDisplayText(item.title_candidate || "无标题候选", 180))}</span>
+      <button type="button" data-clear-paper>清除</button>
+    `;
+    selectedPaperBox.querySelector("[data-clear-paper]")?.addEventListener("click", () => {
+      selectedPaper = null;
+      selectedPaperBox.hidden = true;
+      renderPaperOptions(paperSearch?.value || "");
+    });
+  }
+  if (paperSearch) {
+    paperSearch.value = item.document_id;
+  }
+  renderPaperOptions(paperSearch?.value || "");
+}
+
+function paperMatchScore(item, normalizedQuery) {
+  if (!normalizedQuery) return 1;
+  const aliases = [item.document_id, item.source_pdf, item.title_candidate, ...(item.aliases || [])]
+    .filter(Boolean)
+    .map(normalizePaperText);
+  let best = 0;
+  for (const alias of aliases) {
+    if (!alias) continue;
+    if (alias === normalizedQuery) best = Math.max(best, 3);
+    if (alias.includes(normalizedQuery) || normalizedQuery.includes(alias)) best = Math.max(best, 2);
+    const queryTokens = new Set(normalizedQuery.split(/\s+/).filter(Boolean));
+    const aliasTokens = new Set(alias.split(/\s+/).filter(Boolean));
+    const overlap = Array.from(queryTokens).filter((token) => aliasTokens.has(token)).length;
+    if (overlap) best = Math.max(best, overlap / Math.max(queryTokens.size, 1));
+  }
+  return best;
+}
+
+function normalizePaperText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\.pdf\b/g, "")
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function naturalDocumentCompare(left, right) {
+  const a = String(left || "").match(/^([A-Za-z]+)(\d+)$/);
+  const b = String(right || "").match(/^([A-Za-z]+)(\d+)$/);
+  if (a && b && a[1] === b[1]) return Number(a[2]) - Number(b[2]);
+  return String(left || "").localeCompare(String(right || ""));
 }
 
 async function requestJson(path, options) {
@@ -547,7 +709,12 @@ function appendStreamDelta(delta) {
 
 function renderRecommendation(data) {
   setReferenceHits(data.evidence_hits);
-  resultTitle.textContent = data.objective === "answer_evidence_question" ? "证据问答结果" : "固定化推荐结果";
+  resultTitle.textContent =
+    data.objective === "answer_paper_process_question"
+      ? "论文问答结果"
+      : data.objective === "answer_evidence_question"
+        ? "证据问答结果"
+        : "固定化推荐结果";
   resultBody.innerHTML = [
     renderMeta(data.generator_provider, data.generator_model, data.limitations),
     renderLiveAnswer(data),
@@ -577,6 +744,22 @@ function renderSearch(data) {
 }
 
 function handleResultBodyClick(event) {
+  const paperButton = event.target.closest("[data-paper-followup]");
+  if (paperButton) {
+    event.preventDefault();
+    const documentId = paperButton.dataset.paperFollowup || "";
+    const item =
+      documentCatalog.find((document) => document.document_id === documentId) || {
+        document_id: documentId,
+        source_pdf: `${documentId}.pdf`,
+        title_candidate: "",
+        aliases: [documentId, `${documentId}.pdf`],
+      };
+    selectPaper(item);
+    setActiveMode("paper");
+    textarea.focus();
+    return;
+  }
   const referenceButton = event.target.closest("[data-reference-key]");
   if (!referenceButton) return;
   event.preventDefault();
@@ -758,6 +941,7 @@ function renderReferenceCard(hit, index, options = {}) {
       <p class="reference-file">
         文件：
         <a href="${escapeHtml(pdfUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(pdfName)}</a>
+        ${hit.document_id ? `<button class="paper-followup" type="button" data-paper-followup="${escapeHtml(hit.document_id)}">围绕这篇论文继续问</button>` : ""}
       </p>
     </article>
   `;

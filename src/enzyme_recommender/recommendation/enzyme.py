@@ -2,12 +2,20 @@ from __future__ import annotations
 
 import json
 import hashlib
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from enzyme_recommender.generators import ChatMessage, GenerationRequest, GenerationResponse
+from enzyme_recommender.rag.documents import (
+    DocumentCatalogItem,
+    DocumentResolveResult,
+    build_document_catalog,
+    resolve_document_reference_from_hits,
+    resolve_document_reference,
+)
 from enzyme_recommender.rag.retrieval import RetrievalHit, RetrievalResponse
 from enzyme_recommender.runtime import RuntimeServices
 
@@ -20,6 +28,12 @@ class EnzymeRecommendationRequest(BaseModel):
     application_context: Optional[str] = None
     constraints: List[str] = Field(default_factory=list)
     top_k: Optional[int] = None
+    paper_document_id: Optional[str] = None
+    paper_source_pdf: Optional[str] = None
+    paper_title_candidate: Optional[str] = None
+    paper_resolution_status: Optional[str] = None
+    paper_resolution_reason: Optional[str] = None
+    paper_resolution_candidates: List[Dict[str, Any]] = Field(default_factory=list)
 
     @field_validator("enzyme_name")
     @classmethod
@@ -73,6 +87,24 @@ class RecommendationService:
 
     def retrieve_evidence(self, request: EnzymeRecommendationRequest) -> RetrievalResponse:
         retrieval_query = build_retrieval_query(request)
+        if request.objective == PAPER_PROCESS_OBJECTIVE or is_paper_process_question(retrieval_query):
+            request.objective = PAPER_PROCESS_OBJECTIVE
+            resolution = resolve_request_document(self.runtime, request, retrieval_query)
+            apply_document_resolution(request, resolution)
+            if resolution.status == "resolved" and resolution.document is not None:
+                return self.runtime.retriever().retrieve_document_scope(
+                    query=retrieval_query,
+                    document_id=resolution.document.document_id,
+                    source_pdf=resolution.document.source_pdf,
+                    top_k=request.top_k or max(self.runtime.config.retrieval.top_k, 12),
+                    include_review=True,
+                )
+            return empty_retrieval_response(
+                query=retrieval_query,
+                collection=self.runtime.qdrant_config().collection,
+                embedding_model=self.runtime.embedding_model().name,
+                top_k=request.top_k or max(self.runtime.config.retrieval.top_k, 12),
+            )
         return self.runtime.retriever().retrieve(
             query=retrieval_query,
             top_k=request.top_k or self.runtime.config.retrieval.top_k,
@@ -86,6 +118,18 @@ class RecommendationService:
     ) -> GenerationRequest:
         config = self.runtime.config
         provider_config = config.generator_providers[config.generator.provider]
+        if request.objective in QA_OBJECTIVES:
+            return GenerationRequest(
+                messages=[
+                    ChatMessage(role="system", content=STREAM_SYSTEM_PROMPT),
+                    ChatMessage(role="user", content=build_stream_generation_prompt(request, retrieval)),
+                ],
+                model=provider_config.model,
+                temperature=config.generator.temperature,
+                response_format="text",
+                timeout_seconds=config.generator.timeout_seconds,
+                max_retries=config.generator.max_retries,
+            )
         return GenerationRequest(
             messages=[
                 ChatMessage(role="system", content=SYSTEM_PROMPT),
@@ -122,7 +166,7 @@ class RecommendationService:
         generation: GenerationResponse,
     ) -> EnzymeRecommendationResponse:
         generation_json = parse_json_object(generation.content)
-        candidates = build_candidates_from_generation_or_evidence(generation_json, retrieval)
+        candidates = [] if request.objective in QA_OBJECTIVES else build_candidates_from_generation_or_evidence(generation_json, retrieval)
         return EnzymeRecommendationResponse(
             recommendation_id=make_recommendation_id(request, retrieval),
             created_at=datetime.now(timezone.utc).isoformat(),
@@ -136,7 +180,9 @@ class RecommendationService:
             generation_content=generation.content,
             generation_json=generation_json,
             limitations=build_limitations(generation, retrieval, generation_json),
-            next_experiment_suggestions=build_next_experiment_suggestions(retrieval, generation_json),
+            next_experiment_suggestions=[]
+            if request.objective in QA_OBJECTIVES
+            else build_next_experiment_suggestions(retrieval, generation_json),
         )
 
     def _generate_recommendation(
@@ -177,6 +223,8 @@ def build_retrieval_query(request: EnzymeRecommendationRequest) -> str:
 
 
 EVIDENCE_QA_OBJECTIVE = "answer_evidence_question"
+PAPER_PROCESS_OBJECTIVE = "answer_paper_process_question"
+QA_OBJECTIVES = {EVIDENCE_QA_OBJECTIVE, PAPER_PROCESS_OBJECTIVE}
 
 RECOMMENDATION_INTENT_TERMS = {
     "recommend",
@@ -204,7 +252,7 @@ RECOMMENDATION_INTENT_TERMS = {
 
 
 def should_expand_recommendation_query(request: EnzymeRecommendationRequest, user_text: str) -> bool:
-    if request.objective == EVIDENCE_QA_OBJECTIVE:
+    if request.objective in QA_OBJECTIVES:
         return False
     if not user_text:
         return True
@@ -231,6 +279,8 @@ def build_generation_prompt(request: EnzymeRecommendationRequest, retrieval: Ret
 
 
 def build_stream_generation_prompt(request: EnzymeRecommendationRequest, retrieval: RetrievalResponse) -> str:
+    if request.objective == PAPER_PROCESS_OBJECTIVE:
+        return build_paper_process_generation_prompt(request, retrieval)
     if request.objective == EVIDENCE_QA_OBJECTIVE:
         return "\n\n".join(
             [
@@ -262,6 +312,139 @@ def build_stream_generation_prompt(request: EnzymeRecommendationRequest, retriev
             "- 明确适用边界和需要补实验验证的点。",
             "- 不输出 JSON，不要引入 evidence context 之外的新事实。",
         ]
+    )
+
+
+def build_paper_process_generation_prompt(
+    request: EnzymeRecommendationRequest,
+    retrieval: RetrievalResponse,
+) -> str:
+    if request.paper_resolution_status in {"ambiguous", "unresolved"}:
+        candidates = "\n".join(
+            f"- {candidate.get('document_id')} / {candidate.get('source_pdf')}: {candidate.get('title_candidate') or '无标题候选'}"
+            for candidate in request.paper_resolution_candidates[:5]
+        )
+        return "\n\n".join(
+            [
+                "任务：用户在问论文级固定化剂优化流程，但目标论文没有被唯一定位。",
+                f"用户问题：{request.application_context or request.enzyme_name}",
+                f"定位状态：{request.paper_resolution_status or 'unknown'} / {request.paper_resolution_reason or '-'}",
+                "候选论文：",
+                candidates or "无候选论文。",
+                "输出要求：",
+                "- 不要编造论文内容。",
+                "- 请直接说明需要用户选择或补充 document_id / PDF 文件名。",
+                "- 如果有候选论文，列出候选并提示用户点选或输入明确编号。",
+            ]
+        )
+    paper_label = " / ".join(
+        part
+        for part in [
+            request.paper_document_id,
+            request.paper_source_pdf,
+            request.paper_title_candidate,
+        ]
+        if part
+    )
+    return "\n\n".join(
+        [
+            "任务：基于 evidence context 回答“单篇论文中的酶固定化剂优化过程”。",
+            f"目标论文：{paper_label or '已从问题中解析，但缺少标题'}",
+            f"用户问题：{request.application_context or request.enzyme_name}",
+            f"用户约束：{request.constraints or '未提供'}",
+            "Evidence context:",
+            retrieval.context_text(max_chars_per_hit=750),
+            "输出结构必须包含以下小标题：",
+            "1. 论文定位",
+            "2. 研究目标",
+            "3. 固定化剂/载体筛选",
+            "4. 优化变量",
+            "5. 最优条件",
+            "6. 性能验证",
+            "7. 证据缺口与需复核项",
+            "输出要求：",
+            "- 每个关键事实必须带 [1]、[2] 这类 reference index。",
+            "- 如果某一步 evidence context 不足，明确写“不足”，不要补全。",
+            "- `requires_review=true`、`qa_status=fail` 或包含 bad-table/placeholder flag 的证据只能作为需复核线索，不得写成确定结论。",
+            "- 区分 immobilization conditions、assay conditions、reaction/application conditions 和 stability/reuse conditions。",
+            "- 不输出 JSON。",
+        ]
+    )
+
+
+def is_paper_process_question(text: str) -> bool:
+    value = text or ""
+    lower = value.lower()
+    has_paper_hint = bool(re.search(r"(?<![A-Za-z0-9])[A-Z]\d{1,3}(?:\.pdf)?(?![A-Za-z0-9])", value, re.I)) or any(
+        term in lower for term in ["paper", "article", "study", "pdf", "论文", "文章", "文献", "这篇"]
+    )
+    has_process_hint = any(
+        term in lower
+        for term in [
+            "optimization process",
+            "optimisation process",
+            "procedure",
+            "workflow",
+            "optimization",
+            "optimisation",
+            "optimize",
+            "优化过程",
+            "优化流程",
+            "固定化剂的优化",
+            "固定化剂优化",
+            "流程",
+            "过程",
+            "步骤",
+        ]
+    )
+    return has_paper_hint and has_process_hint
+
+
+def resolve_request_document(
+    runtime: RuntimeServices,
+    request: EnzymeRecommendationRequest,
+    retrieval_query: str,
+) -> DocumentResolveResult:
+    catalog = build_document_catalog(runtime.qdrant_config())
+    resolver_query = " ".join([retrieval_query, *request.constraints])
+    resolution = resolve_document_reference(resolver_query, catalog)
+    if resolution.status == "resolved" or resolution.explicit:
+        return resolution
+    if not is_paper_process_question(resolver_query):
+        return resolution
+    broad_retrieval = runtime.retriever().retrieve(
+        query=resolver_query,
+        top_k=24,
+        usable_only=False,
+    )
+    fallback = resolve_document_reference_from_hits(resolver_query, catalog, broad_retrieval.hits)
+    if fallback.status == "resolved":
+        return fallback
+    if fallback.status == "ambiguous":
+        return fallback
+    return resolution if resolution.candidates else fallback
+
+
+def apply_document_resolution(request: EnzymeRecommendationRequest, resolution: DocumentResolveResult) -> None:
+    request.paper_resolution_status = resolution.status
+    request.paper_resolution_reason = resolution.reason
+    request.paper_resolution_candidates = [document.model_dump(mode="json") for document in resolution.candidates[:5]]
+    if resolution.document is None:
+        return
+    request.paper_document_id = resolution.document.document_id
+    request.paper_source_pdf = resolution.document.source_pdf
+    request.paper_title_candidate = resolution.document.title_candidate
+
+
+def empty_retrieval_response(query: str, collection: str, embedding_model: str, top_k: int) -> RetrievalResponse:
+    return RetrievalResponse(
+        query=query,
+        collection=collection,
+        embedding_model=embedding_model,
+        top_k=top_k,
+        usable_only=False,
+        point_type=None,
+        hits=[],
     )
 
 

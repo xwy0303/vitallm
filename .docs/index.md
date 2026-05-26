@@ -14,6 +14,7 @@
 `engineering/system_deployment_report_260524.md` - 本地持久化部署后的项目组织架构、部署流程、验证结果与剩余风险
 `engineering/pdf_ingestion_data_governance.md` - PDF 上传/批处理自动进入 MinerU、RAG/evidence、Qdrant 和大模型 RAG 的数据治理流程
 `engineering/manual_evidence_review.md` - 人工 evidence/table 复核包导出、学生复核 SOP、curated evidence overlay 回灌边界
+`engineering/project_development_retrospective_260526.md` - 从项目启动到当前的完整问题、修复、优化、效果与剩余风险复盘
 
 ## 当前活跃任务池 (Active Workflows)
 
