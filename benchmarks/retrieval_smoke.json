@@ -1,6 +1,6 @@
 {
-  "name": "enzyme_immobilization_retrieval_curated_v3",
-  "description": "Curated retrieval benchmark for semantic live collection and hash rollback baseline; covers intent routing, record_type-aware retrieval, table/context rerank, negative/ambiguous queries, bad-table exclusion, and placeholder-page exclusion cases.",
+  "name": "enzyme_immobilization_retrieval_regression_v3",
+  "description": "Legacy 62-query retrieval regression gate for semantic live collection and hash rollback baseline. This file is intentionally retained for collection/rerank/schema regression; it is not a statistically complete answer-quality benchmark.",
   "queries": [
     {
       "id": "bcl_zif8_strategy",

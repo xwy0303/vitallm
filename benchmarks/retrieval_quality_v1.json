@@ -1,0 +1,189 @@
+{
+  "name": "enzyme_immobilization_retrieval_quality_v1",
+  "version": "v1-seed-20260526",
+  "description": "Layered retrieval quality benchmark. This seed manifest uses curated evidence ids from the current live collection and is designed to grow to 120 cases.",
+  "target_case_count": 120,
+  "defaults": {
+    "endpoint": "search_evidence",
+    "top_k": 8,
+    "usable_only": true,
+    "literature_rewrite": false,
+    "expected_behavior": {
+      "requires_citations": false
+    }
+  },
+  "cases": [
+    {
+      "id": "rq_exact_bcl_zif8_strategy",
+      "kind": "positive",
+      "query": "Burkholderia cepacia lipase immobilized on hierarchical ZIF-8 carrier",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Entity-rich exact retrieval regression migrated from retrieval_curated_v3.",
+      "expected_plan": {
+        "intents": ["strategy", "enzyme"],
+        "record_type_priorities": ["immobilization_strategy"]
+      },
+      "expected_evidence": [
+        {"document_id": "B10", "record_type": "immobilization_strategy", "text_contains": "ZIF-8"}
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_exact_biodiesel_yield_reuse",
+      "kind": "positive",
+      "query": "soybean oil ethanol biodiesel yield 93.4 reused 8 cycles last yield 71.3",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Metric-rich query checks table row retrieval for B10 this-study biodiesel result.",
+      "expected_plan": {
+        "intents": ["table", "performance", "application"],
+        "record_type_priorities": ["table_comparison_row"]
+      },
+      "expected_evidence": [
+        {"document_id": "B10", "record_type": "table_comparison_row", "text_contains_all": ["93.4", "71.3"]}
+      ],
+      "forbidden_evidence": [
+        {"quality_flags_any": ["suspicious_percent_gt_300"]},
+        {"requires_review": true}
+      ]
+    },
+    {
+      "id": "rq_exact_formulation_conditions",
+      "kind": "positive",
+      "query": "BCL-ZIF-8 loading 700 mg adsorption time 30 min pH 7.5 25 C",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Exact condition query for BCL-ZIF-8 formulation parameters.",
+      "expected_plan": {
+        "intents": ["condition", "strategy"],
+        "record_type_priorities": ["formulation_condition"]
+      },
+      "expected_evidence": [
+        {"document_id": "B10", "record_type": "formulation_condition", "text_contains_all": ["700", "30 min", "7.5"]}
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_user_like_bcl_biodiesel_carrier",
+      "kind": "positive",
+      "query": "伯克霍尔德菌脂肪酶做大豆油乙醇生物柴油，用什么载体重复用更稳？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Chinese user-like paraphrase; not copied from source text.",
+      "expected_plan": {
+        "intents": ["strategy", "performance", "application"],
+        "record_type_priorities": ["immobilization_strategy", "performance_metric", "table_comparison_row"]
+      },
+      "expected_evidence": [
+        {"document_id": "B10", "text_contains_any": ["BCL-ZIF-8", "93.4", "71.3", "ZIF-8"]}
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_user_like_b10_process",
+      "kind": "positive",
+      "query": "这个 B10 里面 BCL-ZIF8 到底是怎么优化固定化条件的？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "User-like paper follow-up targeting formulation conditions.",
+      "expected_plan": {
+        "intents": ["condition", "strategy"],
+        "record_type_priorities": ["formulation_condition"]
+      },
+      "expected_evidence": [
+        {"document_id": "B10", "record_type": "formulation_condition", "text_contains_any": ["700", "30 min", "pH value 7.5", "12-fold"]}
+      ],
+      "forbidden_evidence": [
+        {"document_id": "B10", "text_contains": "900.00"}
+      ]
+    },
+    {
+      "id": "rq_user_like_temperature_not_always_higher",
+      "kind": "positive",
+      "query": "ZIF8 固定化脂肪酶做生物柴油时温度是不是越高越好？",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Conditional user question requiring the temperature optimum / denaturation boundary.",
+      "expected_plan": {
+        "intents": ["condition", "performance", "application"],
+        "record_type_priorities": ["formulation_condition", "performance_metric"]
+      },
+      "expected_evidence": [
+        {"document_id": "B10", "text_contains_any": ["40", "temperature", "denaturation", "93.4"]}
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_mixed_bcl_zif8_typo",
+      "kind": "positive",
+      "query": "BCL zif8 固定化 ph7.5 30分钟 loading 700mg",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Chinese-English mixed shorthand with informal unit formatting.",
+      "expected_plan": {
+        "intents": ["condition", "strategy"],
+        "record_type_priorities": ["formulation_condition"]
+      },
+      "expected_evidence": [
+        {"document_id": "B10", "record_type": "formulation_condition", "text_contains_all": ["700", "30 min"]}
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_cross_doc_zif8_vs_magnetic_mof",
+      "kind": "positive",
+      "query": "ZIF-8 和 magnetic MOF 固定化脂肪酶哪个重复使用更值得优先试？",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Cross-document comparison requiring at least two evidence families.",
+      "expected_behavior": {
+        "min_expected_evidence": 2
+      },
+      "expected_plan": {
+        "intents": ["strategy", "performance"],
+        "record_type_priorities": ["immobilization_strategy", "performance_metric"]
+      },
+      "expected_evidence": [
+        {"text_contains": "ZIF-8"},
+        {"text_contains_any": ["magnetic", "MNP", "Fe3O4", "magnet"]}
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_exclude_bad_yield_900",
+      "kind": "exclusion",
+      "query": "lipase biodiesel tallow Candida antarctica 900 yield table row should not rank",
+      "difficulty": "adversarial",
+      "source": "regression_bug",
+      "construction_note": "Bad table exclusion case: suspicious 900.00 yield must not appear in usable ranking.",
+      "expected_behavior": {
+        "min_expected_evidence": 0
+      },
+      "expected_evidence": [],
+      "forbidden_evidence": [
+        {"document_id": "B10", "text_contains": "900.00"},
+        {"quality_flags_any": ["suspicious_percent_gt_300"]},
+        {"requires_review": true}
+      ]
+    },
+    {
+      "id": "rq_negative_amylase_starch",
+      "kind": "negative",
+      "query": "amylase starch hydrolysis silica immobilization best support",
+      "difficulty": "adversarial",
+      "source": "adversarial",
+      "construction_note": "Corpus-out enzyme family; should not match lipase-specific gold evidence.",
+      "expected_behavior": {
+        "min_expected_evidence": 0
+      },
+      "expected_evidence": [],
+      "forbidden_evidence": [
+        {"record_type": "table_comparison_row", "text_contains": "B. cepacia lipase"}
+      ]
+    }
+  ]
+}

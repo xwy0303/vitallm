@@ -1,0 +1,103 @@
+{
+  "name": "enzyme_immobilization_answer_quality_v1",
+  "version": "v1-seed-20260526",
+  "description": "Endpoint-level answer quality benchmark for recommendation and evidence QA. Uses deterministic checks for expected facts, forbidden claims, citation grounding, and condition-type wording.",
+  "target_case_count": 50,
+  "defaults": {
+    "endpoint": "recommend",
+    "top_k": 5,
+    "usable_only": true,
+    "literature_rewrite": false,
+    "expected_behavior": {
+      "requires_citations": true,
+      "min_expected_facts": 1,
+      "forbid_global_optimum": true
+    }
+  },
+  "cases": [
+    {
+      "id": "aq_bcl_biodiesel_recommendation",
+      "kind": "answer_quality",
+      "query": "伯克霍尔德菌脂肪酶用于大豆油和乙醇转酯制备 biodiesel，推荐固定化载体和关键条件。",
+      "enzyme_name": "Burkholderia cepacia lipase",
+      "application_context": "大豆油和乙醇转酯制备 biodiesel，关注产率、重复使用稳定性和固定化条件。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Professional recommendation case from functional testing.",
+      "expected_evidence": [
+        {"document_id": "B10", "text_contains_any": ["BCL-ZIF-8", "93.4", "71.3", "ZIF-8"]}
+      ],
+      "expected_answer_facts": ["93.4"],
+      "forbidden_claims": ["全局最优", "唯一最佳", "保证 100%"]
+    },
+    {
+      "id": "aq_bcl_b10_optimization_process",
+      "kind": "answer_quality",
+      "query": "B10 论文里 BCL-ZIF-8 的固定化优化流程是什么？",
+      "enzyme_name": "Burkholderia cepacia lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "B10 论文里 BCL-ZIF-8 的固定化优化流程是什么？请说明 loading、adsorption time、pH 和 temperature。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Evidence QA case requiring formulation condition facts rather than table-only answer.",
+      "expected_evidence": [
+        {"document_id": "B10", "record_type": "formulation_condition", "text_contains_any": ["700", "30 min", "7.5", "12-fold"]}
+      ],
+      "expected_answer_facts": ["700", "30", "7.5"],
+      "forbidden_claims": ["900.00", "全局最优"]
+    },
+    {
+      "id": "aq_zrmof_condition_type",
+      "kind": "answer_quality",
+      "query": "Zr-MOF 固定化脂肪酶时最佳 pH 和温度是多少？",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "Zr-MOF 固定化脂肪酶时最佳 pH 和温度是多少？请区分固定化条件、assay 条件和反应条件。",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Condition-type disambiguation case; answer should not collapse all pH/temperature values into one universal optimum.",
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_facts": 1,
+        "condition_type_terms": ["固定化", "assay"],
+        "forbid_global_optimum": true
+      },
+      "expected_evidence": [
+        {"record_type": "formulation_condition", "text_contains_any": ["Zr-MOF", "UiO-66", "pH 9", "35"]}
+      ],
+      "expected_answer_facts": ["pH"],
+      "forbidden_claims": ["所有 Zr-MOF", "唯一最佳"]
+    },
+    {
+      "id": "aq_pseudomonas_best_boundary",
+      "kind": "answer_quality",
+      "query": "假单胞菌脂肪酶的最佳固化剂？我是非专业用户。",
+      "enzyme_name": "Pseudomonas lipase",
+      "application_context": "假单胞菌脂肪酶的最佳固化剂？我是非专业用户，只想知道首选方案和为什么。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Non-expert best-carrier question should preserve evidence insufficiency boundary.",
+      "expected_evidence": [
+        {"text_contains_any": ["Pseudomonas lipase", "P. fluorescens lipase", "ZIF-8", "activity recovery"]}
+      ],
+      "expected_answer_facts": ["Pseudomonas"],
+      "forbidden_claims": ["全局最佳", "唯一最佳", "保证"]
+    },
+    {
+      "id": "aq_stream_no_contradiction_bcl",
+      "kind": "answer_quality",
+      "endpoint": "recommend_stream",
+      "query": "伯克霍尔德菌脂肪酶做生物柴油用啥载体更稳？",
+      "enzyme_name": "Burkholderia cepacia lipase",
+      "application_context": "伯克霍尔德菌脂肪酶做生物柴油用啥载体更稳？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Stream/final consistency positive case.",
+      "expected_evidence": [
+        {"document_id": "B10", "text_contains_any": ["BCL-ZIF-8", "93.4", "71.3", "ZIF-8"]}
+      ],
+      "expected_answer_facts": ["ZIF"],
+      "forbidden_claims": ["全局最优", "保证 100%"]
+    }
+  ]
+}

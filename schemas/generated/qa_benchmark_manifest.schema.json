@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shengji.local/schemas/qa_benchmark_manifest.schema.json",
+  "title": "Layered QA Benchmark Manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "name",
+    "version",
+    "description",
+    "target_case_count",
+    "cases"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_case_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "defaults": {
+      "$ref": "#/$defs/caseDefaults"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "$defs": {
+    "caseDefaults": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "endpoint": {
+          "$ref": "#/$defs/endpoint"
+        },
+        "top_k": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "usable_only": {
+          "type": "boolean"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "literature_rewrite": {
+          "type": "boolean"
+        },
+        "expected_evidence": {
+          "$ref": "#/$defs/evidenceList"
+        },
+        "forbidden_evidence": {
+          "$ref": "#/$defs/evidenceList"
+        },
+        "expected_answer_facts": {
+          "$ref": "#/$defs/stringList"
+        },
+        "forbidden_claims": {
+          "$ref": "#/$defs/stringList"
+        },
+        "expected_behavior": {
+          "$ref": "#/$defs/expectedBehavior"
+        }
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "kind",
+        "query",
+        "difficulty",
+        "source",
+        "construction_note"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "positive",
+            "ambiguous",
+            "negative",
+            "exclusion",
+            "no_answer",
+            "answer_quality",
+            "formulation"
+          ]
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "endpoint": {
+          "$ref": "#/$defs/endpoint"
+        },
+        "top_k": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "expected_evidence": {
+          "$ref": "#/$defs/evidenceList"
+        },
+        "forbidden_evidence": {
+          "$ref": "#/$defs/evidenceList"
+        },
+        "expected_answer_facts": {
+          "$ref": "#/$defs/stringList"
+        },
+        "forbidden_claims": {
+          "$ref": "#/$defs/stringList"
+        },
+        "expected_behavior": {
+          "$ref": "#/$defs/expectedBehavior"
+        },
+        "difficulty": {
+          "enum": [
+            "easy",
+            "medium",
+            "hard",
+            "adversarial"
+          ]
+        },
+        "source": {
+          "enum": [
+            "manual_user_like",
+            "literature_derived",
+            "adversarial",
+            "regression_bug"
+          ]
+        },
+        "construction_note": {
+          "type": "string",
+          "minLength": 1
+        },
+        "literature_rewrite": {
+          "type": "boolean"
+        },
+        "enzyme_name": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "application_context": {
+          "type": "string"
+        },
+        "constraints": {
+          "$ref": "#/$defs/stringList"
+        },
+        "expected_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/expectedChange"
+          }
+        },
+        "user_formulation": {
+          "type": "object"
+        },
+        "expected_plan": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "endpoint": {
+      "enum": [
+        "search_evidence",
+        "recommend",
+        "recommend_stream",
+        "optimize"
+      ]
+    },
+    "expectedBehavior": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "type": {
+              "enum": [
+                "no_answer"
+              ]
+            },
+            "requires_citations": {
+              "type": "boolean"
+            },
+            "requires_no_answer_text": {
+              "type": "boolean"
+            },
+            "max_evidence_hits": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "expect_no_candidates": {
+              "type": "boolean"
+            },
+            "expect_no_citations": {
+              "type": "boolean"
+            },
+            "expect_no_next_experiments": {
+              "type": "boolean"
+            },
+            "min_expected_evidence": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "min_expected_facts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "min_expected_changes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "min_evidence_backed_change_rate": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "condition_type_terms": {
+              "$ref": "#/$defs/stringList"
+            },
+            "forbid_global_optimum": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    "evidenceList": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "expectedChange": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "field_path": {
+          "type": "string"
+        },
+        "recommended_contains": {
+          "type": "string"
+        },
+        "rationale_contains": {
+          "type": "string"
+        }
+      }
+    },
+    "stringList": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

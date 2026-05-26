@@ -4,6 +4,7 @@ import csv
 import json
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -76,6 +77,16 @@ from enzyme_recommender.runtime import RuntimeServices
 from enzyme_recommender.runtime.config import RuntimeConfig
 from scripts.run_ingestion_worker import document_is_indexed_for_collection, is_transient_service_error, should_skip_indexed_document
 from scripts.benchmark_retrieval import evaluate_case, evaluate_hits, summarize_results
+from scripts.benchmark_qa_system import (
+    EndpointResult,
+    collect_case_metrics,
+    evaluate_acceptance_targets,
+    evaluate_endpoint_result,
+    load_manifest,
+    match_expected_evidence,
+    summarize_all,
+    summarize_manifest_validation,
+)
 from scripts.ensure_qdrant_payload_indexes import build_summary as build_payload_index_summary
 from scripts.queue_pdf_fallback_ingestion import queue_fallback_ingestion
 from scripts.repair_failed_mineru_pdfs import page_count_delta
@@ -1172,6 +1183,280 @@ class RetrievalBenchmarkTests(unittest.TestCase):
 
         self.assertTrue(score["ok"])
         self.assertIsNone(score["rank"])
+
+
+class QASystemBenchmarkTests(unittest.TestCase):
+    def test_layered_manifests_load_with_target_counts(self) -> None:
+        manifests = {
+            "benchmarks/retrieval_quality_v1.json": 120,
+            "benchmarks/answer_quality_v1.json": 50,
+            "benchmarks/no_answer_intent_v1.json": 30,
+            "benchmarks/formulation_optimizer_v1.json": 20,
+        }
+
+        for manifest_path, target_count in manifests.items():
+            manifest = load_manifest(Path(manifest_path))
+
+            self.assertEqual(manifest["target_case_count"], target_count)
+            self.assertGreater(len(manifest["cases"]), 0)
+
+    def test_formal_manifest_schema_artifact_is_present(self) -> None:
+        schema = json.loads(Path("schemas/generated/qa_benchmark_manifest.schema.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(schema["title"], "Layered QA Benchmark Manifest")
+        self.assertIn("case", schema["$defs"])
+        self.assertIn("endpoint", schema["$defs"])
+
+    def test_manifest_validation_summary_tracks_seed_coverage(self) -> None:
+        manifests = [
+            load_manifest(Path("benchmarks/retrieval_quality_v1.json")),
+            load_manifest(Path("benchmarks/answer_quality_v1.json")),
+            load_manifest(Path("benchmarks/no_answer_intent_v1.json")),
+            load_manifest(Path("benchmarks/formulation_optimizer_v1.json")),
+        ]
+
+        summary = summarize_manifest_validation(manifests)
+
+        self.assertTrue(summary["ok"])
+        self.assertEqual(summary["target_case_count"], 220)
+        self.assertGreater(summary["actual_case_count"], 0)
+        self.assertIn("manual_user_like", summary["by_source"])
+        self.assertIn("no_answer", summary["by_kind"])
+
+    def test_match_expected_evidence_returns_rank_per_gold_item(self) -> None:
+        hits = [
+            RetrievalHit(
+                score=0.9,
+                point_type="evidence_record",
+                source_id="ev_other",
+                document_id="A1",
+                record_type="immobilization_strategy",
+                text="CALB immobilization on carrier.",
+            ),
+            RetrievalHit(
+                score=0.8,
+                point_type="evidence_record",
+                source_id="ev_b10",
+                document_id="B10",
+                record_type="formulation_condition",
+                text="BCL-ZIF-8 loading of 700 mg and adsorption time 30 min.",
+            ),
+            RetrievalHit(
+                score=0.7,
+                point_type="evidence_record",
+                source_id="ev_magnetic",
+                document_id="A18",
+                record_type="performance_metric",
+                text="Magnetic Fe3O4 MOF reuse after eight cycles.",
+            ),
+        ]
+
+        ranks = match_expected_evidence(
+            hits,
+            [
+                {"document_id": "B10", "text_contains": "ZIF-8"},
+                {"text_contains_any": ["magnetic", "Fe3O4"]},
+            ],
+        )
+
+        self.assertEqual(ranks, [2, 3])
+
+    def test_no_answer_case_fails_on_unexpected_candidates_and_citations(self) -> None:
+        endpoint_result = EndpointResult(
+            endpoint="recommend_stream",
+            generated_text="Recommended ZIF-8 carrier.",
+            candidates=[{"name": "ZIF-8", "citations": ["B10.pdf:p8"]}],
+            citations=["B10.pdf:p8"],
+            next_experiment_suggestions=[{"step": "try ZIF-8"}],
+        )
+        case = {
+            "kind": "no_answer",
+            "expected_behavior": {
+                "type": "no_answer",
+                "max_evidence_hits": 0,
+                "expect_no_candidates": True,
+                "expect_no_citations": True,
+                "expect_no_next_experiments": True,
+            },
+        }
+
+        checks = evaluate_endpoint_result(endpoint_result, case)
+        metrics = collect_case_metrics(endpoint_result, case, checks)
+
+        self.assertFalse(checks["overall_ok"])
+        self.assertFalse(checks["no_answer_ok"])
+        self.assertTrue(metrics["unexpected_candidate"])
+        self.assertTrue(metrics["unexpected_citation"])
+
+    def test_no_answer_case_fails_on_forbidden_claims(self) -> None:
+        endpoint_result = EndpointResult(
+            endpoint="recommend_stream",
+            generated_text="可以保证 100% 产率。",
+        )
+        case = {
+            "kind": "no_answer",
+            "forbidden_claims": ["100% 产率"],
+            "expected_behavior": {
+                "type": "no_answer",
+                "max_evidence_hits": 0,
+                "expect_no_candidates": True,
+                "expect_no_citations": True,
+                "expect_no_next_experiments": True,
+            },
+        }
+
+        checks = evaluate_endpoint_result(endpoint_result, case)
+
+        self.assertFalse(checks["overall_ok"])
+        self.assertFalse(checks["forbidden_claims_ok"])
+
+    def test_case_metrics_compute_recall_mrr_and_ndcg_windows(self) -> None:
+        endpoint_result = EndpointResult(
+            endpoint="search_evidence",
+            evidence_hits=[
+                RetrievalHit(
+                    score=0.9,
+                    point_type="evidence_record",
+                    source_id="ev_1",
+                    document_id="A1",
+                    record_type="immobilization_strategy",
+                    text="Unrelated immobilization strategy.",
+                ),
+                RetrievalHit(
+                    score=0.8,
+                    point_type="evidence_record",
+                    source_id="ev_2",
+                    document_id="A2",
+                    record_type="performance_metric",
+                    text="Unrelated performance metric.",
+                ),
+                RetrievalHit(
+                    score=0.7,
+                    point_type="evidence_record",
+                    source_id="ev_3",
+                    document_id="A3",
+                    record_type="formulation_condition",
+                    text="Unrelated formulation condition.",
+                ),
+                RetrievalHit(
+                    score=0.6,
+                    point_type="evidence_record",
+                    source_id="ev_b10",
+                    document_id="B10",
+                    record_type="formulation_condition",
+                    text="BCL-ZIF-8 loading of 700 mg and adsorption time 30 min.",
+                ),
+            ],
+        )
+        case = {
+            "kind": "positive",
+            "expected_evidence": [{"document_id": "B10", "text_contains": "700 mg"}],
+        }
+
+        checks = evaluate_endpoint_result(endpoint_result, case)
+        metrics = collect_case_metrics(endpoint_result, case, checks)
+
+        self.assertTrue(checks["overall_ok"])
+        self.assertEqual(metrics["first_expected_rank"], 4)
+        self.assertFalse(metrics["recall_at_3"])
+        self.assertTrue(metrics["recall_at_5"])
+        self.assertAlmostEqual(metrics["mrr_at_5"], 0.25)
+        self.assertGreater(metrics["ndcg_at_5"], 0.0)
+
+    def test_summarize_all_groups_by_kind_endpoint_and_difficulty(self) -> None:
+        runtime = runtime_with_config()
+        case_results = [
+            {
+                "benchmark": "unit",
+                "id": "c1",
+                "kind": "positive",
+                "difficulty": "medium",
+                "endpoint": "search_evidence",
+                "query": "BCL-ZIF-8",
+                "ok": True,
+                "checks": {"plan_ok": True},
+                "metrics": {
+                    "has_expected_evidence": True,
+                    "recall_at_3": True,
+                    "recall_at_5": True,
+                    "recall_at_8": True,
+                    "mrr_at_3": 1.0,
+                    "mrr_at_5": 1.0,
+                    "mrr_at_8": 1.0,
+                    "ndcg_at_5": 1.0,
+                    "forbidden_hit_count": 0,
+                },
+                "actual": {},
+            }
+        ]
+
+        summary = summarize_all(
+            [{"name": "unit", "_path": "benchmarks/unit.json", "target_case_count": 1, "cases": [{"id": "c1"}]}],
+            case_results,
+            runtime,
+            "mock",
+            datetime.now(timezone.utc),
+        )
+
+        self.assertTrue(summary["all_passed"])
+        self.assertEqual(summary["by_kind"]["positive"]["passed"], 1)
+        self.assertEqual(summary["by_endpoint"]["search_evidence"]["passed"], 1)
+        self.assertEqual(summary["by_difficulty"]["medium"]["passed"], 1)
+        self.assertEqual(summary["metrics"]["retrieval"]["recall_at_5"], 1.0)
+        self.assertIn("acceptance", summary)
+
+    def test_acceptance_targets_flag_threshold_failures(self) -> None:
+        acceptance = evaluate_acceptance_targets(
+            {
+                "retrieval": {
+                    "cases": 1,
+                    "recall_at_5": 0.94,
+                    "mrr_at_5": 0.86,
+                    "forbidden_hit_rate": 0.0,
+                },
+                "no_answer": {
+                    "cases": 1,
+                    "no_answer_accuracy": 1.0,
+                    "unexpected_candidate_rate": 0.0,
+                    "unexpected_citation_rate": 0.0,
+                },
+                "answer_quality": {
+                    "cases": 1,
+                    "citation_accuracy": 0.91,
+                    "unsupported_claim_count_per_answer": 0.0,
+                    "condition_type_accuracy": 1.0,
+                    "stream_final_consistency": 1.0,
+                },
+                "formulation": {
+                    "cases": 1,
+                    "evidence_backed_change_rate": 1.0,
+                    "unsafe_global_optimum_claim_count": 0,
+                },
+            }
+        )
+
+        self.assertFalse(acceptance["all_targets_met"])
+        failed = [item for item in acceptance["checks"] if not item["ok"]]
+        self.assertEqual(failed[0]["metric"], "recall_at_5")
+
+    def test_acceptance_targets_skip_empty_metric_groups(self) -> None:
+        acceptance = evaluate_acceptance_targets(
+            {
+                "retrieval": {
+                    "cases": 1,
+                    "recall_at_5": 1.0,
+                    "mrr_at_5": 1.0,
+                    "forbidden_hit_rate": 0.0,
+                },
+                "no_answer": {"cases": 0},
+                "answer_quality": {"cases": 0},
+                "formulation": {"cases": 0},
+            }
+        )
+
+        skipped = [item for item in acceptance["checks"] if item.get("skipped")]
+        self.assertTrue(skipped)
+        self.assertTrue(all(item["ok"] for item in skipped))
 
 
 class RetrievalPlanningTests(unittest.TestCase):
