@@ -36,6 +36,7 @@ from enzyme_recommender.evidence.curation import append_curation_decision, rebui
 from enzyme_recommender.ingestion.pipeline import IngestionPipeline, IngestionPipelineOptions, IngestionRunResult
 from enzyme_recommender.ingestion.registry import IngestionDocument, IngestionJob, IngestionRegistry
 from enzyme_recommender.rag.indexing import resolve_collection_name
+from enzyme_recommender.rag.documents import build_document_catalog
 from enzyme_recommender.rag.qdrant import QdrantRestClient
 from enzyme_recommender.rag.retrieval import PointType
 from enzyme_recommender.rag.retrieval import RetrievalHit, RetrievalResponse
@@ -174,6 +175,15 @@ def register_routes(app: FastAPI) -> None:
             usable_only=runtime.config.retrieval.usable_only if payload.usable_only is None else payload.usable_only,
         )
         return enrich_retrieval_response(runtime, response).model_dump(mode="json")
+
+    @app.get("/api/documents")
+    def list_documents(collection: Optional[str] = None) -> dict[str, Any]:
+        runtime = runtime_with_collection(get_runtime(app), collection)
+        documents = build_document_catalog(runtime.qdrant_config(), rag_input_dir=RAG_INPUT_DIR)
+        return {
+            "collection": runtime.qdrant_config().collection,
+            "documents": [document.model_dump(mode="json") for document in documents],
+        }
 
     @app.get("/api/ingestion/summary", response_model=IngestionSummaryResponse)
     def ingestion_summary() -> IngestionSummaryResponse:
@@ -963,6 +973,7 @@ def stream_recommendation_events(
         started_at = time.perf_counter()
         yield ndjson_event({"event": "status", "stage": "retrieval_start", "message": "retrieving evidence"})
         retrieval = service.retrieve_evidence(request)
+        retrieval.hits = enrich_retrieval_hits(service.runtime, retrieval.hits)
         retrieval_ms = elapsed_ms(started_at)
         yield ndjson_event(
             {
@@ -1044,7 +1055,6 @@ def stream_recommendation_events(
             finish_reason=finish_reason,
             usage=usage,
         )
-        retrieval.hits = enrich_retrieval_hits(service.runtime, retrieval.hits)
         response = service.build_response(request, retrieval, generation)
         yield ndjson_event(
             {

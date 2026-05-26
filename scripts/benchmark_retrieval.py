@@ -6,6 +6,11 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Sequence
 
+from enzyme_recommender.rag.documents import (
+    build_document_catalog,
+    resolve_document_reference,
+    resolve_document_reference_from_hits,
+)
 from enzyme_recommender.rag.retrieval import RetrievalHit
 from enzyme_recommender.runtime import RuntimeServices
 
@@ -36,12 +41,7 @@ def main() -> None:
         usable_only = bool(item.get("usable_only", runtime.config.retrieval.usable_only))
         point_type = item.get("point_type")
         try:
-            response = retriever.retrieve(
-                query=item["query"],
-                top_k=top_k,
-                point_type=point_type,
-                usable_only=usable_only,
-            )
+            response = retrieve_benchmark_case(runtime, retriever, item, top_k, point_type, usable_only)
             score = evaluate_case(response.hits, item)
             expected_plan = item.get("expected_plan") or {}
             plan_score = evaluate_query_plan(response.query_plan, expected_plan)
@@ -113,6 +113,46 @@ def load_benchmark(path: Path) -> Dict[str, Any]:
     if not isinstance(payload, dict) or not isinstance(payload.get("queries"), list):
         raise ValueError(f"invalid benchmark file: {path}")
     return payload
+
+
+def retrieve_benchmark_case(
+    runtime: RuntimeServices,
+    retriever: Any,
+    item: Dict[str, Any],
+    top_k: int,
+    point_type: Any,
+    usable_only: bool,
+) -> Any:
+    if item.get("retrieval_mode") != "document_scope":
+        return retriever.retrieve(
+            query=item["query"],
+            top_k=top_k,
+            point_type=point_type,
+            usable_only=usable_only,
+        )
+    document_id = item.get("document_id")
+    source_pdf = item.get("source_pdf")
+    if not document_id and not source_pdf:
+        catalog = build_document_catalog(runtime.qdrant_config())
+        resolution = resolve_document_reference(item["query"], catalog)
+        if resolution.status != "resolved":
+            broad_response = retriever.retrieve(
+                query=item["query"],
+                top_k=24,
+                usable_only=False,
+            )
+            resolution = resolve_document_reference_from_hits(item["query"], catalog, broad_response.hits)
+        if resolution.status != "resolved" or resolution.document is None:
+            raise RuntimeError(f"document_scope benchmark could not resolve document: {resolution.status}")
+        document_id = resolution.document.document_id
+        source_pdf = resolution.document.source_pdf
+    return retriever.retrieve_document_scope(
+        query=item["query"],
+        document_id=document_id,
+        source_pdf=source_pdf,
+        top_k=top_k,
+        include_review=bool(item.get("include_review", True)),
+    )
 
 
 def evaluate_case(hits: Sequence[RetrievalHit], item: Dict[str, Any]) -> Dict[str, Any]:
