@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 import json
 from typing import Any, Dict, Iterator, Optional
+from urllib.parse import urlparse
 
 import httpx
 
@@ -61,7 +62,9 @@ class OpenAICompatibleGeneratorClient:
                 if attempt >= request.max_retries:
                     break
                 time.sleep(min(2**attempt, 8))
-        raise RuntimeError(f"generation failed for provider {self.provider}: {last_error}") from last_error
+        raise RuntimeError(
+            f"generation failed for provider {self.provider}: {format_provider_error(self.provider, self.base_url, last_error)}"
+        ) from last_error
 
     def stream_generate(self, request: GenerationRequest) -> Iterator[GenerationStreamChunk]:
         payload = self._build_payload(request, stream=True)
@@ -78,7 +81,9 @@ class OpenAICompatibleGeneratorClient:
                 if emitted_any or attempt >= request.max_retries:
                     break
                 time.sleep(min(2**attempt, 8))
-        raise RuntimeError(f"stream generation failed for provider {self.provider}: {last_error}") from last_error
+        raise RuntimeError(
+            f"stream generation failed for provider {self.provider}: {format_provider_error(self.provider, self.base_url, last_error)}"
+        ) from last_error
 
     def _build_payload(self, request: GenerationRequest, stream: bool = False) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
@@ -102,7 +107,7 @@ class OpenAICompatibleGeneratorClient:
             response.raise_for_status()
             return response
 
-        with httpx.Client(timeout=max(timeout, self.timeout_seconds), trust_env=False) as client:
+        with httpx.Client(timeout=client_timeout(max(timeout, self.timeout_seconds)), trust_env=False) as client:
             response = client.post(
                 f"{self.base_url}/chat/completions",
                 headers=self._headers(),
@@ -127,7 +132,10 @@ class OpenAICompatibleGeneratorClient:
                 yield from self._iter_stream_response(response, model_name)
             return
 
-        with httpx.Client(timeout=max(timeout, self.timeout_seconds), trust_env=False) as client:
+        with httpx.Client(
+            timeout=client_timeout(max(timeout, self.timeout_seconds), read_seconds=min(45.0, max(timeout, self.timeout_seconds))),
+            trust_env=False,
+        ) as client:
             with client.stream(
                 "POST",
                 f"{self.base_url}/chat/completions",
@@ -163,13 +171,15 @@ class OpenAICompatibleGeneratorClient:
             delta = choice.get("delta") or {}
             message = choice.get("message") or {}
             content = str(delta.get("content") or message.get("content") or "")
+            reasoning_content = str(delta.get("reasoning_content") or "")
             finish_reason = choice.get("finish_reason")
             usage = data.get("usage") or {}
-            if content or finish_reason or usage:
+            if content or reasoning_content or finish_reason or usage:
                 yield GenerationStreamChunk(
                     provider=self.provider,
                     model=str(data.get("model") or model_name),
                     delta=content,
+                    reasoning_delta=reasoning_content,
                     finish_reason=finish_reason,
                     usage=usage if isinstance(usage, dict) else {},
                     raw_event=data if isinstance(data, dict) else None,
@@ -180,3 +190,42 @@ class OpenAICompatibleGeneratorClient:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+
+
+def client_timeout(total_seconds: float, read_seconds: Optional[float] = None) -> httpx.Timeout:
+    connect_timeout = min(10.0, max(1.0, total_seconds))
+    short_io_timeout = min(15.0, max(1.0, total_seconds))
+    effective_read_timeout = read_seconds if read_seconds is not None else total_seconds
+    return httpx.Timeout(
+        total_seconds,
+        connect=connect_timeout,
+        read=effective_read_timeout,
+        write=short_io_timeout,
+        pool=short_io_timeout,
+    )
+
+
+def format_provider_error(provider: str, base_url: str, exc: Optional[BaseException]) -> str:
+    if exc is None:
+        return "unknown provider error"
+
+    host = urlparse(base_url).hostname or base_url
+    raw = str(exc) or exc.__class__.__name__
+    lowered = raw.lower()
+    if isinstance(exc, httpx.HTTPStatusError):
+        response = exc.response
+        body = response.text[:300].replace("\n", " ").strip()
+        suffix = f": {body}" if body else ""
+        return f"provider HTTP {response.status_code} from {host}{suffix}"
+    if "nodename nor servname" in lowered or "name or service not known" in lowered or "temporary failure in name resolution" in lowered:
+        return (
+            f"cannot resolve provider host {host}; DNS/network/proxy is unavailable from the API process "
+            f"({raw})"
+        )
+    if isinstance(exc, httpx.ConnectError):
+        return f"cannot connect to provider host {host}; network/proxy may be unavailable ({raw})"
+    if isinstance(exc, httpx.ReadTimeout):
+        return f"provider {provider} did not return data before read timeout ({raw})"
+    if isinstance(exc, httpx.TimeoutException):
+        return f"provider {provider} request timed out ({raw})"
+    return raw

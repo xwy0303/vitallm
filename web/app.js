@@ -1,5 +1,5 @@
 const API_BASE_URL = window.ENZYME_API_BASE_URL || "http://127.0.0.1:8001";
-const DEFAULT_COLLECTION = "enzyme_immobilization_b10";
+const DEFAULT_COLLECTION = window.ENZYME_COLLECTION || null;
 
 const textarea = document.querySelector("[data-query-input]");
 const sendButton = document.querySelector("[data-send-button]");
@@ -14,6 +14,16 @@ const referenceModalTitle = document.querySelector("[data-reference-modal-title]
 const referenceModalMeta = document.querySelector("[data-reference-modal-meta]");
 const referenceModalText = document.querySelector("[data-reference-modal-text]");
 const referenceModalFooter = document.querySelector("[data-reference-modal-footer]");
+const pdfDocsMetric = document.querySelector("[data-pdf-docs]");
+const pdfPagesMetric = document.querySelector("[data-pdf-pages]");
+const qdrantPointsMetric = document.querySelector("[data-qdrant-points]");
+const reviewItemsMetric = document.querySelector("[data-review-items]");
+
+const JSON_REQUEST_TIMEOUT_MS = 120000;
+const STREAM_REQUEST_TIMEOUT_MS = 300000;
+const STREAM_FIRST_TOKEN_TIMEOUT_MS = 45000;
+const STREAM_IDLE_TIMEOUT_MS = 45000;
+const STREAM_TOP_K = 3;
 
 let activeMode = "recommend";
 let loadingTimer = null;
@@ -86,6 +96,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 checkHealth();
+loadDashboardSummary();
 
 async function checkHealth() {
   try {
@@ -94,6 +105,48 @@ async function checkHealth() {
   } catch (_error) {
     statusText.textContent = "API 未连接";
   }
+}
+
+async function loadDashboardSummary() {
+  try {
+    const data = await requestJson("/api/dashboard/summary", { method: "GET" });
+    renderDashboardSummary(data);
+  } catch (_error) {
+    renderDashboardSummaryFallback();
+  }
+}
+
+function renderDashboardSummary(data) {
+  const processedDocs = safeNumber(data.processed_docs);
+  const processedPages = safeNumber(data.processed_pages);
+  const indexedDocs = safeNumber(data.indexed_docs);
+  const qdrantPoints = safeNumber(data.qdrant_points);
+  const reviewItems = safeNumber(data.review_items);
+
+  if (pdfDocsMetric) {
+    const docLabel = processedDocs === null ? "docs 待同步" : `${formatInteger(processedDocs)} docs`;
+    pdfDocsMetric.textContent = docLabel;
+  }
+  if (pdfPagesMetric) {
+    pdfPagesMetric.textContent = processedPages === null ? "pages 待同步" : `${formatInteger(processedPages)} pages`;
+  }
+  if (qdrantPointsMetric) {
+    const pointsLabel = qdrantPoints === null ? "points 待同步" : `${formatInteger(qdrantPoints)} points`;
+    qdrantPointsMetric.textContent =
+      indexedDocs !== null && qdrantPoints !== null
+        ? `${pointsLabel} / ${formatInteger(indexedDocs)} docs`
+        : pointsLabel;
+  }
+  if (reviewItemsMetric) {
+    reviewItemsMetric.textContent = reviewItems === null ? "待同步" : formatInteger(reviewItems);
+  }
+}
+
+function renderDashboardSummaryFallback() {
+  if (pdfDocsMetric) pdfDocsMetric.textContent = "docs 待同步";
+  if (pdfPagesMetric) pdfPagesMetric.textContent = "pages 待同步";
+  if (qdrantPointsMetric) qdrantPointsMetric.textContent = "points 待同步";
+  if (reviewItemsMetric) reviewItemsMetric.textContent = "待同步";
 }
 
 async function runQuery() {
@@ -127,7 +180,7 @@ async function runQuery() {
         method: "POST",
         body: JSON.stringify({
           query: rawInput,
-          collection: DEFAULT_COLLECTION,
+          ...(DEFAULT_COLLECTION ? { collection: DEFAULT_COLLECTION } : {}),
           top_k: 5,
           usable_only: true,
         }),
@@ -161,8 +214,8 @@ function buildRecommendPayload(rawInput) {
   return {
     enzyme_name: extractEnzymeName(rawInput),
     application_context: rawInput,
-    collection: DEFAULT_COLLECTION,
-    top_k: 5,
+    ...(DEFAULT_COLLECTION ? { collection: DEFAULT_COLLECTION } : {}),
+    top_k: STREAM_TOP_K,
   };
 }
 
@@ -179,8 +232,8 @@ function buildOptimizePayload(rawInput) {
     enzyme_name: rawInput.startsWith("{") ? "Burkholderia cepacia lipase" : extractEnzymeName(rawInput),
     user_formulation: formulation,
     application_context: rawInput,
-    collection: DEFAULT_COLLECTION,
-    top_k: 5,
+    ...(DEFAULT_COLLECTION ? { collection: DEFAULT_COLLECTION } : {}),
+    top_k: STREAM_TOP_K,
   };
 }
 
@@ -193,27 +246,27 @@ function extractEnzymeName(rawInput) {
 
 async function requestJson(path, options) {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 120000);
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    signal: controller.signal,
-    ...options,
-  }).catch((error) => {
-    if (error.name === "AbortError") {
-      throw new Error("请求超过 120 秒仍未返回。请稍后重试，或先使用证据检索模式确认知识库可用。");
-    }
-    throw error;
-  });
+  const timeoutId = window.setTimeout(() => controller.abort(), JSON_REQUEST_TIMEOUT_MS);
   try {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      signal: controller.signal,
+      ...options,
+    });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const message = data?.error?.message || data?.detail?.error?.message || response.statusText;
       throw new Error(typeof message === "string" ? message : JSON.stringify(message));
     }
     return data;
+  } catch (error) {
+    if (isAbortError(error, controller)) {
+      throw new Error(formatTimeoutMessage(JSON_REQUEST_TIMEOUT_MS));
+    }
+    throw error;
   } finally {
     window.clearTimeout(timeoutId);
   }
@@ -221,23 +274,24 @@ async function requestJson(path, options) {
 
 async function requestNdjsonStream(path, payload, handlers = {}) {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 120000);
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/x-ndjson",
-    },
-    body: JSON.stringify(payload),
-    signal: controller.signal,
-  }).catch((error) => {
-    if (error.name === "AbortError") {
-      throw new Error("请求超过 120 秒仍未返回。请稍后重试，或先使用证据检索模式确认知识库可用。");
-    }
-    throw error;
-  });
+  const timeoutId = window.setTimeout(() => controller.abort(), STREAM_REQUEST_TIMEOUT_MS);
+  let firstTokenTimeoutId = null;
+  let idleTimeoutId = null;
+  let firstTokenReceived = false;
+  let firstTokenTimedOut = false;
+  let streamIdleTimedOut = false;
 
   try {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/x-ndjson",
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       const message = data?.error?.message || data?.detail?.error?.message || response.statusText;
@@ -251,6 +305,49 @@ async function requestNdjsonStream(path, payload, handlers = {}) {
     const decoder = new TextDecoder();
     let buffer = "";
     let finalData = null;
+    const resetIdleTimeout = () => {
+      clearStreamTimeout(idleTimeoutId);
+      idleTimeoutId = window.setTimeout(() => {
+        streamIdleTimedOut = true;
+        controller.abort("stream_idle_timeout");
+      }, STREAM_IDLE_TIMEOUT_MS);
+    };
+    const handleStreamEvent = (event) => {
+      resetIdleTimeout();
+      if (event.event === "delta") {
+        handlers.onDelta?.(event.delta || "");
+      } else if (event.event === "preview") {
+        handlers.onPreview?.(event.delta || "", event);
+      } else if (event.event === "status") {
+        handlers.onStatus?.(event.stage || "processing", event.message || "", event);
+        if (event.stage === "generation_start") {
+          firstTokenTimeoutId = startFirstTokenTimeout(controller, () => {
+            firstTokenTimedOut = true;
+          });
+        } else if (event.stage === "first_delta") {
+          firstTokenReceived = true;
+          clearStreamTimeout(firstTokenTimeoutId);
+          firstTokenTimeoutId = null;
+        }
+      } else if (event.event === "retrieval") {
+        handlers.onStatus?.(
+          "retrieval_done",
+          `已检索 ${event.hits_count || 0} 条参考文献 chunk，正在生成建议。`,
+          event,
+        );
+      } else if (event.event === "final") {
+        finalData = event.data || null;
+        firstTokenReceived = true;
+        clearStreamTimeout(firstTokenTimeoutId);
+        clearStreamTimeout(idleTimeoutId);
+        firstTokenTimeoutId = null;
+        idleTimeoutId = null;
+        handlers.onStatus?.("finalizing", "正在整理结构化结果。", event);
+      } else if (event.event === "error") {
+        throw new Error(event.message || "流式响应失败");
+      }
+    };
+    resetIdleTimeout();
 
     while (true) {
       const { done, value } = await reader.read();
@@ -262,20 +359,7 @@ async function requestNdjsonStream(path, payload, handlers = {}) {
         const line = rawLine.trim();
         if (!line) continue;
         const event = JSON.parse(line);
-        if (event.event === "delta") {
-          handlers.onDelta?.(event.delta || "");
-        } else if (event.event === "status") {
-          handlers.onStatus?.(event.stage || "processing", event.message || "");
-        } else if (event.event === "retrieval") {
-          handlers.onStatus?.(
-            "retrieval_done",
-            `已检索 ${event.hits_count || 0} 条证据，正在生成建议。`,
-          );
-        } else if (event.event === "final") {
-          finalData = event.data || null;
-        } else if (event.event === "error") {
-          throw new Error(event.message || "流式响应失败");
-        }
+        handleStreamEvent(event);
       }
 
       if (done) break;
@@ -283,17 +367,7 @@ async function requestNdjsonStream(path, payload, handlers = {}) {
 
     if (buffer.trim()) {
       const event = JSON.parse(buffer);
-      if (event.event === "delta") {
-        handlers.onDelta?.(event.delta || "");
-      } else if (event.event === "status") {
-        handlers.onStatus?.(event.stage || "processing", event.message || "");
-      } else if (event.event === "retrieval") {
-        handlers.onStatus?.("retrieval_done", `已检索 ${event.hits_count || 0} 条证据，正在生成建议。`);
-      } else if (event.event === "final") {
-        finalData = event.data || null;
-      } else if (event.event === "error") {
-        throw new Error(event.message || "流式响应失败");
-      }
+      handleStreamEvent(event);
     }
 
     if (!finalData) {
@@ -301,9 +375,57 @@ async function requestNdjsonStream(path, payload, handlers = {}) {
     }
     handlers.onStatus?.("done", "生成完成");
     return finalData;
+  } catch (error) {
+    if (isAbortError(error, controller)) {
+      if (firstTokenTimedOut && !firstTokenReceived) {
+        throw new Error(formatFirstTokenTimeoutMessage());
+      }
+      if (streamIdleTimedOut) {
+        throw new Error(formatStreamIdleTimeoutMessage());
+      }
+      throw new Error(formatTimeoutMessage(STREAM_REQUEST_TIMEOUT_MS));
+    }
+    throw error;
   } finally {
     window.clearTimeout(timeoutId);
+    clearStreamTimeout(firstTokenTimeoutId);
+    clearStreamTimeout(idleTimeoutId);
   }
+}
+
+function startFirstTokenTimeout(controller, onTimeout) {
+  return window.setTimeout(() => {
+    onTimeout?.();
+    controller.abort("first_token_timeout");
+  }, STREAM_FIRST_TOKEN_TIMEOUT_MS);
+}
+
+function clearStreamTimeout(timeoutId) {
+  if (timeoutId) {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function isAbortError(error, controller) {
+  if (controller?.signal?.aborted) return true;
+  const name = error?.name || "";
+  const message = String(error?.message || error || "").toLowerCase();
+  return name === "AbortError" || message.includes("aborted") || message.includes("fetch is aborted");
+}
+
+function formatTimeoutMessage(timeoutMs) {
+  const seconds = Math.round(timeoutMs / 1000);
+  return `请求超过 ${seconds} 秒仍未完成。Qwen 生成可能仍在排队或响应较慢，请稍后重试，或先使用证据检索模式确认知识库可用。`;
+}
+
+function formatFirstTokenTimeoutMessage() {
+  const seconds = Math.round(STREAM_FIRST_TOKEN_TIMEOUT_MS / 1000);
+  return `模型生成阶段超过 ${seconds} 秒仍未返回首 token。通常是 SiliconFlow 上游排队、网络/DNS/proxy 问题或模型服务波动；证据检索已完成，可以稍后重试。`;
+}
+
+function formatStreamIdleTimeoutMessage() {
+  const seconds = Math.round(STREAM_IDLE_TIMEOUT_MS / 1000);
+  return `模型流式输出超过 ${seconds} 秒没有新内容。通常是 SiliconFlow stream 中途停顿或网络连接空闲超时；已收到的内容不会继续等待，请重试。`;
 }
 
 function setLoading(isLoading, options = {}) {
@@ -328,33 +450,49 @@ function updateLoadingMessage() {
   const seconds = Math.max(0, Math.round((Date.now() - loadingStartedAt) / 1000));
   resultBody.innerHTML = `
     <div class="loading-steps">
-      <span>1. Qdrant evidence retrieval：通常 &lt; 1 秒</span>
+      <span>1. Qdrant reference retrieval：通常 &lt; 1 秒</span>
       <span>2. SiliconFlow generation：当前已等待 ${seconds} 秒</span>
-      <span>3. Structured response rendering：返回后自动展示 citations</span>
+      <span>3. Reference rendering：返回后自动展示参考论文</span>
     </div>
-    <p class="result-muted">真实 LLM 生成不是卡死，通常需要 10-40 秒；超过 120 秒会自动报错。</p>
+    <p class="result-muted">真实 LLM 生成不是卡死，通常需要 10-90 秒；流式生成超过 300 秒会自动报错。</p>
   `;
 }
 
 function prepareStreamView(title) {
   streamBuffer = "";
+  setReferenceHits([]);
   resultPanel.hidden = false;
   resultTitle.textContent = title;
   resultBody.innerHTML = `
-    <div class="stream-status" data-stream-status>准备检索证据</div>
-    <pre class="stream-output" data-stream-output></pre>
+    <div class="stream-status" data-stream-status>准备检索参考文献</div>
+    <div class="stream-metrics" data-stream-metrics></div>
+    <div class="stream-output live-answer-content" data-stream-output></div>
   `;
 }
 
-function updateStreamStatus(stage, message) {
+function updateStreamStatus(stage, message, event = {}) {
   const status = resultBody.querySelector("[data-stream-status]");
   if (!status) return;
+  updateStreamMetrics(stage, event);
+  const elapsedLabel = event.elapsed_ms !== undefined ? `（${formatElapsedMs(event.elapsed_ms)}）` : "";
   if (stage === "generation_start") {
-    status.textContent = "正在生成建议";
+    status.textContent = `正在生成建议${elapsedLabel}`;
+    return;
+  }
+  if (stage === "model_reasoning") {
+    status.textContent = `模型已开始推理，等待可见 token${elapsedLabel}`;
+    return;
+  }
+  if (stage === "first_delta") {
+    status.textContent = `首 token 已到达${elapsedLabel}`;
     return;
   }
   if (stage === "retrieval_done") {
-    status.textContent = message || "证据检索完成";
+    status.textContent = `${message || "证据检索完成"}${elapsedLabel}`;
+    return;
+  }
+  if (stage === "finalizing") {
+    status.textContent = `${message || "正在整理结构化结果"}${elapsedLabel}`;
     return;
   }
   if (stage === "done") {
@@ -364,40 +502,47 @@ function updateStreamStatus(stage, message) {
   status.textContent = message || "处理中";
 }
 
+function updateStreamMetrics(stage, event = {}) {
+  const metrics = resultBody.querySelector("[data-stream-metrics]");
+  if (!metrics || event.elapsed_ms === undefined) return;
+  const labelByStage = {
+    retrieval_done: "retrieval",
+    model_reasoning: "reasoning",
+    first_delta: "first token",
+    finalizing: "final",
+  };
+  const label = labelByStage[stage];
+  if (!label) return;
+  let item = metrics.querySelector(`[data-stream-metric="${stage}"]`);
+  if (!item) {
+    item = document.createElement("span");
+    item.setAttribute("data-stream-metric", stage);
+    metrics.appendChild(item);
+  }
+  item.textContent = `${label}: ${formatElapsedMs(event.elapsed_ms)}`;
+}
+
+function formatElapsedMs(value) {
+  const ms = Number(value);
+  if (!Number.isFinite(ms)) return "-";
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  return `${(ms / 1000).toFixed(1)} s`;
+}
+
 function appendStreamDelta(delta) {
   streamBuffer += delta;
   const output = resultBody.querySelector("[data-stream-output]");
   if (!output) return;
-  output.textContent = streamBuffer;
+  output.innerHTML = renderMarkdownLite(streamBuffer);
   output.scrollTop = output.scrollHeight;
 }
 
 function renderRecommendation(data) {
   setReferenceHits(data.evidence_hits);
   resultTitle.textContent = "固定化推荐结果";
-  const candidates = data.candidates || [];
   resultBody.innerHTML = [
     renderMeta(data.generator_provider, data.generator_model, data.limitations),
-    candidates.length
-      ? candidates
-          .map(
-            (item) => `
-              <article class="result-card">
-                <div class="result-card-head">
-                  <strong>#${escapeHtml(item.rank)} ${escapeHtml(formatCandidateTitle(item))}</strong>
-                  <span>${escapeHtml(item.confidence)}</span>
-                </div>
-                <p class="candidate-summary">${escapeHtml(truncateDisplayText(cleanDisplayText(item.strategy_summary), 420))}</p>
-                <p><b>method</b>: ${escapeHtml(item.immobilization_method || "-")}</p>
-                ${renderKeyValues(item.recommended_conditions)}
-                ${renderList("expected benefits", item.expected_benefits)}
-                ${renderList("risks", item.risks)}
-                ${renderCitationList("citations", item.citations)}
-              </article>
-            `
-          )
-          .join("")
-      : '<p class="result-muted">没有生成可排序候选，请检查 collection 或 query。</p>',
+    renderLiveAnswer(data),
     renderReferenceSection(data.evidence_hits),
   ].join("");
 }
@@ -405,27 +550,9 @@ function renderRecommendation(data) {
 function renderOptimization(data) {
   setReferenceHits(data.evidence_hits);
   resultTitle.textContent = "配方优化建议";
-  const changes = data.changes || [];
   resultBody.innerHTML = [
     renderMeta(data.generator_provider, data.generator_model, data.limitations),
-    changes.length
-      ? changes
-          .map(
-            (item) => `
-              <article class="result-card">
-                <div class="result-card-head">
-                  <strong>${escapeHtml(item.field_path)}</strong>
-                  <span>${escapeHtml(item.confidence)}</span>
-                </div>
-                <p><b>current</b>: ${escapeHtml(formatValue(item.current_value))}</p>
-                <p><b>recommended</b>: ${escapeHtml(formatValue(item.recommended_value))}</p>
-                <p>${escapeHtml(item.rationale)}</p>
-                ${renderCitationList("citations", item.citations)}
-              </article>
-            `
-          )
-          .join("")
-      : '<p class="result-muted">没有生成字段级改动建议。</p>',
+    renderLiveAnswer(data),
     renderReferenceSection(data.evidence_hits),
   ].join("");
 }
@@ -459,6 +586,75 @@ function renderMeta(provider, model, limitations) {
     </div>
     ${renderList("limitations", limitations || [])}
   `;
+}
+
+function renderLiveAnswer(data) {
+  if (data.generation_json || !data.generation_content) return "";
+  return `
+    <section class="live-answer">
+      <strong>live answer</strong>
+      <div class="live-answer-content">${renderMarkdownLite(data.generation_content)}</div>
+    </section>
+  `;
+}
+
+function renderMarkdownLite(value) {
+  const lines = String(value || "").replace(/\r\n?/g, "\n").split("\n");
+  const blocks = [];
+  let paragraph = [];
+  let listItems = [];
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    blocks.push(`<p>${renderInlineMarkdown(paragraph.join(" "))}</p>`);
+    paragraph = [];
+  };
+
+  const flushList = () => {
+    if (!listItems.length) return;
+    blocks.push(`<ul>${listItems.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</ul>`);
+    listItems = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+
+    const bulletMatch = line.match(/^[-*]\s+(.+)$/);
+    if (bulletMatch) {
+      flushParagraph();
+      listItems.push(bulletMatch[1].trim());
+      continue;
+    }
+
+    flushList();
+    paragraph.push(line);
+  }
+
+  flushParagraph();
+  flushList();
+  return blocks.join("");
+}
+
+function renderInlineMarkdown(value) {
+  return escapeHtml(value)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>")
+    .replace(/(^|[^_])_([^_\n]+)_(?!_)/g, "$1<em>$2</em>")
+    .replace(/\[(\d+)\]/g, (_match, rawIndex) => renderInlineCitation(Number(rawIndex)));
+}
+
+function renderInlineCitation(index) {
+  if (!Number.isInteger(index) || index < 1 || index > activeReferenceHits.length) {
+    return `[${escapeHtml(index)}]`;
+  }
+  return `<a class="inline-citation" href="#${referenceAnchorId(index)}">[${index}]</a>`;
 }
 
 function renderKeyValues(value) {
@@ -539,11 +735,12 @@ function renderReferenceCard(hit, index, options = {}) {
   const preview = truncateDisplayText(text, 320);
   const pdfName = hit.source_pdf || parsePdfName(citation) || "-";
   const pdfUrl = buildPdfUrl(hit);
+  const referenceIndex = index + 1;
   return `
-    <article class="reference-card">
+    <article class="reference-card" id="${referenceAnchorId(referenceIndex)}">
       <div class="reference-card-head">
         <button class="reference-title" type="button" data-reference-key="${escapeHtml(key)}">
-          ${escapeHtml(citation || "reference")}
+          #${referenceIndex} ${escapeHtml(citation || "reference")}
         </button>
         ${options.score ? `<span>${Number(hit.score || 0).toFixed(3)}</span>` : `<span>${escapeHtml(hit.record_type || hit.point_type || "chunk")}</span>`}
       </div>
@@ -602,6 +799,10 @@ function renderReferenceModalContent() {
 
 function referenceKey(hit, index) {
   return String(hit.source_id || hit.citation || `${hit.source_pdf || "reference"}-${hit.page_start || "p"}-${index}`);
+}
+
+function referenceAnchorId(index) {
+  return `reference-${index}`;
 }
 
 function formatReferenceCitation(hit) {
@@ -714,6 +915,16 @@ function truncateDisplayText(value, limit) {
 function displayPageNumber(pageIndex) {
   const number = Number(pageIndex);
   return Number.isFinite(number) ? number + 1 : pageIndex;
+}
+
+function safeNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function formatInteger(value) {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
 }
 
 function renderReferenceText(text) {

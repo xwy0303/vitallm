@@ -358,6 +358,21 @@ a {
   font-weight: 700;
 }
 
+.stream-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stream-metrics span {
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: #526557;
+  background: #fbfefb;
+  font-size: 12px;
+}
+
 .stream-output {
   margin: 0;
   padding: 14px;
@@ -368,13 +383,9 @@ a {
   border-radius: 8px;
   color: #345041;
   background: #fbfefb;
-  white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.7;
-  font-family:
-    ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .result-meta,
@@ -397,6 +408,83 @@ a {
   width: 100%;
   color: var(--green-900);
   font-size: 13px;
+}
+
+.live-answer {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfefb;
+}
+
+.live-answer strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--green-900);
+  font-size: 13px;
+}
+
+.live-answer-content {
+  margin: 0;
+  color: #345041;
+  word-break: break-word;
+  line-height: 1.7;
+  font-size: 13px;
+}
+
+.live-answer-content p {
+  margin: 0 0 10px;
+}
+
+.live-answer-content p:last-child,
+.live-answer-content ul:last-child {
+  margin-bottom: 0;
+}
+
+.live-answer-content ul {
+  display: grid;
+  gap: 7px;
+  margin: 0 0 10px;
+  padding-left: 19px;
+}
+
+.live-answer-content li {
+  padding-left: 2px;
+}
+
+.live-answer-content strong {
+  display: inline;
+  margin: 0;
+  font-size: inherit;
+  font-weight: 700;
+}
+
+.live-answer-content em {
+  color: #526557;
+  font-style: italic;
+}
+
+.live-answer-content code {
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--green-900);
+  background: #f3faf4;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 12px;
+}
+
+.inline-citation {
+  color: var(--green-700);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.inline-citation:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .citation-list {
@@ -538,10 +626,16 @@ a {
 }
 
 .reference-card {
+  scroll-margin-top: 18px;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfefb;
+}
+
+.reference-card:target {
+  border-color: rgba(31, 122, 62, 0.48);
+  box-shadow: 0 0 0 3px rgba(31, 122, 62, 0.1);
 }
 
 .reference-card-head {

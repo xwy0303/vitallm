@@ -14,6 +14,7 @@ from enzyme_recommender.rag.embedding import (
 )
 from enzyme_recommender.rag.qdrant import QdrantConfig
 from enzyme_recommender.rag.retrieval import EvidenceRetriever
+from enzyme_recommender.rag.indexing import build_index_identity
 from enzyme_recommender.runtime.config import RuntimeConfig
 
 
@@ -49,9 +50,13 @@ class RuntimeServices:
 
     def qdrant_config(self) -> QdrantConfig:
         vector_config = self.config.vector_store
+        collection = build_index_identity(
+            embedding_model=self.embedding_model(),
+            collection=vector_config.collection,
+        ).collection
         return QdrantConfig(
             url=vector_config.url,
-            collection=vector_config.collection,
+            collection=collection,
             timeout=vector_config.timeout_seconds,
         )
 

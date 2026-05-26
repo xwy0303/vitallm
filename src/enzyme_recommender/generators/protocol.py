@@ -58,6 +58,7 @@ class GenerationStreamChunk(BaseModel):
     provider: str
     model: str
     delta: str = ""
+    reasoning_delta: str = ""
     finish_reason: Optional[str] = None
     usage: Dict[str, Any] = Field(default_factory=dict)
     raw_event: Optional[Dict[str, Any]] = None

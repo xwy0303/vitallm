@@ -104,6 +104,23 @@ class FormulationOptimizationService:
             max_retries=config.generator.max_retries,
         )
 
+    def build_stream_generation_request(
+        self,
+        request: FormulationOptimizationRequest,
+        retrieval: RetrievalResponse,
+    ) -> GenerationRequest:
+        base_request = self.build_generation_request(request, retrieval)
+        return base_request.model_copy(
+            update={
+                "messages": [
+                    ChatMessage(role="system", content=STREAM_SYSTEM_PROMPT),
+                    ChatMessage(role="user", content=build_stream_optimization_prompt(request, retrieval)),
+                ],
+                "response_format": "text",
+                "max_retries": 0,
+            }
+        )
+
     def build_response(
         self,
         request: FormulationOptimizationRequest,
@@ -141,6 +158,10 @@ SYSTEM_PROMPT = """你是一个面向生物酶固定化配方优化的 evidence-
 只能基于给定 evidence context 对用户配方提出字段级优化建议。不要声称找到全局最优；必须说明证据、适用边界和下一步实验。输出必须是 JSON object。"""
 
 
+STREAM_SYSTEM_PROMPT = """你是一个面向生物酶固定化配方优化的 evidence-first 助手。
+优先快速输出可读建议，不输出 JSON。只能基于给定 evidence context；每条字段级建议必须带形如 [1]、[2] 的 reference index。"""
+
+
 def build_formulation_retrieval_query(request: FormulationOptimizationRequest) -> str:
     formulation_text = json.dumps(request.user_formulation, ensure_ascii=False, sort_keys=True)
     parts = [
@@ -170,6 +191,27 @@ def build_optimization_prompt(request: FormulationOptimizationRequest, retrieval
             '{"changes":[{"field_path":"","current_value":null,"recommended_value":null,'
             '"rationale":"","evidence_ids":[],"citations":[],"confidence":"low|medium|high"}],'
             '"limitations":[],"next_experiment_suggestions":[]}',
+        ]
+    )
+
+
+def build_stream_optimization_prompt(request: FormulationOptimizationRequest, retrieval: RetrievalResponse) -> str:
+    return "\n\n".join(
+        [
+            "任务：快速比较用户配方与 evidence context，输出前端 live stream 首答。",
+            f"目标酶：{request.enzyme_name}",
+            f"目标：{request.objective}",
+            f"应用场景：{request.application_context or '未提供'}",
+            f"用户约束：{request.constraints or '未提供'}",
+            "用户配方 JSON:",
+            json.dumps(request.user_formulation, ensure_ascii=False, sort_keys=True, indent=2),
+            "Evidence context:",
+            retrieval.context_text(max_chars_per_hit=600),
+            "输出要求：",
+            "- 先给 1 句总体判断，再给 3-6 条字段级改动建议。",
+            "- 每条建议写清 current -> recommended、rationale，并只使用 [1]、[2] 这类 reference index 引用，不要写裸 citation。",
+            "- 明确哪些建议只是 starting point，需要 DOE 或对照实验验证。",
+            "- 不输出 JSON，不要引入 evidence context 之外的新事实。",
         ]
     )
 

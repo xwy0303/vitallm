@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>生机大模型 - 生物酶固定化推荐</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=260525-reference-links" />
   </head>
   <body>
     <div class="app-shell">
@@ -169,8 +169,8 @@
             <h3>PDF 切片引擎</h3>
             <p>只使用本地/自托管 MinerU，支持 PDF 到 Markdown、content list、表格与图片 artifact。</p>
             <div class="metric-line">
-              <span>27 docs</span>
-              <strong>323 pages</strong>
+              <span data-pdf-docs>同步中</span>
+              <strong data-pdf-pages>同步中</strong>
             </div>
           </article>
 
@@ -180,7 +180,7 @@
                 <p class="eyebrow">Evidence Pipeline</p>
                 <h3>从论文到推荐的证据链</h3>
               </div>
-              <span class="badge green">2508 points</span>
+              <span class="badge green" data-qdrant-points>同步中</span>
             </div>
             <div class="pipeline">
               <div>
@@ -222,7 +222,7 @@
             <h3>人工审核队列</h3>
             <p>对 OCR 异常、百分比异常、疑似错列的证据进行人工确认，进入 curated evidence。</p>
             <div class="review-count">
-              <strong>411</strong>
+              <strong data-review-items>同步中</strong>
               <span>review items</span>
             </div>
           </article>
@@ -249,6 +249,6 @@
         <footer class="reference-modal-footer" data-reference-modal-footer></footer>
       </section>
     </div>
-    <script src="./app.js"></script>
+    <script src="./app.js?v=260525-reference-links"></script>
   </body>
 </html>

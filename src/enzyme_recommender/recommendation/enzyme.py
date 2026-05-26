@@ -98,6 +98,23 @@ class RecommendationService:
             max_retries=config.generator.max_retries,
         )
 
+    def build_stream_generation_request(
+        self,
+        request: EnzymeRecommendationRequest,
+        retrieval: RetrievalResponse,
+    ) -> GenerationRequest:
+        base_request = self.build_generation_request(request, retrieval)
+        return base_request.model_copy(
+            update={
+                "messages": [
+                    ChatMessage(role="system", content=STREAM_SYSTEM_PROMPT),
+                    ChatMessage(role="user", content=build_stream_generation_prompt(request, retrieval)),
+                ],
+                "response_format": "text",
+                "max_retries": 0,
+            }
+        )
+
     def build_response(
         self,
         request: EnzymeRecommendationRequest,
@@ -136,6 +153,10 @@ SYSTEM_PROMPT = """你是一个面向生物酶固定化的 evidence-first 推荐
 输出必须是 JSON object，包含 candidates、limitations、next_experiment_suggestions。"""
 
 
+STREAM_SYSTEM_PROMPT = """你是一个面向生物酶固定化的 evidence-first 推荐助手。
+优先快速输出可读建议，不输出 JSON。只能基于给定 evidence context；每条关键结论必须带形如 [1]、[2] 的 reference index。"""
+
+
 def build_retrieval_query(request: EnzymeRecommendationRequest) -> str:
     parts = [
         request.enzyme_name,
@@ -161,6 +182,25 @@ def build_generation_prompt(request: EnzymeRecommendationRequest, retrieval: Ret
             '{"candidates":[{"rank":1,"strategy_summary":"","carrier":"","immobilization_method":"",'
             '"recommended_conditions":{},"expected_benefits":[],"risks":[],"evidence_ids":[],'
             '"citations":[],"confidence":"low|medium|high"}],"limitations":[],"next_experiment_suggestions":[]}',
+        ]
+    )
+
+
+def build_stream_generation_prompt(request: EnzymeRecommendationRequest, retrieval: RetrievalResponse) -> str:
+    return "\n\n".join(
+        [
+            "任务：快速给出面向前端 live stream 的首答。",
+            f"目标酶：{request.enzyme_name}",
+            f"目标：{request.objective}",
+            f"应用场景：{request.application_context or '未提供'}",
+            f"用户约束：{request.constraints or '未提供'}",
+            "Evidence context:",
+            retrieval.context_text(max_chars_per_hit=600),
+            "输出要求：",
+            "- 先给 1 句推荐结论，再给 3-5 条 bullet。",
+            "- 每条 bullet 只使用 [1]、[2] 这类 reference index 引用，不要写裸 citation。",
+            "- 明确适用边界和需要补实验验证的点。",
+            "- 不输出 JSON，不要引入 evidence context 之外的新事实。",
         ]
     )
 
