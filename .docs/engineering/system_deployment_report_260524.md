@@ -11,6 +11,8 @@
 
 另有 `com.shengji.logrotate` 每日轮转 `~/Library/Logs/Shengji/` 下的服务日志。
 
+> Superseded note, 2026-05-25：本报告中的 `enzyme_immobilization_b10` 是当时的历史 collection 状态。正式 collection 已通过 registry/artifacts 全量重建为 `enzyme_immobilization_literature`，当前 runtime/API/dashboard 均应以正式 collection 为准；B10 只作为 rollback 保留。
+
 ## 项目组织架构
 
 ```text
@@ -177,5 +179,5 @@ vector_size: 768
 
 - 当前为本地离线部署，默认使用 `mock` generator。真实推荐文案需要启用 SiliconFlow/DeepSeek API key 后复测。
 - 当前 embedding 切到 `hash_v1` 768 以避免 Hugging Face cache/proxy 阻塞；该模式适合部署 smoke，不代表最终科学语义召回质量。
-- 现有 Qdrant collection 为历史 `enzyme_immobilization_b10`，包含 2508 points。collection 命名和正式重建应作为后续 data governance 任务处理。
+- 本报告记录的是 2026-05-24 的历史状态。2026-05-25 已完成正式 collection 全量重建，后续新增 PDF ingestion 默认进入 `enzyme_immobilization_literature`。
 - Codex 沙箱内通用 `curl` 可能被本机 TCP 权限限制影响；`status_launchagents.sh` 已增加端口监听 fallback。用户在普通 Terminal 中运行时应以 HTTP health 为准。

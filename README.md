@@ -40,10 +40,10 @@ flowchart LR
 
 | 模块 | 状态 | 说明 |
 | --- | --- | --- |
-| MinerU local `3.1.15` | 已验证 | B10 PDF smoke test 已打通 |
+| MinerU local `3.1.15` | 已验证 | 已完成 76/95 unique documents 可检索治理；失败 PDF 已有 fallback/repair 路线 |
 | RAG input builder | 已实现 | MinerU artifact -> `rag_chunks/table_records/extraction_candidates` |
-| Evidence extractor | 已实现 | 规则抽取 enzyme、carrier、conditions、metrics、table rows |
-| Qdrant `1.18.0` | 已验证 | 当前 collection 2508 points |
+| Evidence extractor | 已实现 | 规则抽取 enzyme、carrier、conditions、metrics、table rows；支持 curated evidence overlay |
+| Qdrant `1.18.0` | 已验证 | live semantic collection 当前 6910 points |
 | Runtime config | 已实现 | `configs/local.yaml` 统一管理引擎和 provider |
 | Generator protocol | 已实现 | mock、SiliconFlow、DeepSeek provider 接口，支持 token streaming |
 | Recommendation service | 已实现 | 酶名 -> evidence retrieval -> 固定化方案候选 |
@@ -113,7 +113,7 @@ generator_providers:
   siliconflow:
     enabled: true
     api_key_env: SILICONFLOW_API_KEY
-    model: deepseek-ai/DeepSeek-V3.2
+    model: deepseek-ai/DeepSeek-V4-Flash
   deepseek:
     enabled: false
     api_key_env: DEEPSEEK_API_KEY
@@ -147,7 +147,7 @@ scripts/start_qdrant_local.sh
 PYTHONPATH=src .venv/bin/python scripts/index_rag_qdrant.py \
   --rag-input-dir artifacts/rag_inputs/B10 \
   --evidence-dir artifacts/evidence/B10 \
-  --collection enzyme_immobilization_b10 \
+  --collection enzyme_immobilization_literature \
   --recreate
 ```
 
@@ -156,7 +156,7 @@ PYTHONPATH=src .venv/bin/python scripts/index_rag_qdrant.py \
 ```bash
 PYTHONPATH=src .venv/bin/python scripts/search_rag_qdrant.py \
   "This study soybean oil ethanol yield 93.4 8 cycles last yield" \
-  --collection enzyme_immobilization_b10 \
+  --collection enzyme_immobilization_literature \
   --top-k 1 \
   --usable-only \
   --context
@@ -200,7 +200,7 @@ POST /api/search/evidence
 ```bash
 curl -sS http://127.0.0.1:8001/api/recommend/by-enzyme \
   -H 'Content-Type: application/json' \
-  -d '{"enzyme_name":"Burkholderia cepacia lipase","application_context":"biodiesel production from soybean oil with ethanol","collection":"enzyme_immobilization_b10","top_k":5}'
+  -d '{"enzyme_name":"Burkholderia cepacia lipase","application_context":"biodiesel production from soybean oil with ethanol","collection":"enzyme_immobilization_literature","top_k":5}'
 ```
 
 错误处理：
@@ -246,7 +246,7 @@ B10 smoke：
 PYTHONPATH=src .venv/bin/python scripts/recommend_by_enzyme.py \
   "Burkholderia cepacia lipase" \
   --config configs/local.yaml \
-  --collection enzyme_immobilization_b10 \
+  --collection enzyme_immobilization_literature \
   --application-context "biodiesel production from soybean oil with ethanol" \
   --top-k 5 \
   --pretty
@@ -269,7 +269,7 @@ PYTHONPATH=src .venv/bin/python scripts/optimize_formulation.py \
   "Burkholderia cepacia lipase" \
   --formulation schemas/examples/formulation_optimization_input.example.json \
   --config configs/local.yaml \
-  --collection enzyme_immobilization_b10 \
+  --collection enzyme_immobilization_literature \
   --application-context "biodiesel production from soybean oil with ethanol" \
   --top-k 5 \
   --pretty
@@ -294,16 +294,17 @@ next_experiment_suggestions
 | 指标 | 数值 |
 | --- | --- |
 | PDF 总数 | 97 |
-| 已完成 RAG + evidence | 27 |
-| 待处理 PDF | 70 |
-| Parsed pages | 323 |
-| RAG chunks | 1099 |
-| Table records | 53 |
-| Evidence records | 1356 |
-| Review queue | 411 |
-| Qdrant points | 2508 |
+| unique registered documents | 95 |
+| searchable documents | 76 |
+| failed MinerU documents | 19 |
+| RAG chunks | 3057 |
+| Table records | 133 |
+| Evidence records | 3720 |
+| Review queue | 990 |
+| Curated evidence records | 0 |
+| Qdrant points | 6910 |
 
-当前 collection 仍沿用早期 smoke 名称 `enzyme_immobilization_b10`，但内容已经扩展到 27 篇文档；后续需要重建或迁移到正式 collection 名称。
+live semantic collection 使用 `enzyme_immobilization_literature_sentence_baai_bge_base_en_v1_5_768_point_schema_v1`。hash rollback baseline 使用 `enzyme_immobilization_literature`；历史 `enzyme_immobilization_b10` 只作为早期 smoke/rollback 数据保留。
 
 ## B10 Smoke Test 结果
 
@@ -331,8 +332,8 @@ Citation: B10.pdf:p8
 
 ## 下一步
 
-1. 跑完剩余 70 篇 PDF，并把批处理失败原因分为可重试、解析异常、文件损坏三类。
-2. 将 411 条 review queue 建成 curated evidence 层，明确哪些记录可进入 ranking。
-3. 将 `enzyme_immobilization_b10` 迁移/重建为正式 collection 名称，避免 smoke 命名污染生产配置。
-4. 做 generator benchmark：DeepSeek-V3.2、DeepSeek-V4-Flash、Qwen3.6 小参数版本统一测 TTFT、tokens/s、JSON 合格率和 citation 引用准确率。
-5. 增加 reranker、citation-aware answer check 和表格错列修复，提升推荐可信度。
+1. 对 17 篇 raster/OCR fallback PDF 跑完整 ingestion；A47/A75 修复 MinerU model cache 后重跑原 PDF。
+2. 使用 curated evidence overlay 审核 `review_queue`，把人工确认记录重新入库为可 ranking evidence。
+3. 做 generator benchmark：DeepSeek-V4-Flash、Qwen3.6-35B-A3B、DeepSeek API 统一测 TTFT、tokens/s、JSON 合格率和 citation 准确率。
+4. 增加 hybrid retrieval、reranker、citation-aware answer check 和表格错列修复，提升推荐可信度。
+5. 每次部署后运行 `scripts/verify_local_runtime.py`，确认 workspace/runtime/API/Qdrant collection 一致。

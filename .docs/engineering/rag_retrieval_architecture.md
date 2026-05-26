@@ -12,19 +12,25 @@ MinerU artifact -> RAG inputs -> evidence records -> vector points -> retrieval 
 
 ## Collection 设计
 
-默认 Qdrant collection：
+当前 live Qdrant collection：
 
 ```text
-enzyme_immobilization
+enzyme_immobilization_literature_sentence_baai_bge_base_en_v1_5_768_point_schema_v1
 ```
 
-本地 B10 smoke collection：
+hash rollback baseline collection：
+
+```text
+enzyme_immobilization_literature
+```
+
+历史 B10 rollback collection：
 
 ```text
 enzyme_immobilization_b10
 ```
 
-这个 collection 名称保留了最初的 smoke test 语义，但当前已经承载 27 篇 PDF 的批处理结果；后续应迁移到正式 collection 名称，避免继续误导配置语义。
+`enzyme_immobilization_literature_sentence_baai_bge_base_en_v1_5_768_point_schema_v1` 是当前 live semantic collection。`enzyme_immobilization_literature` 保留为 hash_v1 rollback baseline。`enzyme_immobilization_b10` 保留了最初 smoke test 语义，只能作为历史对照使用，不能作为新增 PDF ingestion 默认目标。
 
 同一个 collection 存三类 point：
 
@@ -58,19 +64,29 @@ enzyme_immobilization_b10
 
 ## Embedding 策略
 
-当前使用 `BAAI/bge-base-en-v1.5` sentence embedding（768 维，`local_files_only: true`）。
+当前 live API 使用 `BAAI/bge-base-en-v1.5` sentence embedding（768 维，`local_files_only: true`）：
 
-使用原因：
+```text
+enzyme_immobilization_literature_sentence_baai_bge_base_en_v1_5_768_point_schema_v1
+```
+
+hash_v1 baseline 作为 rollback / benchmark collection 保留：
+
+```text
+enzyme_immobilization_literature
+```
+
+保留双 collection 的原因：
 
 - 当前实现仍可离线加载本地模型缓存，避免外网依赖。
-- 可稳定验证 Qdrant 写入、搜索和 metadata filter。
-- 便于在无网络环境中做 smoke test。
+- semantic collection 承担 live API 和默认 ingestion。
+- hash collection 保留稳定 rollback 和回归基线。
+- embedding 替换不应改变 RAG artifact schema 和 Qdrant payload contract。
 
 边界：
 
-- 该 embedding 仍不是最终专业语义检索模型。
-- 后续应替换为 BGE-M3、SciBERT/SPECTER 类科学文本 embedding，或领域微调 reranker。
-- 替换时只改 embedding backend，不改 RAG artifact schema 和 Qdrant payload contract。
+- 切回 hash 时必须显式使用 `configs/local.hash.yaml` 或 collection override；不要把 hash collection 覆盖重建成 semantic vectors。
+- 后续仍可评估 BGE-M3、SciBERT/SPECTER 类科学文本 embedding，或领域微调 reranker。
 
 ## 本地 Qdrant
 
@@ -95,27 +111,77 @@ scripts/start_qdrant_local.sh
 scripts/stop_qdrant_local.sh
 ```
 
-索引 B10：
+当前 live semantic collection 已创建 retrieval/filter 常用 payload indexes：
+
+- `point_type`
+- `record_type`
+- `document_id`
+- `source_pdf`
+- `candidate_source`
+- `curation_status`
+- `qa_status`
+- `usable_for_ranking`
+- `requires_review`
+
+初始化或补齐命令：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/ensure_qdrant_payload_indexes.py \
+  --config configs/local.yaml
+```
+
+索引单篇文献到当前 live semantic collection：
 
 ```bash
 PYTHONPATH=src .venv/bin/python scripts/index_rag_qdrant.py \
   --rag-input-dir artifacts/rag_inputs/B10 \
   --evidence-dir artifacts/evidence/B10 \
-  --collection enzyme_immobilization_b10 \
+  --embedding-config configs/local.yaml \
+  --collection enzyme_immobilization_literature_sentence_baai_bge_base_en_v1_5_768_point_schema_v1 \
   --recreate
 ```
 
-检索 B10：
+检索当前 live semantic collection：
 
 ```bash
 PYTHONPATH=src .venv/bin/python scripts/search_rag_qdrant.py \
   "This study soybean oil ethanol yield 93.4 8 cycles last yield" \
-  --collection enzyme_immobilization_b10 \
+  --config configs/local.yaml \
   --top-k 3 \
   --usable-only
 ```
 
 `--json` 输出结构化 `RetrievalResponse`；`--context` 输出 LLM-ready context。
+
+## Query Planning / Routing
+
+当前 retrieval 已从单路向量搜索升级为：
+
+```text
+query planner -> intent routes -> record_type-aware recall -> deterministic rerank
+```
+
+planner 识别的主意图包括：
+
+- `strategy`：carrier/support/MOF/ZIF-8/adsorption/covalent 等。
+- `condition`：loading、pH、temperature、time、buffer、mg/min/°C 等。
+- `performance`：yield、activity recovery、reuse/cycles、stability、conversion 等。
+- `table`：table row、comparison、substrate、yield/reusability 等。
+- `enzyme` 与 `application`：lipase/BCL/CALB/PPL、biodiesel、epoxidation、furfural 等。
+
+record-type route 会优先召回：
+
+- `immobilization_strategy`
+- `formulation_condition`
+- `performance_metric`
+- `table_comparison_row`
+- `enzyme_identity`
+
+rerank 会合并 vector score、route weight、record_type match、numeric overlap、metrics/extracted structured text、table intent boost 与 quality penalty。
+
+260525 更新：rerank 已加入 lightweight lexical+dense hybrid signal，不新增外部依赖。lexical signal 覆盖 domain/material token、数值 token、英文数字词归一化（如 `ten` -> `10`）、unit token 和短语 overlap，用于提升 exact material/numeric/condition 命中。当前已补充 rare material / `enzyme@material` construct signal，并对 MinerU OCR split（如 `Lipa se@NKMOF-101-Mn`）做归一化，避免稀有 MOF 精确命中被泛化 `ZIF-8/activity` 结果压低。
+
+为避免 fallback 新文档中的同一张表多行 evidence 刷满 top-k，rerank 后增加 result diversity：同一 `parent_source_id` 或同一 `table_id` 的重复候选保留首条代表性结果，后续重复行递增小幅降权。该规则只影响排序多样性，不覆盖 `usable_for_ranking`、`requires_review` 和 QA gate 边界。
 
 ## Ranking 边界
 
@@ -129,12 +195,40 @@ usable_for_ranking=true
 
 这可以避免 OCR 异常数字、异常百分比、疑似表格错列直接影响“最佳固化剂”推荐。
 
+## Post-MinerU QA Gate
+
+RAG build 后会执行 post-MinerU layout/table QA gate：
+
+- fallback manifest 中的 `placeholder_pages` 会映射到 MinerU `page_idx`，相关 chunk/table 标记 `unrecoverable_page_placeholder`。
+- 空表、缺 header、稀疏表、ragged rows、疑似旋转宽表、flattened table 会进入 `qa_status=fail`。
+- QA 标记写入 `quality_flags`、`qa_flags`、`review_reasons`、`requires_review`、`usable_for_ranking`。
+- `qa_status=fail` 或 placeholder 来源不会进入 rule-based evidence 抽取；已进入 Qdrant 的异常点也不会 `usable_for_ranking=true`。
+
 ## 验证标准
 
-B10 本地 smoke test 应满足：
+正式 collection 验证标准：
 
-- 能构建 `rag_chunk`、`table_record`、`evidence_record` 三类 point。
-- 真实 Qdrant collection `enzyme_immobilization_b10` points count 当前约为 2508。
-- 查询 BCL/ZIF-8 能召回 enzyme identity 和 immobilization strategy。
+- 能构建并检索 `rag_chunk`、`table_record`、`evidence_record` 三类 point。
+- 真实 Qdrant live collection `enzyme_immobilization_literature_sentence_baai_bge_base_en_v1_5_768_point_schema_v1` 当前应为 green，points count 为 8263。
+- hash rollback collection `enzyme_immobilization_literature` 应保留，不覆盖重建。
+- point type distribution 应包含 `rag_chunk=3673`、`table_record=166`、`evidence_record=4424`。
+- 查询 BCL/ZIF-8 或 BCL biodiesel 能召回 enzyme identity 和 immobilization strategy。
 - 查询 `This study soybean oil ethanol yield 93.4 8 cycles` 时，第一名应为 B10 this-study 表格 evidence。
 - Qdrant 未启动时，离线 local search 仍可验证 embedding 和 point payload。
+
+切换前 24-query curated benchmark：
+
+- hash baseline：Recall@8=0.958，MRR=0.809。
+- semantic candidate：Recall@8=1.000，MRR=0.931。
+- 该阶段作为切换前证据；后续已扩到 62-query v3 benchmark 并完成 live 切换。
+
+当前 62-query curated benchmark v3：
+
+| collection | role | total pass | positive recall@k | positive MRR | ambiguous | negative | exclusion |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `enzyme_immobilization_literature` | hash rollback baseline | 57/62 | 0.900 | 0.767 | 3/5 | 5/5 | 7/7 |
+| `enzyme_immobilization_literature_sentence_baai_bge_base_en_v1_5_768_point_schema_v1` | semantic live before lexical/diversity rerank | 62/62 | 1.000 | 0.895 | 5/5 | 5/5 | 7/7 |
+| `enzyme_immobilization_literature_sentence_baai_bge_base_en_v1_5_768_point_schema_v1` | semantic live after lexical/diversity rerank | 62/62 | 1.000 | 0.948 | 5/5 | 5/5 | 7/7 |
+| `enzyme_immobilization_literature_sentence_baai_bge_base_en_v1_5_768_point_schema_v1` | current after failed-PDF recovery + rare material OCR rerank | 62/62 | 1.000 | 0.941 | 5/5 | 5/5 | 7/7 |
+
+v3 benchmark 包含 positive、ambiguous、negative、bad-table exclusion 和 placeholder-page exclusion。semantic collection 已达到 live 切换门槛，并已成为默认 runtime；hash collection 继续保留为 rollback baseline。默认配置切换后应持续重跑 `benchmarks/retrieval_smoke.json` 防止回归。

@@ -32,14 +32,13 @@ macOS TCC failures when launchd tries to run code directly from `Desktop` or
 ## Qdrant Data Governance
 
 Do not rename collections or migrate Qdrant storage as part of LaunchAgents
-deployment.
+deployment. Collection governance is handled by the ingestion/data-governance
+workflow.
 
-The current collection `enzyme_immobilization_b10` is a historical name from
-the B10 smoke test. It now stores the local MVP literature index. A later data
-governance task should create a formal collection such as
-`enzyme_immobilization_literature`, reindex from `artifacts/rag_inputs` and
-`artifacts/evidence`, verify retrieval/recommendation behavior, then update the
-default collection with the old collection retained for rollback.
+The active formal collection is `enzyme_immobilization_literature_sentence_baai_bge_base_en_v1_5_768_point_schema_v1`, rebuilt from
+the registered PDF corpus and existing artifacts on 2026-05-25. The historical
+`enzyme_immobilization_b10` collection is retained only as rollback data and
+must not be used as the default target for new PDF ingestion.
 
 ## Docker Boundary
 

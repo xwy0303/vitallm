@@ -11,11 +11,15 @@
 `engineering/rag_retrieval_architecture.md` - RAG 向量检索 collection、payload、embedding 替换边界和 ranking 禁用规则
 `engineering/local_launchagents_deployment.md` - macOS LaunchAgents 本地持久化部署、日志管理、Qdrant 数据治理和 Docker 边界
 `engineering/system_deployment_report_260524.md` - 本地持久化部署后的项目组织架构、部署流程、验证结果与剩余风险
+`engineering/pdf_ingestion_data_governance.md` - PDF 上传/批处理自动进入 MinerU、RAG/evidence、Qdrant 和大模型 RAG 的数据治理流程
+`engineering/manual_evidence_review.md` - 人工 evidence/table 复核包导出、学生复核 SOP、curated evidence overlay 回灌边界
 
 ## 当前活跃任务池 (Active Workflows)
 
 `workflow/260521-mineru-smoke-test.md` - MinerU 单篇 PDF smoke test、RAG 原料层与 evidence extraction 闭环
 `workflow/260524-launchagents-deployment-progress.md` - LaunchAgents 本地持久化部署实现进度、当前 TCC/权限阻塞与下一步修复路线
+`workflow/260524-dashboard-summary-stats.md` - 首页 PDF 切片/证据链统计从硬编码改为动态聚合的修复任务
+`workflow/260525-rag-pipeline-optimization.md` - PDF-MinerU-RAG-Qdrant 链路优化清单、版本契约、semantic embedding 与 benchmark 规划
 
 ## 全局重要记忆 (Global Memory)
 

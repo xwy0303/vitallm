@@ -12,7 +12,8 @@
 
 当前代码层面的部署资产已经落在 `deploy/local/`，与业务代码、RAG 代码、前端代码保持剥离。最终部署采用 runtime mirror，运行目录为 `~/Library/Application Support/Shengji/app`，LaunchAgents 执行 `~/Library/Application Support/Shengji/bin` 下的安装期生成 wrappers，避免 launchd 直接访问 `Desktop` / `Documents` 触发 macOS TCC 限制。
 
-Qdrant 当前 collection `enzyme_immobilization_b10` 暂不改名，后续单独进入 Qdrant data governance。
+Qdrant 正式 collection 已通过全量重建切到 `enzyme_immobilization_literature`。
+历史 `enzyme_immobilization_b10` 保留为 rollback collection，不删除。
 
 ## 已完成
 
@@ -141,9 +142,9 @@ Codex 沙箱内通用 `curl` 会对部分本机 TCP 报 `Operation not permitted
 
 ## 剩余风险
 
-- 当前 generator 为 `mock`，用于本地部署 smoke；真实推荐生成需要配置 `SILICONFLOW_API_KEY` 并将 `generator.provider` 切回 `siliconflow`。
+- 当前 generator 已使用 `siliconflow`，需要本机 `.env.local` 提供 `SILICONFLOW_API_KEY`。
 - 当前 embedding 为 `hash_v1` 768，适合离线 smoke；科学语义召回质量需要后续切回已缓存的 BGE/BGE-M3 或领域 embedding，并重建 Qdrant collection。
-- 现有 collection 名称 `enzyme_immobilization_b10` 为历史名，正式数据治理应单独迁移到更准确的 collection 名称。
+- `enzyme_immobilization_literature` 已完成正式重建，当前覆盖 76/95 unique documents；19 篇 MinerU 失败 PDF 需要后续 repair/OCR fallback 或 MinerU runtime/model cache 修复。
 
 ## 验证标准
 
@@ -154,6 +155,6 @@ Codex 沙箱内通用 `curl` 会对部分本机 TCP 报 `Operation not permitted
 - [x] Backend `/api/health` 可访问。
 - [x] Frontend `http://127.0.0.1:5173/` 可访问。
 - [x] `~/Library/Logs/Shengji/` 有按服务拆分的 stdout/stderr log。
-- [x] Qdrant runtime mirror 使用现有 storage 副本，不改 collection 名。
+- [x] Qdrant runtime mirror 使用正式 collection `enzyme_immobilization_literature`，旧 `enzyme_immobilization_b10` 保留为 rollback。
 
 等待阿伟验收后，可将该 workflow 移动到 `.docs/workflow/done/` 并从 `.docs/index.md` 活跃任务池移除。
