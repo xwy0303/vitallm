@@ -17,4 +17,3 @@ __all__ = [
     "MinerUTaskManifest",
     "sha256_file",
 ]
-

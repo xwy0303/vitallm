@@ -1,6 +1,5 @@
-# Local MVP runtime config. This file intentionally contains no secrets.
-# Default live retrieval uses the semantic BGE collection. Use
-# configs/local.hash.yaml only as the hash_v1 rollback baseline.
+# Local hash_v1 rollback runtime config. This file intentionally contains no secrets.
+# Keep this baseline available for regression comparison and emergency rollback.
 
 document_parser:
   provider: mineru_local
@@ -12,14 +11,14 @@ document_parser:
 vector_store:
   provider: qdrant
   url: http://127.0.0.1:6333
-  collection: enzyme_immobilization_literature_sentence_baai_bge_base_en_v1_5_768_point_schema_v1
+  collection: enzyme_immobilization_literature
   timeout_seconds: 30
 
 embedding:
-  provider: sentence
+  provider: hash_v1
   dimensions: 768
   model_name: BAAI/bge-base-en-v1.5
-  device: cpu
+  device: mps
   local_files_only: true
 
 retrieval:

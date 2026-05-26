@@ -10,6 +10,7 @@ from enzyme_recommender.rag.embedding import (
     SentenceEmbeddingConfig,
     SentenceEmbeddingModel,
 )
+from enzyme_recommender.rag.indexing import build_index_identity
 from enzyme_recommender.rag.qdrant import (
     QdrantConfig,
     QdrantRestClient,
@@ -57,10 +58,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--evidence-dir", default=None, type=Path)
     parser.add_argument("--qdrant-url", default="http://127.0.0.1:6333")
     parser.add_argument("--collection", default="enzyme_immobilization")
+    parser.add_argument(
+        "--collection-corpus",
+        default="literature",
+        help="Corpus slug used when --collection auto derives a versioned collection name.",
+    )
     parser.add_argument("--dimensions", default=768, type=int)
     parser.add_argument("--batch-size", default=64, type=int)
     parser.add_argument("--recreate", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--print-index-identity",
+        action="store_true",
+        help="Print derived collection/index version metadata before indexing.",
+    )
 
     emb_group = parser.add_mutually_exclusive_group()
     emb_group.add_argument(
@@ -89,11 +100,32 @@ def main() -> None:
         embedding_model = _build_embedding_from_config(args.embedding_config)
     else:
         embedding_model = _build_embedding_model(args)
+    index_identity = build_index_identity(
+        embedding_model=embedding_model,
+        collection=args.collection,
+        corpus=args.collection_corpus,
+    )
+    collection = index_identity.collection
+    index_version = index_identity.index_version
+    extra_payload = {
+        "point_schema_version": index_identity.point_schema_version,
+        "embedding_model": embedding_model.name,
+        "embedding_dimensions": embedding_model.dimensions,
+        "embedding_slug": index_identity.embedding_slug,
+        "index_version": index_version,
+    }
+
+    if args.print_index_identity:
+        print(f"Collection: {collection}")
+        print(f"Index version: {index_version}")
+        print(f"Point schema: {index_identity.point_schema_version}")
 
     points = build_index_points(
         rag_input_dir=args.rag_input_dir,
         evidence_dir=args.evidence_dir,
         embedding_model=embedding_model,
+        extra_payload=extra_payload,
+        index_version=index_version,
     )
 
     counts = point_type_counts(points)
@@ -104,7 +136,7 @@ def main() -> None:
         print("Dry run complete; Qdrant was not modified.")
         return
 
-    config = QdrantConfig(url=args.qdrant_url, collection=args.collection)
+    config = QdrantConfig(url=args.qdrant_url, collection=collection)
     try:
         with QdrantRestClient(config) as client:
             client.ensure_collection(vector_size=embedding_model.dimensions, recreate=args.recreate)
@@ -113,7 +145,7 @@ def main() -> None:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
 
-    print(f"Indexed {len(points)} points into {args.qdrant_url} collection={args.collection}")
+    print(f"Indexed {len(points)} points into {args.qdrant_url} collection={collection}")
 
 
 if __name__ == "__main__":

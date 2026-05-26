@@ -9,15 +9,19 @@ from enzyme_recommender.rag.embedding import (
     SentenceEmbeddingConfig,
     SentenceEmbeddingModel,
 )
+from enzyme_recommender.rag.indexing import resolve_collection_name
 from enzyme_recommender.rag.qdrant import QdrantConfig
 from enzyme_recommender.rag.retrieval import EvidenceRetriever
+from enzyme_recommender.runtime.config import RuntimeConfig
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Search a local Qdrant RAG collection.")
     parser.add_argument("query")
+    parser.add_argument("--config", default=None, help="Runtime config path; when set, embedding and default collection come from config.")
     parser.add_argument("--qdrant-url", default="http://127.0.0.1:6333")
-    parser.add_argument("--collection", default="enzyme_immobilization")
+    parser.add_argument("--collection", default=None, help="Collection name; use 'auto' to derive from embedding identity.")
+    parser.add_argument("--collection-corpus", default="literature")
     parser.add_argument("--dimensions", default=768, type=int)
     parser.add_argument("--top-k", default=8, type=int)
     parser.add_argument("--point-type", default=None, choices=["rag_chunk", "table_record", "evidence_record"])
@@ -33,6 +37,20 @@ def parse_args() -> argparse.Namespace:
 
 
 def _build_embedding_model(args: argparse.Namespace) -> HashEmbeddingModel | SentenceEmbeddingModel:
+    if args.config:
+        config = RuntimeConfig.from_file(args.config)
+        emb = config.embedding
+        if emb.provider == "sentence":
+            return SentenceEmbeddingModel(
+                SentenceEmbeddingConfig(
+                    model_name=emb.model_name,
+                    dimensions=emb.dimensions,
+                    device=emb.device,
+                    cache_folder=emb.cache_folder,
+                    local_files_only=emb.local_files_only,
+                )
+            )
+        return HashEmbeddingModel(HashEmbeddingConfig(dimensions=emb.dimensions))
     if args.embedding_provider == "sentence":
         return SentenceEmbeddingModel(
             SentenceEmbeddingConfig(
@@ -49,8 +67,9 @@ def _build_embedding_model(args: argparse.Namespace) -> HashEmbeddingModel | Sen
 def main() -> None:
     args = parse_args()
     embedding_model = _build_embedding_model(args)
+    collection = resolve_collection(args, embedding_model)
     retriever = EvidenceRetriever(
-        QdrantConfig(url=args.qdrant_url, collection=args.collection),
+        QdrantConfig(url=args.qdrant_url, collection=collection),
         embedding_model=embedding_model,
     )
     try:
@@ -80,6 +99,22 @@ def main() -> None:
             print(f"   quality_flags={hit.quality_flags}")
         text = hit.text.replace("\n", " ")
         print(f"   text={text[:260]}")
+
+
+def resolve_collection(args: argparse.Namespace, embedding_model: HashEmbeddingModel | SentenceEmbeddingModel) -> str:
+    if args.collection:
+        return resolve_collection_name(
+            embedding_model,
+            collection=args.collection,
+            corpus=args.collection_corpus,
+        )
+    if args.config:
+        return resolve_collection_name(
+            embedding_model,
+            collection=RuntimeConfig.from_file(args.config).vector_store.collection,
+            corpus=args.collection_corpus,
+        )
+    return "enzyme_immobilization"
 
 
 if __name__ == "__main__":

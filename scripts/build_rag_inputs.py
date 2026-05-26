@@ -22,6 +22,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--source-pdf", default=None)
     parser.add_argument("--max-chars", default=1200, type=int)
     parser.add_argument("--min-chars", default=80, type=int)
+    parser.add_argument("--artifact-root", default=Path("artifacts"), type=Path)
+    parser.add_argument("--fallback-manifest", default=None, type=Path)
     return parser.parse_args()
 
 
@@ -33,6 +35,8 @@ def main() -> None:
         document_id=args.document_id,
         max_chars=args.max_chars,
         min_chars=args.min_chars,
+        artifact_root=args.artifact_root,
+        fallback_manifest_path=args.fallback_manifest,
     )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -50,8 +54,9 @@ def main() -> None:
         f"candidates={counts['extraction_candidates']} "
         f"pages={counts['pages']}"
     )
+    qa_gate = outputs["manifest"].get("qa_gate", {})
+    print(f"QA gate: status={qa_gate.get('status')} flags={qa_gate.get('flag_counts', {})}")
 
 
 if __name__ == "__main__":
     main()
-

@@ -1,6 +1,5 @@
-# Local MVP runtime config. This file intentionally contains no secrets.
-# Default live retrieval uses the semantic BGE collection. Use
-# configs/local.hash.yaml only as the hash_v1 rollback baseline.
+# Local semantic retrieval config. This file intentionally contains no secrets.
+# Alias of the default live semantic runtime kept for explicit benchmark/rebuild commands.
 
 document_parser:
   provider: mineru_local

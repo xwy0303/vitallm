@@ -7,6 +7,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from enzyme_recommender.ingestion.qa import apply_qa_gate, build_qa_config
 from enzyme_recommender.rag.artifacts import (
     count_by,
     find_mineru_auto_dir,
@@ -98,16 +99,19 @@ def build_rag_inputs(
     document_id: Optional[str] = None,
     max_chars: int = 1200,
     min_chars: int = 80,
+    artifact_root: Path = Path("artifacts"),
+    fallback_manifest_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     auto_dir = find_mineru_auto_dir(artifact_dir)
-    document_id = document_id or infer_document_id(auto_dir)
+    artifact_document_id = infer_document_id(auto_dir)
+    document_id = document_id or artifact_document_id
     source_pdf = source_pdf or f"{document_id}.pdf"
 
-    content_list_path = auto_dir / f"{document_id}_content_list.json"
-    content_list_v2_path = optional_path(auto_dir, document_id, "_content_list_v2.json")
-    md_path = optional_path(auto_dir, document_id, ".md")
-    middle_path = optional_path(auto_dir, document_id, "_middle.json")
-    model_path = optional_path(auto_dir, document_id, "_model.json")
+    content_list_path = auto_dir / f"{artifact_document_id}_content_list.json"
+    content_list_v2_path = optional_path(auto_dir, artifact_document_id, "_content_list_v2.json")
+    md_path = optional_path(auto_dir, artifact_document_id, ".md")
+    middle_path = optional_path(auto_dir, artifact_document_id, "_middle.json")
+    model_path = optional_path(auto_dir, artifact_document_id, "_model.json")
 
     content_items = load_json(content_list_path)
     if not isinstance(content_items, list):
@@ -121,6 +125,16 @@ def build_rag_inputs(
         max_chars=max_chars,
         min_chars=min_chars,
     )
+    qa_summary = apply_qa_gate(
+        rag_chunks,
+        table_records,
+        build_qa_config(
+            document_id=document_id,
+            artifact_root=artifact_root,
+            fallback_manifest_path=fallback_manifest_path,
+            auto_resolve_fallback_manifest=is_fallback_artifact_id(artifact_document_id),
+        ),
+    )
     table_chunks = build_table_chunks(table_records, document_id=document_id, source_pdf=source_pdf)
     extraction_candidates = build_extraction_candidates(rag_chunks, table_records)
 
@@ -129,6 +143,7 @@ def build_rag_inputs(
         "document_id": document_id,
         "source_pdf": source_pdf,
         "artifact_dir": str(auto_dir),
+        "artifact_document_id": artifact_document_id,
         "inputs": {
             "content_list": str(content_list_path),
             "content_list_v2": str(content_list_v2_path) if content_list_v2_path else None,
@@ -154,6 +169,7 @@ def build_rag_inputs(
             "min_chars": min_chars,
             "table_handling": "tables are stored in table_records and mirrored as table chunks for retrieval",
         },
+        "qa_gate": qa_summary.to_dict(),
     }
     return {
         "manifest": manifest,
@@ -161,6 +177,11 @@ def build_rag_inputs(
         "table_records": table_records,
         "extraction_candidates": extraction_candidates,
     }
+
+
+def is_fallback_artifact_id(artifact_document_id: str) -> bool:
+    lowered = artifact_document_id.lower()
+    return "raster" in lowered or "fallback" in lowered
 
 
 def split_content_items(
@@ -352,6 +373,7 @@ def build_extraction_candidates(
 ) -> List[Dict[str, Any]]:
     candidates: List[Dict[str, Any]] = []
     for chunk in rag_chunks:
+        requires_review = bool(chunk.get("requires_review") or chunk.get("quality_flags"))
         candidate_types = candidate_types_from_signals(chunk.get("signals", []))
         if not candidate_types:
             continue
@@ -371,10 +393,16 @@ def build_extraction_candidates(
                 "text": chunk["text"],
                 "signals": chunk.get("signals", []),
                 "quality_flags": chunk.get("quality_flags", []),
+                "qa_status": chunk.get("qa_status", "pass"),
+                "qa_flags": chunk.get("qa_flags", []),
+                "review_reasons": chunk.get("review_reasons", []),
+                "requires_review": requires_review,
+                "usable_for_ranking": not requires_review,
             }
         )
 
     for table in table_records:
+        requires_review = bool(table.get("requires_review") or table.get("quality_flags"))
         candidate_types = candidate_types_from_signals(table.get("signals", []))
         if "table_metric" not in candidate_types:
             candidate_types.append("table_metric")
@@ -394,6 +422,11 @@ def build_extraction_candidates(
                 "text": "\n".join(part for part in [table.get("caption"), table.get("text")] if part),
                 "signals": table.get("signals", []),
                 "quality_flags": table.get("quality_flags", []),
+                "qa_status": table.get("qa_status", "pass"),
+                "qa_flags": table.get("qa_flags", []),
+                "review_reasons": table.get("review_reasons", []),
+                "requires_review": requires_review,
+                "usable_for_ranking": not requires_review,
             }
         )
     return candidates

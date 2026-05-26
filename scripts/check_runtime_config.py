@@ -11,7 +11,6 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate runtime config and generator protocol wiring.")
     parser.add_argument("--config", default=Path("configs/local.yaml"), type=Path)
     parser.add_argument("--run-generation", action="store_true")
-    parser.add_argument("--run-mock-generation", action="store_true", help="Deprecated alias for --run-generation.")
     return parser.parse_args()
 
 
@@ -25,7 +24,7 @@ def main() -> None:
     print(f"Embedding: {config.embedding.provider} dimensions={config.embedding.dimensions}")
     print(f"Generator: {config.generator.provider}")
 
-    if args.run_generation or args.run_mock_generation:
+    if args.run_generation:
         generator = runtime.generator()
         response = generator.generate(
             GenerationRequest(

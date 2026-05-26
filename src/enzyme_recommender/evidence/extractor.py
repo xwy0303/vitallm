@@ -55,6 +55,8 @@ def extract_evidence_records(input_dir: Path) -> Dict[str, Any]:
 
 
 def extract_from_text_candidate(candidate: Dict[str, Any]) -> List[Dict[str, Any]]:
+    if should_skip_source_for_evidence(candidate):
+        return []
     text = candidate.get("text") or ""
     normalized = normalize_scientific_text(text)
     records: List[Dict[str, Any]] = []
@@ -99,6 +101,8 @@ def extract_from_text_candidate(candidate: Dict[str, Any]) -> List[Dict[str, Any
 
 
 def extract_from_table_record(table: Dict[str, Any]) -> List[Dict[str, Any]]:
+    if should_skip_source_for_evidence(table):
+        return []
     records = []
     columns = table.get("columns") or []
     rows = table.get("rows") or []
@@ -144,6 +148,13 @@ def extract_from_table_record(table: Dict[str, Any]) -> List[Dict[str, Any]]:
             )
         )
     return records
+
+
+def should_skip_source_for_evidence(source: Dict[str, Any]) -> bool:
+    flags = set(source.get("quality_flags") or []) | set(source.get("qa_flags") or [])
+    if "unrecoverable_page_placeholder" in flags:
+        return True
+    return source.get("qa_status") == "fail"
 
 
 def extract_enzyme_identity(text: str) -> Dict[str, Any]:
@@ -239,6 +250,8 @@ def make_record(
 ) -> Dict[str, Any]:
     quality_flags = sorted(set(source.get("quality_flags") or []) | set(extra_quality_flags or []))
     review_reasons = infer_review_reasons(quality_flags, metrics, extracted)
+    review_reasons = sorted(set(review_reasons) | set(source.get("review_reasons") or []))
+    requires_review = bool(review_reasons)
     record = {
         "evidence_id": "",
         "record_type": record_type,
@@ -257,8 +270,11 @@ def make_record(
         "metrics": list(metrics),
         "confidence": confidence_for(record_type, quality_flags),
         "quality_flags": quality_flags,
+        "qa_status": source.get("qa_status", "pass"),
+        "qa_flags": source.get("qa_flags") or [],
         "review_reasons": review_reasons,
-        "requires_review": bool(review_reasons),
+        "requires_review": requires_review,
+        "usable_for_ranking": not requires_review,
     }
     record["evidence_id"] = make_evidence_id(record)
     return record
