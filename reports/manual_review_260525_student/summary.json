@@ -1,0 +1,63 @@
+{
+  "generated_at": "2026-05-26T11:12:32",
+  "artifact_root": "/Users/way/Library/Application Support/Shengji/app/artifacts",
+  "output_scope": "manual_review_package",
+  "evidence_review_items": 1142,
+  "source_qa_items": 103,
+  "total_review_rows": 1245,
+  "bad_table_rows": 1059,
+  "placeholder_pages": 34,
+  "evidence_by_priority": {
+    "P1": 1100,
+    "P2": 42
+  },
+  "source_qa_by_priority": {
+    "P0": 17,
+    "P1": 35,
+    "P2": 51
+  },
+  "evidence_by_record_type": {
+    "enzyme_identity": 37,
+    "formulation_condition": 23,
+    "immobilization_strategy": 22,
+    "performance_metric": 13,
+    "table_comparison_row": 1047
+  },
+  "evidence_quality_flags": {
+    "missing_enzyme_cell": 1043,
+    "possible_ocr_duplicate_text": 52,
+    "suspicious_percent_gt_300": 50,
+    "suspicious_reference_cell": 3,
+    "suspicious_table_yield_gt_100": 1
+  },
+  "source_quality_flags": {
+    "bad_table_structure": 2,
+    "possible_ocr_duplicate_text": 54,
+    "suspicious_percent_gt_300": 23,
+    "suspicious_reference_cell": 4,
+    "suspicious_table_yield_gt_100": 2,
+    "table_header_suspect": 2,
+    "table_ragged_rows": 8,
+    "unrecoverable_page_placeholder": 17
+  },
+  "documents_with_evidence_review": 74,
+  "documents_with_source_qa": 42,
+  "student_friendly": {
+    "student_rows": 1142,
+    "student_priority_rows": 1100,
+    "mapping_rows": 1142,
+    "content_types": {
+      "固定化/制备条件": 23,
+      "性能结果": 13,
+      "表格数据": 1047,
+      "载体/材料信息": 22,
+      "酶/蛋白信息": 37
+    },
+    "allowed_decisions": [
+      "不确定",
+      "正确",
+      "错误",
+      "需修改"
+    ]
+  }
+}
