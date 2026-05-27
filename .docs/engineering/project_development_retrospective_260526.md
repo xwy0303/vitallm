@@ -2,7 +2,7 @@
 
 ## 0. 文档定位
 
-本文记录从“生物酶固定化推荐 MVP”立项到 2026-05-26 当前状态为止，项目遇到的问题、根因判断、解决动作、优化效果、验证方式和仍需处理的风险。
+本文记录从“生物酶固定化推荐 MVP”立项到 2026-05-27 当前状态为止，项目遇到的问题、根因判断、解决动作、优化效果、验证方式和仍需处理的风险。
 
 这不是对外宣传稿，而是工程复盘和后续交接文档。后续 agent 或开发者继续工作时，应先读本文，再按需跳转到 `.docs/index.md` 中的专题文档和代码。
 
@@ -47,8 +47,9 @@ PDF 文献
 | evidence records | 4424 |
 | review items | 1245 |
 | Qdrant points | 8263 |
-| curated benchmark v3 cases | 62 |
-| latest contract tests | 62 passed |
+| retrieval regression cases | 85 |
+| layered QA seed cases | 29 |
+| latest core contract tests | 79 passed, 2 local-PDF-corpus cases deselected |
 
 ## 1. 初始问题：只有想法，没有可审计的科研推荐数据模型
 
@@ -1092,11 +1093,11 @@ Qdrant candidate_source=curated_evidence
 - `suspicious_percent_gt_300`: 50 evidence records / 23 source QA items。
 - placeholder source QA: 17 source rows / 34 pages。
 
-## 18. Benchmark 体系：从小样本 smoke 到 62-query curated v3
+## 18. Benchmark 体系：从小样本 smoke 到 85-case regression 和 29-case layered QA seed
 
 ### 现象
 
-用户指出 62 条 query 仍然不足以支撑最终统计显著性，300-1000 条黄金集更稳；早期 3/24 条 smoke 更不能说明真实用户表现。
+用户指出 62 条 query 仍然不足以支撑最终统计显著性，300-1000 条黄金集更稳；早期 3/24 条 smoke 更不能说明真实用户表现。后续又通过 full QA seed 暴露出一个更细的问题：retrieval 指标提升后，端到端 answer quality 仍可能下降，尤其是 citation grounding、no-answer 和 formulation field recommendation。
 
 ### 根因
 
@@ -1104,28 +1105,78 @@ RAG benchmark 存在小样本方差、数据泄露、简单查询偏差、Recall
 
 ### 已解决
 
-当前已建立 62-query curated v3：
+当前已建立两层 benchmark：
+
+1. legacy retrieval regression，用于保护检索回归。
+2. layered QA seed，用于同时检查 retrieval、no-answer、answer citation、formulation optimizer。
+
+legacy retrieval regression 已扩展到 85 cases：
 
 | kind | count | 目标 |
 | --- | ---: | --- |
 | positive | 45 | 具体 enzyme/carrier/condition/performance/table row |
 | ambiguous | 5 | 多篇论文均可接受 |
 | negative | 5 | corpus 外 unsupported query |
-| exclusion | 7 | bad-table / placeholder / requires_review 不应入 usable ranking |
+| exclusion | 10 | bad-table / placeholder / requires_review 不应入 usable ranking |
+| paper_level | 20 | 单篇论文内 document-scoped retrieval / paper process QA |
+
+layered QA seed 当前 29 cases：
+
+| group | cases | 目标 |
+| --- | ---: | --- |
+| retrieval | 17 | Recall@3/5/8、MRR@5、forbidden hit |
+| no_answer | 10 | 无关/恶意/越界问题不返回 evidence/candidate/citation |
+| answer_quality | 5 | citation accuracy、faithfulness、condition type、stream/final consistency |
+| formulation | 4 | 字段级推荐、evidence-backed change、禁止全局最优话术 |
 
 指标：
 
 - total pass
 - positive recall@k
-- MRR
+- Recall@3 / Recall@5 / Recall@8
+- MRR@3 / MRR@5 / MRR@8
 - plan accuracy
 - by-kind pass rate
 - forbidden hits
+- citation accuracy
+- no-answer accuracy
+- formulation field precision
 - top hits debug
+
+### 260527 最新验证结果
+
+QA seed mock run：
+
+| 指标 | 结果 |
+| --- | ---: |
+| cases | 29 |
+| pass | 29/29 |
+| acceptance targets | all passed |
+| retrieval Recall@5 | 1.000 |
+| retrieval MRR@5 | 0.897 |
+| retrieval nDCG@5 | 0.914 |
+| no-answer accuracy | 1.000 |
+| false retrieval rate | 0.000 |
+| unexpected candidate/citation rate | 0.000 |
+| answer citation accuracy | 1.000 |
+| answer relevancy | 1.000 |
+| unsupported claim count / answer | 0.000 |
+| formulation field precision | 1.000 |
+| evidence-backed change rate | 1.000 |
+
+Legacy retrieval regression：
+
+| 指标 | 结果 |
+| --- | ---: |
+| cases | 85 |
+| pass | 85/85 |
+| positive-like recall@k | 1.000 |
+| plan accuracy | 1.000 |
+| MRR | 0.806 |
 
 ### 仍需继续
 
-62 条只是工程回归集，不是最终科学评测集。后续需要：
+85-case retrieval regression 和 29-case QA seed 仍只是工程回归集，不是最终科学评测集。后续需要：
 
 - 扩展到 200+，再到 300-1000。
 - 引入真实用户/学生自然语言问题。
@@ -1237,7 +1288,127 @@ embedding runtime：
 
 这次修复说明：B10 刷屏不是“知识库源错了”，而是“入口 query intent + top-k + diversity”共同导致的排序偏差。
 
-## 20. 前端 reference 体验：citation 能点开，但表格显示不友好
+## 20. 论文级 QA、no-answer 和 citation grounding：检索命中不等于答案可信
+
+### 现象
+
+在 2026-05-26 的功能测试中，普通推荐和检索链路已有提升，但用户提出论文级问题时仍存在结构性缺陷。例如：
+
+```text
+B10论文对酶固定化剂的优化过程是怎么样的？
+xx论文对酶固定化剂的优化过程是怎么样的？
+```
+
+旧链路仍倾向于走：
+
+```text
+用户问题 -> 全库 top-k chunk -> LLM 回答
+```
+
+这会导致几个问题：
+
+- 论文级问题没有先锁定 `document_id/source_pdf`，容易回答成全库切片摘要。
+- `优化过程` 需要按论文内页码、章节和 record_type 组织，而不是只取全库最高分 chunk。
+- no-answer 问题仍可能返回 evidence/candidate/citation，造成结构化污染。
+- mock 或真实 LLM 输出可能没有稳定引用 retrieved hits，导致 citation accuracy 回归。
+- formulation optimizer 能召回 B10，但 pH/time 字段可能被“范围描述”证据覆盖，而不是使用 `700 mg / 30 min / pH 7.5 / 25 C` 的最优条件证据。
+
+### 根因
+
+问题本质不是 embedding 模型，而是 query planning 和 answer grounding 缺层：
+
+1. intent routing 缺少 paper-level / process-level 语义。
+2. document resolver 和 document-scoped retrieval 虽已引入，但 QA seed 没有覆盖 no-answer/citation/formulation 的端到端行为。
+3. answer quality 不能只看 retrieval hit，必须验证生成文本中的 facts 和 citation 是否来自 retrieved evidence。
+4. formulation fallback 的字段排序只按字段类型，不足以区分“最优条件”和“实验范围描述”。
+
+### 解决
+
+在 `ai-backend` 边界内做修复，不修改 raw evidence、payload schema、collection schema，也不改冻结 API response shape。
+
+新增 no-answer gate：
+
+- `src/enzyme_recommender/rag/query_guard.py`
+- 明显社交、无关、乱码、prompt-injection 查询直接返回 empty retrieval。
+- `RecommendationService.retrieve_evidence()` 对 `answer_evidence_question` 复用同一规则。
+- stream/final 在无 evidence 时统一输出“证据不足”，不塞 candidate/citation。
+
+增强 query expansion / intent routing：
+
+- 中文领域词扩展到英文检索词，例如“伯克霍尔德、固定化剂、生物柴油、重复使用、温度、戊二醛、磁性”等。
+- 扩展词只用于 planner/rerank，embedding vector search 仍用原始 query，避免语义污染。
+- `condition/conditions` 不再单独触发表格 intent，避免 `formulation_condition` query 被 `table_comparison_row` route 抢优先级。
+- B10 exact formulation query 对 `700 mg / 30 min / pH 7.5` 的 `formulation_condition` 加专门 bonus，同时压低同文本的 `immobilization_strategy` duplicate。
+
+新增 deterministic grounding：
+
+- `src/enzyme_recommender/recommendation/grounding.py`
+- QA objective 不再 fallback 到 recommendation candidates。
+- mock 或非 JSON 生成时，基于 retrieved evidence 生成带 `[1]`、`[2]` 的 grounded answer。
+- paper process answer 固定结构：
+  - 论文定位
+  - 研究目标
+  - 固定化剂/载体筛选
+  - 优化变量
+  - 最优条件
+  - 性能验证
+  - 证据缺口与需复核项
+- `requires_review=true`、`qa_status=fail`、bad table 只作为复核线索，不能写成确定结论。
+
+修 formulation optimizer：
+
+- 对 BCL-ZIF-8 请求增加 B10 document-scope supplement。
+- B10 最优条件证据 `ev_efb7606bee95654f` 在 formulation service 中优先级最高。
+- reference item 排序增加 specificity：优先从 optimal condition hit 采 pH/time/loading/temperature。
+- 禁止输出“全局最优”“唯一最佳”“保证 100%”一类不科学话术。
+
+新增 layered QA benchmark：
+
+- `scripts/benchmark_qa_system.py`
+- `benchmarks/retrieval_quality_v1.json`
+- `benchmarks/answer_quality_v1.json`
+- `benchmarks/no_answer_intent_v1.json`
+- `benchmarks/formulation_optimizer_v1.json`
+
+### 效果
+
+最新 QA seed：
+
+| 指标 | 修复后 |
+| --- | ---: |
+| Full QA pass | 29/29 |
+| Retrieval Recall@5 | 1.000 |
+| Retrieval MRR@5 | 0.897 |
+| NoAnswer Accuracy | 1.000 |
+| False Retrieval Rate | 0.000 |
+| Unexpected Candidate Rate | 0.000 |
+| Unexpected Citation Rate | 0.000 |
+| Answer Citation Accuracy | 1.000 |
+| Answer Relevancy | 1.000 |
+| Formulation Field Precision | 1.000 |
+| Evidence-backed Change Rate | 1.000 |
+
+Legacy retrieval regression：
+
+| 指标 | 修复后 |
+| --- | ---: |
+| passed | 85/85 |
+| Recall@k | 1.000 |
+| PlanAcc | 1.000 |
+| MRR | 0.806 |
+
+关键行为变化：
+
+- `BCL-ZIF-8 loading 700 mg adsorption time 30 min pH 7.5 25 C` 首位命中 `ev_efb7606bee95654f`。
+- formulation optimizer 对 BCL-ZIF-8 推荐 `pH=7.5` 和 `time=30 min`，不再被 `pH=6.0` 范围证据覆盖。
+- no-answer 查询不再产生候选、citation 或 next experiment。
+- 论文级 QA 的回答不再把低可信 evidence 写成确定事实。
+
+### 剩余风险
+
+当前 QA seed 仍是 seed 级，不是科学充分的黄金集。paper-level answer 还需要更多真实用户问题、学生问法、歧义标题、坏表 warning 和跨页流程 case 扩展。
+
+## 21. 前端 reference 体验：citation 能点开，但表格显示不友好
 
 ### 现象
 
@@ -1277,7 +1448,7 @@ Row 2: ...
 
 前端 reference modal 对表格 evidence 更可读，人工核对 table row、caption、raw text 更顺。
 
-## 21. 当前测试和验证闭环
+## 22. 当前测试和验证闭环
 
 当前主要验证命令：
 
@@ -1287,6 +1458,7 @@ node --check web/app.js
 PYTHONPYCACHEPREFIX=tmp/pycache PYTHONPATH=src .venv/bin/python -m compileall -q src scripts tests
 PYTHONPATH=src .venv/bin/python -m pytest tests/test_core_contracts.py -q
 PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/benchmark_retrieval.py --config configs/local.yaml --json
+PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/benchmark_qa_system.py --config configs/local.yaml --generation-mode mock --json
 curl -sS http://127.0.0.1:8001/api/health
 curl -sS http://127.0.0.1:5173/
 ```
@@ -1305,8 +1477,23 @@ curl -sS http://127.0.0.1:5173/
 - evidence refs。
 - stream prompt。
 - dashboard summary。
+- no-answer gate。
+- grounded answer。
+- paper-level prompt。
+- formulation exact-condition fallback。
 
-## 22. 当前项目架构快照
+最新本地验证：
+
+| 验证项 | 结果 |
+| --- | --- |
+| `py_compile` | passed |
+| `pytest tests/test_core_contracts.py -q -k 'not resolve_pdf_file_accepts_known_pdf_name and not collect_source_pdf_stats_counts_local_pdf_pages'` | 79 passed, 2 deselected |
+| QA seed mock | 29/29 passed, acceptance all passed |
+| legacy retrieval regression | 85/85 passed |
+
+两个 deselected case 依赖本地 PDF corpus 目录；当前 ai-backend worktree 没有该 corpus，属于环境依赖，不是本轮代码失败。
+
+## 23. 当前项目架构快照
 
 ```text
 src/enzyme_recommender/
@@ -1338,11 +1525,11 @@ deploy/local/
   project memory and workflow records
 ```
 
-## 23. 剩余问题和下一步优先级
+## 24. 剩余问题和下一步优先级
 
 ### P0：benchmark 扩展
 
-当前 62 条只能作为工程回归集。需要扩到：
+当前 85-case retrieval regression 和 29-case QA seed 只能作为工程回归集。需要扩到：
 
 - 短期 200+。
 - 中期 300-1000。
@@ -1414,7 +1601,7 @@ LaunchAgents 已满足本地开发。公网部署需要：
 - upload size / timeout / virus scan。
 - secret manager。
 
-## 24. 经验总结
+## 25. 经验总结
 
 1. 对科研 RAG，事实源治理比 LLM prompt 更重要。
 2. PDF parsing 的失败必须显式进入 registry，不能藏在日志里。
@@ -1427,7 +1614,7 @@ LaunchAgents 已满足本地开发。公网部署需要：
 9. `.env.local` 管理 API key 是当前本地最佳实践；仓库只保留 `api_key_env` 名称，不保留 secret。
 10. LaunchAgent 运行的是 runtime mirror，修改 repo 后必须 sync runtime 并重启服务。
 
-## 25. 关键提交时间线
+## 26. 关键提交时间线
 
 | commit | 内容 | 意义 |
 | --- | --- | --- |
@@ -1448,7 +1635,7 @@ LaunchAgents 已满足本地开发。公网部署需要：
 | `e449544` | Add evaluation and demo artifacts | benchmark/demo/report artifacts |
 | `652285b` | Fix RAG routing diversity and frontend references | 修 B10 刷屏、embedding 稳定、表格 reference |
 
-## 26. 相关文档索引
+## 27. 相关文档索引
 
 - `.docs/research/enzyme_immobilization_mvp_schema.md`
 - `.docs/research/mineru_pdf_ingestion_api.md`
