@@ -45,6 +45,7 @@ from enzyme_recommender.recommendation import (
     FormulationOptimizationService,
     RecommendationService,
 )
+from enzyme_recommender.recommendation.enzyme import deterministic_no_answer_generation, retrieval_guard_reason
 from enzyme_recommender.generators import GenerationResponse
 from enzyme_recommender.runtime import RuntimeServices
 from enzyme_recommender.runtime.config import RuntimeConfigError
@@ -466,7 +467,11 @@ def recommend_by_enzyme_response(runtime: RuntimeServices, payload: RecommendByE
     request = make_enzyme_recommendation_request(payload)
     retrieval = service.retrieve_evidence(request)
     retrieval.hits = enrich_retrieval_hits(runtime, retrieval.hits)
-    generation = service.runtime.generator().generate(service.build_generation_request(request, retrieval))
+    generation = (
+        deterministic_no_answer_generation(retrieval)
+        if retrieval_guard_reason(retrieval)
+        else service.runtime.generator().generate(service.build_generation_request(request, retrieval))
+    )
     response = service.build_response(request, retrieval, generation)
     return response
 
@@ -982,6 +987,27 @@ def stream_recommendation_events(
                 "elapsed_ms": elapsed_ms(started_at),
             }
         )
+        if retrieval_guard_reason(retrieval):
+            retrieval.hits = enrich_retrieval_hits(service.runtime, retrieval.hits)
+            generation = deterministic_no_answer_generation(retrieval)
+            response = service.build_response(request, retrieval, generation)
+            yield ndjson_event(
+                {
+                    "event": "status",
+                    "stage": "generation_skipped",
+                    "message": "retrieval guard returned deterministic no-answer",
+                    "elapsed_ms": elapsed_ms(started_at),
+                }
+            )
+            yield ndjson_event({"event": "delta", "delta": generation.content})
+            yield ndjson_event(
+                {
+                    "event": "final",
+                    "elapsed_ms": elapsed_ms(started_at),
+                    "data": response.model_dump(mode="json"),
+                }
+            )
+            return
         yield ndjson_event({"event": "status", "stage": "generation_start", "message": "generating recommendation"})
         generation_request = service.build_stream_generation_request(request, retrieval)
         generator = service.runtime.generator()

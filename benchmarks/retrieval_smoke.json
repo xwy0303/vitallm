@@ -1,6 +1,6 @@
 {
-  "name": "enzyme_immobilization_retrieval_curated_v3",
-  "description": "Curated retrieval benchmark for semantic live collection and hash rollback baseline; covers intent routing, record_type-aware retrieval, table/context rerank, negative/ambiguous queries, bad-table exclusion, and placeholder-page exclusion cases.",
+  "name": "enzyme_immobilization_retrieval_regression_v3",
+  "description": "Legacy 62-query retrieval regression gate for semantic live collection and hash rollback baseline. This file is intentionally retained for collection/rerank/schema regression; it is not a statistically complete answer-quality benchmark.",
   "queries": [
     {
       "id": "bcl_zif8_strategy",
@@ -1310,6 +1310,616 @@
         },
         {
           "qa_status": "fail",
+          "usable_for_ranking": false
+        }
+      ]
+    },
+    {
+      "id": "paper_b10_process_cn_explicit_id",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "B10",
+      "source_pdf": "B10.pdf",
+      "query": "B10论文对酶固定化剂的优化过程是怎么样的",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process"
+        ],
+        "record_type_priorities": [
+          "formulation_condition",
+          "immobilization_strategy"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition",
+          "text_contains_any": [
+            "700",
+            "pH 7.5",
+            "30 min"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_b10_process_pdf_name",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "B10",
+      "source_pdf": "B10.pdf",
+      "query": "B10.pdf BCL-ZIF-8 optimization process adsorption time enzyme loading pH temperature",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process",
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition",
+          "text_contains_any": [
+            "adsorption",
+            "loading",
+            "pH"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_b10_process_reuse_validation",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "B10",
+      "source_pdf": "B10.pdf",
+      "query": "B10 paper optimized BCL-ZIF-8 immobilization process reusability biodiesel validation 8 cycles 93.4",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "formulation_condition",
+          "immobilization_strategy",
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "B10",
+          "text_contains_any": [
+            "93.4",
+            "8 cycles",
+            "71.3"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_b10_title_fragment",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "query": "BCL immobilized on ZIF-8 soybean oil ethanol biodiesel 论文优化流程",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition"
+        }
+      ]
+    },
+    {
+      "id": "paper_a23_process_explicit_id",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "A23",
+      "source_pdf": "A23.pdf",
+      "query": "A23论文 CALB@ZIF-8@Zn-BTC 优化过程和酸性耐受验证",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process"
+        ],
+        "record_type_priorities": [
+          "formulation_condition",
+          "immobilization_strategy"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A23",
+          "text_contains_any": [
+            "CALB@ZIF-8@Zn-BTC",
+            "pH 4.0",
+            "epoxidation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_a23_pdf_process_en",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "A23",
+      "source_pdf": "A23.pdf",
+      "query": "A23.pdf paper optimization process CALB ZIF-8 Zn-BTC trisodium citrate reuse seven cycles",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process",
+          "performance"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A23",
+          "text_contains_any": [
+            "seven",
+            "60",
+            "CALB@ZIF-8@Zn-BTC"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_a25_meso_mil88a_process",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "A25",
+      "source_pdf": "A25.pdf",
+      "query": "A25 paper Meso-MIL-88A CalB immobilization optimization process reuse five cycles",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A25",
+          "text_contains_any": [
+            "Meso-MIL-88A",
+            "82.60",
+            "five cycles"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_a20_uio66_process",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "A20",
+      "source_pdf": "A20.pdf",
+      "query": "A20论文 AYS UiO-66-NH2 固定化优化流程和6 cycles稳定性",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A20",
+          "text_contains_any": [
+            "AYS@UiO-66",
+            "6 cycles"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_a24_calb_ru_uio66_process",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "A24",
+      "source_pdf": "A24.pdf",
+      "query": "A24.pdf CALB-Ru-UiO-66 paper optimization process pH 7.0 furfuryl acetate reuse",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process",
+          "condition"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A24",
+          "text_contains_any": [
+            "pH 7.0",
+            "furfuryl acetate",
+            "5 cycles"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_a12_cubtc_process",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "A12",
+      "source_pdf": "A12.pdf",
+      "query": "A12 paper CAL-B@Cu-BTC immobilization optimization process ultrasound pH 7.2 solvents",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process",
+          "condition"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A12",
+          "text_contains_any": [
+            "Cu-BTC",
+            "pH 7.2",
+            "CAL-B@Cu-BTC"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_a67_cubtc_process",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "A67",
+      "source_pdf": "A67.pdf",
+      "query": "A67 lipase@Cu-BTC optimization process N-HMVL n-hexane 55 C water activity",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process",
+          "condition"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A67",
+          "text_contains_any": [
+            "N-HMVL",
+            "55",
+            "Cu-BTC"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_b15_biomof_process",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "B15",
+      "source_pdf": "B15.pdf",
+      "query": "B15论文 lipase@Bio-MOF biodiesel 固定化剂优化过程 pH temperature 50 C",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process",
+          "condition"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "B15",
+          "text_contains_any": [
+            "Bio-MOF",
+            "50",
+            "pH"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_a30_mzif67_process",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "A30",
+      "source_pdf": "A30.pdf",
+      "query": "A30 paper PPL@mZIF-67 optimization process optimum pH 9.0 flavor esters",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process",
+          "condition"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A30",
+          "text_contains_any": [
+            "PPL@mZIF-67",
+            "9.0"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_a55_title_fragment_zif8_biodiesel",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "A55",
+      "source_pdf": "A55.pdf",
+      "query": "A55 ZIF-8 lipase FAME biodiesel paper process",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A55",
+          "text_contains_any": [
+            "FAME",
+            "biodiesel",
+            "ZIF-8"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_a61_biodiesel_process",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "A61",
+      "source_pdf": "A61.pdf",
+      "query": "A61 paper lipase biodiesel immobilization optimization process",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A61",
+          "text_contains": "biodiesel"
+        }
+      ]
+    },
+    {
+      "id": "paper_a28_biodiesel_process",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "A28",
+      "source_pdf": "A28.pdf",
+      "query": "A28 论文 biodiesel lipase immobilization 固定化优化流程",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A28",
+          "text_contains": "biodiesel"
+        }
+      ]
+    },
+    {
+      "id": "paper_a58_reuse_process",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "A58",
+      "source_pdf": "A58.pdf",
+      "query": "A58 paper MOF immobilized lipase optimization process reusability cycles",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process",
+          "performance"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A58",
+          "record_type": "performance_metric"
+        }
+      ]
+    },
+    {
+      "id": "paper_a38_reuse_process",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "A38",
+      "source_pdf": "A38.pdf",
+      "query": "A38论文 MOF lipase 固定化优化过程 reuse cycles retained activity",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process",
+          "performance"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A38",
+          "record_type": "performance_metric"
+        }
+      ]
+    },
+    {
+      "id": "paper_a33_ten_cycles_process",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "A33",
+      "source_pdf": "A33.pdf",
+      "query": "A33 paper immobilized lipase optimization process 10 cycles retained activity",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process",
+          "performance"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "A33",
+          "record_type": "performance_metric",
+          "text_contains_any": [
+            "10",
+            "cycles"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_bad_table_warning_b10_include_review",
+      "kind": "paper_level",
+      "retrieval_mode": "document_scope",
+      "document_id": "B10",
+      "source_pdf": "B10.pdf",
+      "query": "B10 paper bad table warning optimization process suspicious yield 900.00",
+      "top_k": 12,
+      "include_review": true,
+      "expected_plan": {
+        "intents": [
+          "paper",
+          "process"
+        ]
+      },
+      "expected_any": [
+        {
+          "document_id": "B10",
+          "text_contains_any": [
+            "900.00",
+            "93.4",
+            "yield"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "paper_placeholder_exclusion_a34_usable_only",
+      "kind": "exclusion",
+      "retrieval_mode": "document_scope",
+      "document_id": "A34",
+      "source_pdf": "A34.pdf",
+      "query": "A34 paper optimization process placeholder page should not be usable ranking evidence",
+      "top_k": 12,
+      "include_review": false,
+      "forbidden_any": [
+        {
+          "document_id": "A34",
+          "qa_flags_any": [
+            "unrecoverable_page_placeholder"
+          ]
+        },
+        {
+          "document_id": "A34",
+          "quality_flags_any": [
+            "unrecoverable_page_placeholder"
+          ]
+        },
+        {
+          "document_id": "A34",
+          "usable_for_ranking": false
+        }
+      ]
+    },
+    {
+      "id": "paper_placeholder_exclusion_a68_usable_only",
+      "kind": "exclusion",
+      "retrieval_mode": "document_scope",
+      "document_id": "A68",
+      "source_pdf": "A68.pdf",
+      "query": "A68 paper optimization process placeholder pages 10 11 12 excluded",
+      "top_k": 12,
+      "include_review": false,
+      "forbidden_any": [
+        {
+          "document_id": "A68",
+          "qa_flags_any": [
+            "unrecoverable_page_placeholder"
+          ]
+        },
+        {
+          "document_id": "A68",
+          "quality_flags_any": [
+            "unrecoverable_page_placeholder"
+          ]
+        },
+        {
+          "document_id": "A68",
+          "usable_for_ranking": false
+        }
+      ]
+    },
+    {
+      "id": "paper_placeholder_exclusion_a77_usable_only",
+      "kind": "exclusion",
+      "retrieval_mode": "document_scope",
+      "document_id": "A77",
+      "source_pdf": "A77.pdf",
+      "query": "A77 paper optimization process placeholder pages excluded from usable document retrieval",
+      "top_k": 12,
+      "include_review": false,
+      "forbidden_any": [
+        {
+          "document_id": "A77",
+          "qa_flags_any": [
+            "unrecoverable_page_placeholder"
+          ]
+        },
+        {
+          "document_id": "A77",
+          "quality_flags_any": [
+            "unrecoverable_page_placeholder"
+          ]
+        },
+        {
+          "document_id": "A77",
           "usable_for_ranking": false
         }
       ]

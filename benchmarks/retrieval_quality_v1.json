@@ -1,0 +1,3480 @@
+{
+  "name": "enzyme_immobilization_retrieval_quality_v1",
+  "version": "v1-220-20260527",
+  "description": "Layered retrieval quality benchmark. This full v1 manifest uses curated evidence ids from the current live collection and is expanded with Chinese/English enzyme alias regression cases.",
+  "target_case_count": 125,
+  "defaults": {
+    "endpoint": "search_evidence",
+    "top_k": 8,
+    "usable_only": true,
+    "literature_rewrite": false,
+    "expected_behavior": {
+      "requires_citations": false
+    }
+  },
+  "cases": [
+    {
+      "id": "rq_exact_bcl_zif8_strategy",
+      "kind": "positive",
+      "query": "Burkholderia cepacia lipase immobilized on hierarchical ZIF-8 carrier",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Entity-rich exact retrieval regression migrated from retrieval_curated_v3.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "record_type": "immobilization_strategy",
+          "text_contains": "ZIF-8"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_exact_biodiesel_yield_reuse",
+      "kind": "positive",
+      "query": "soybean oil ethanol biodiesel yield 93.4 reused 8 cycles last yield 71.3",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Metric-rich query checks table row retrieval for B10 this-study biodiesel result.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance",
+          "application"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "record_type": "table_comparison_row",
+          "text_contains_all": [
+            "93.4",
+            "71.3"
+          ]
+        }
+      ],
+      "forbidden_evidence": [
+        {
+          "quality_flags_any": [
+            "suspicious_percent_gt_300"
+          ]
+        },
+        {
+          "requires_review": true
+        }
+      ]
+    },
+    {
+      "id": "rq_exact_formulation_conditions",
+      "kind": "positive",
+      "query": "BCL-ZIF-8 loading 700 mg adsorption time 30 min pH 7.5 25 C",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Exact condition query for BCL-ZIF-8 formulation parameters.",
+      "expected_plan": {
+        "intents": [
+          "condition",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition",
+          "text_contains_all": [
+            "700",
+            "30 min",
+            "7.5"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_user_like_bcl_biodiesel_carrier",
+      "kind": "positive",
+      "query": "伯克霍尔德菌脂肪酶做大豆油乙醇生物柴油，用什么载体重复用更稳？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Chinese user-like paraphrase; not copied from source text.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "performance",
+          "application"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy",
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "text_contains_any": [
+            "BCL-ZIF-8",
+            "93.4",
+            "71.3",
+            "ZIF-8"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_user_like_b10_process",
+      "kind": "positive",
+      "query": "这个 B10 里面 BCL-ZIF8 到底是怎么优化固定化条件的？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "User-like paper follow-up targeting formulation conditions.",
+      "expected_plan": {
+        "intents": [
+          "condition",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition",
+          "text_contains_any": [
+            "700",
+            "30 min",
+            "pH value 7.5",
+            "12-fold"
+          ]
+        }
+      ],
+      "forbidden_evidence": [
+        {
+          "document_id": "B10",
+          "text_contains": "900.00"
+        }
+      ]
+    },
+    {
+      "id": "rq_user_like_temperature_not_always_higher",
+      "kind": "positive",
+      "query": "ZIF8 固定化脂肪酶做生物柴油时温度是不是越高越好？",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Conditional user question requiring the temperature optimum / denaturation boundary.",
+      "expected_plan": {
+        "intents": [
+          "condition",
+          "performance",
+          "application"
+        ],
+        "record_type_priorities": [
+          "formulation_condition",
+          "performance_metric"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "text_contains_any": [
+            "40",
+            "temperature",
+            "denaturation",
+            "93.4"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_mixed_bcl_zif8_typo",
+      "kind": "positive",
+      "query": "BCL zif8 固定化 ph7.5 30分钟 loading 700mg",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Chinese-English mixed shorthand with informal unit formatting.",
+      "expected_plan": {
+        "intents": [
+          "condition",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition",
+          "text_contains_all": [
+            "700",
+            "30 min"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_cross_doc_zif8_vs_magnetic_mof",
+      "kind": "positive",
+      "query": "ZIF-8 和 magnetic MOF 固定化脂肪酶哪个重复使用更值得优先试？",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Cross-document comparison requiring at least two evidence families.",
+      "expected_behavior": {
+        "min_expected_evidence": 2
+      },
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy",
+          "performance_metric"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "text_contains": "ZIF-8"
+        },
+        {
+          "text_contains_any": [
+            "magnetic",
+            "MNP",
+            "Fe3O4",
+            "magnet"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_exclude_bad_yield_900",
+      "kind": "exclusion",
+      "query": "lipase biodiesel tallow Candida antarctica 900 yield table row should not rank",
+      "difficulty": "adversarial",
+      "source": "regression_bug",
+      "construction_note": "Bad table exclusion case: suspicious 900.00 yield must not appear in usable ranking.",
+      "expected_behavior": {
+        "min_expected_evidence": 0
+      },
+      "expected_evidence": [],
+      "forbidden_evidence": [
+        {
+          "document_id": "B10",
+          "text_contains": "900.00"
+        },
+        {
+          "quality_flags_any": [
+            "suspicious_percent_gt_300"
+          ]
+        },
+        {
+          "requires_review": true
+        }
+      ]
+    },
+    {
+      "id": "rq_negative_amylase_starch",
+      "kind": "negative",
+      "query": "amylase starch hydrolysis silica immobilization best support",
+      "difficulty": "adversarial",
+      "source": "adversarial",
+      "construction_note": "Corpus-out enzyme family; should not match lipase-specific gold evidence.",
+      "expected_behavior": {
+        "min_expected_evidence": 0
+      },
+      "expected_evidence": [],
+      "forbidden_evidence": [
+        {
+          "record_type": "table_comparison_row",
+          "text_contains": "B. cepacia lipase"
+        }
+      ]
+    },
+    {
+      "id": "rq_lit_strategy_001_a11",
+      "kind": "positive",
+      "query": "A11 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_defac91240ac11a1",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_002_a12",
+      "kind": "positive",
+      "query": "A12 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_a38a347d351940a1",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_003_a15",
+      "kind": "positive",
+      "query": "A15 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_d1eca83f3b4110c9",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_004_a15",
+      "kind": "positive",
+      "query": "A15 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_2b1f1968fb70cddd",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_005_a16",
+      "kind": "positive",
+      "query": "A16 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A16",
+          "source_id": "ev_8b82b46c6dfe637b",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_006_a16",
+      "kind": "positive",
+      "query": "A16 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A16",
+          "source_id": "ev_bf876056a7404537",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_007_a17",
+      "kind": "positive",
+      "query": "A17 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A17",
+          "source_id": "ev_34996fbe033cf61d",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_008_a17",
+      "kind": "positive",
+      "query": "A17 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A17",
+          "source_id": "ev_ca4624e7a65417e1",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_009_a19",
+      "kind": "positive",
+      "query": "A19 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A19",
+          "source_id": "ev_0788bf248b442e5a",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_010_a19",
+      "kind": "positive",
+      "query": "A19 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A19",
+          "source_id": "ev_ab5979409b3bbf0d",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_011_a20",
+      "kind": "positive",
+      "query": "A20 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A20",
+          "source_id": "ev_106e25ed806b5ec5",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_012_a22",
+      "kind": "positive",
+      "query": "A22 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A22",
+          "source_id": "ev_9a35f273d66c4654",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_013_a22",
+      "kind": "positive",
+      "query": "A22 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A22",
+          "source_id": "ev_020f41ddb41d820e",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_014_a23",
+      "kind": "positive",
+      "query": "A23 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A23",
+          "source_id": "ev_e21471830f81d863",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_015_a23",
+      "kind": "positive",
+      "query": "A23 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A23",
+          "source_id": "ev_89984c08d03295df",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_016_a25",
+      "kind": "positive",
+      "query": "A25 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A25",
+          "source_id": "ev_cec956e2007f3cab",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_017_a25",
+      "kind": "positive",
+      "query": "A25 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A25",
+          "source_id": "ev_64bf83c3d036d2d6",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_018_a26",
+      "kind": "positive",
+      "query": "A26 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A26",
+          "source_id": "ev_c0bbc3253dff8544",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_019_a26",
+      "kind": "positive",
+      "query": "A26 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A26",
+          "source_id": "ev_97af771cb46e8bcc",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_020_a28",
+      "kind": "positive",
+      "query": "A28 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A28",
+          "source_id": "ev_b8a61cd5fa36ba76",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_021_a28",
+      "kind": "positive",
+      "query": "A28 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A28",
+          "source_id": "ev_d585a628378da12a",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_022_a29",
+      "kind": "positive",
+      "query": "A29 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A29",
+          "source_id": "ev_713f0806deecb522",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_023_a29",
+      "kind": "positive",
+      "query": "A29 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A29",
+          "source_id": "ev_d9f6c9396e44ac82",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_strategy_024_a30",
+      "kind": "positive",
+      "query": "A30 lipase immobilized on ZIF-8 immobilization strategy",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated exact strategy query from evidence metadata; query is a compact paraphrase, not a source sentence copy.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A30",
+          "source_id": "ev_4b01f92e3ad52aa5",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "ZIF-8",
+            "lipase",
+            "lipase"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_025_a11",
+      "kind": "positive",
+      "query": "A11 lipase immobilization conditions pH 9.5 immobilization_temperature {'value': 60.0, 'unit': 'degC'}",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_3904618fbd820665",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_026_a12",
+      "kind": "positive",
+      "query": "A12 lipase immobilization conditions pH 8.2 immobilization_temperature {'value': 25.0, 'unit': 'degC'}",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_0a7dcfb808fa9308",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_027_a13",
+      "kind": "positive",
+      "query": "A13 lipase immobilization conditions immobilization_temperature {'value': 37.0, 'unit': 'degC'}",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A13",
+          "source_id": "ev_e6eed4251fa47845",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_028_a13",
+      "kind": "positive",
+      "query": "A13 lipase immobilization conditions immobilization_temperature {'value': 30.0, 'unit': 'degC'}",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A13",
+          "source_id": "ev_e30606cb977fd002",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_029_a14",
+      "kind": "positive",
+      "query": "A14 lipase immobilization conditions pH 9.0 immobilization_temperature {'value': 60.0, 'unit': 'degC'}",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A14",
+          "source_id": "ev_cb226a6219096780",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_030_a14",
+      "kind": "positive",
+      "query": "A14 lipase immobilization conditions pH 9.0 immobilization_temperature {'value': 80.0, 'unit': 'degC'}",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A14",
+          "source_id": "ev_3b59c7df11729d1b",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_031_a18",
+      "kind": "positive",
+      "query": "A18 lipase immobilization conditions pH 6.5",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A18",
+          "source_id": "ev_d29cb93831f361ef",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_032_a18",
+      "kind": "positive",
+      "query": "A18 lipase immobilization conditions pH 6.5",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A18",
+          "source_id": "ev_215989fda56c48a6",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_033_a2",
+      "kind": "positive",
+      "query": "A2 lipase immobilization conditions pH 7.0 immobilization_temperature {'value': 35.0, 'unit': 'degC'}",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A2",
+          "source_id": "ev_47ae54ac37fcaacf",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_034_a2",
+      "kind": "positive",
+      "query": "A2 lipase immobilization conditions immobilization_temperature {'value': 20.0, 'unit': 'degC'}",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A2",
+          "source_id": "ev_b9e67ab9262c8163",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_035_a20",
+      "kind": "positive",
+      "query": "A20 lipase immobilization conditions pH 7.0 immobilization_temperature {'value': 40.0, 'unit': 'degC'}",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A20",
+          "source_id": "ev_fa847e63d3f645c2",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_036_a21",
+      "kind": "positive",
+      "query": "A21 lipase immobilization conditions pH 7.0 immobilization_temperature {'value': 50.0, 'unit': 'degC'}",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A21",
+          "source_id": "ev_86d1af24b22417ff",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_037_a21",
+      "kind": "positive",
+      "query": "A21 lipase immobilization conditions pH 7.0 immobilization_temperature {'value': 60.0, 'unit': 'degC'}",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A21",
+          "source_id": "ev_99ea354cb72415ee",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_038_a24",
+      "kind": "positive",
+      "query": "A24 lipase immobilization conditions immobilization_temperature {'value': 60.0, 'unit': 'degC'}",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A24",
+          "source_id": "ev_e77abf36551255a4",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_039_a24",
+      "kind": "positive",
+      "query": "A24 lipase immobilization conditions pH 7.0",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A24",
+          "source_id": "ev_b24b8c4b7d55c53b",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_040_a3",
+      "kind": "positive",
+      "query": "A3 lipase immobilization conditions pH 740.0",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A3",
+          "source_id": "ev_59875203e44d7116",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_041_a30",
+      "kind": "positive",
+      "query": "A30 lipase immobilization conditions pH 7.5 immobilization_temperature {'value': 40.0, 'unit': 'degC'}",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A30",
+          "source_id": "ev_e7646e155d8bd790",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_042_a33",
+      "kind": "positive",
+      "query": "A33 lipase immobilization conditions enzyme_loading {'value': 80.0, 'unit': 'mg'}",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A33",
+          "source_id": "ev_1dab466fb957ff53",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_043_a33",
+      "kind": "positive",
+      "query": "A33 lipase immobilization conditions enzyme_loading {'value': 72.2, 'unit': 'mg'}",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A33",
+          "source_id": "ev_7e27167234a5edb3",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_044_a37",
+      "kind": "positive",
+      "query": "A37 lipase immobilization conditions pH 10.0",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A37",
+          "source_id": "ev_d60e2a353c027eef",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_045_a37",
+      "kind": "positive",
+      "query": "A37 lipase immobilization conditions pH 10.0",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A37",
+          "source_id": "ev_a18e706c33b20058",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_046_a38",
+      "kind": "positive",
+      "query": "A38 lipase immobilization conditions immobilization_temperature {'value': 60.0, 'unit': 'degC'}",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A38",
+          "source_id": "ev_bc1e9a807255964b",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_047_a38",
+      "kind": "positive",
+      "query": "A38 lipase immobilization conditions pH 5.5",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A38",
+          "source_id": "ev_db7b03158417752f",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_048_a4",
+      "kind": "positive",
+      "query": "A4 lipase immobilization conditions pH 7.5",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A4",
+          "source_id": "ev_e4fc423f9b7035ab",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_049_a4",
+      "kind": "positive",
+      "query": "A4 lipase immobilization conditions immobilization_temperature {'value': 40.0, 'unit': 'degC'}",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A4",
+          "source_id": "ev_51e969a8017c462a",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_050_a42",
+      "kind": "positive",
+      "query": "A42 lipase immobilization conditions immobilization_temperature {'value': 60.0, 'unit': 'degC'}",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A42",
+          "source_id": "ev_6b53bcfea6de125b",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_051_a42",
+      "kind": "positive",
+      "query": "A42 lipase immobilization conditions immobilization_temperature {'value': 80.0, 'unit': 'degC'}",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A42",
+          "source_id": "ev_81a8fb29bc596885",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_condition_052_a43",
+      "kind": "positive",
+      "query": "A43 lipase immobilization conditions pH 11.0 immobilization_temperature {'value': 60.0, 'unit': 'degC'}",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated condition query from extracted formulation fields; phrased as metadata query rather than copied prose.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A43",
+          "source_id": "ev_c738d0ede96fc8d2",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_053_a3",
+      "kind": "positive",
+      "query": "A3 lipase reusability stability reuse_cycles 5 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A3",
+          "source_id": "ev_ff2a5b6da926906c",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_054_a44",
+      "kind": "positive",
+      "query": "A44 lipase reusability stability reuse_cycles 8 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A44",
+          "source_id": "ev_286637ec915bdc76",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_055_a44",
+      "kind": "positive",
+      "query": "A44 lipase reusability stability reuse_cycles 3 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A44",
+          "source_id": "ev_86f00e50c818ef07",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_056_a48",
+      "kind": "positive",
+      "query": "A48 lipase reusability stability reuse_cycles 5 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A48",
+          "source_id": "ev_068e155db570f25c",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_057_a55",
+      "kind": "positive",
+      "query": "A55 lipase reusability stability reuse_cycles 5 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A55",
+          "source_id": "ev_aa89bbcd2c851f92",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_058_a55",
+      "kind": "positive",
+      "query": "A55 lipase reusability stability reuse_cycles 8 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A55",
+          "source_id": "ev_2f879776c70b96b5",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_059_a58",
+      "kind": "positive",
+      "query": "A58 lipase reusability stability reuse_cycles 10 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A58",
+          "source_id": "ev_c1073d3b1086e7fa",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_060_a58",
+      "kind": "positive",
+      "query": "A58 lipase reusability stability reuse_cycles 10 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A58",
+          "source_id": "ev_76b179115680860f",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_061_a6",
+      "kind": "positive",
+      "query": "A6 lipase reusability stability reuse_cycles 5 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A6",
+          "source_id": "ev_4a75e8237d2f07e4",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_062_a6",
+      "kind": "positive",
+      "query": "A6 lipase reusability stability reuse_cycles 5 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A6",
+          "source_id": "ev_063c74865a1b3157",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_063_a60",
+      "kind": "positive",
+      "query": "A60 lipase reusability stability reuse_cycles 10 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A60",
+          "source_id": "ev_5345f5277e5e44d7",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_064_a60",
+      "kind": "positive",
+      "query": "A60 lipase reusability stability reuse_cycles 10 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A60",
+          "source_id": "ev_f7f6c4ca8fa45d82",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_065_a61",
+      "kind": "positive",
+      "query": "A61 lipase reusability stability reuse_cycles 5 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A61",
+          "source_id": "ev_2c21a41b8875d13b",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_066_a64",
+      "kind": "positive",
+      "query": "A64 lipase reusability stability reuse_cycles 8 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A64",
+          "source_id": "ev_5239a14a1aa6504e",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_067_a7",
+      "kind": "positive",
+      "query": "A7 lipase reusability stability reuse_cycles 5 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A7",
+          "source_id": "ev_67baf17d67ccc6e7",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_performance_068_a71",
+      "kind": "positive",
+      "query": "A71 lipase reusability stability reuse_cycles 20 cycle",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated performance metric query using normalized metric labels and values.",
+      "expected_plan": {
+        "intents": [
+          "performance"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A71",
+          "source_id": "ev_d347ecedc803dd7c",
+          "record_type": "performance_metric"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_table_069_b10",
+      "kind": "positive",
+      "query": "B10 table B. cepacia lipase Palm oil biodiesel_yield 100.0%",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated table-row query from normalized enzyme/substrate/metric fields.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_468d661d56f889c0",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_lit_table_070_b10",
+      "kind": "positive",
+      "query": "B10 table Burkholderia sp. C20 B. cepacia lipase Soybean oil biodiesel_yield 96.8%",
+      "difficulty": "easy",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Auto-curated table-row query from normalized enzyme/substrate/metric fields.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_fa38441829810e04",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_user_paraphrase_071_a11",
+      "kind": "positive",
+      "query": "ZIF-8 这种载体和普通吸附相比，有没有更适合先试的理由？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_defac91240ac11a1",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_072_a12",
+      "kind": "positive",
+      "query": "这个 A12 里面的 ZIF-8 固定化脂肪酶，主要是什么策略？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_a38a347d351940a1",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_073_a15",
+      "kind": "positive",
+      "query": "A15 那个脂肪酶材料能复用几次，稳定性数据在哪？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_d1eca83f3b4110c9",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_074_a15",
+      "kind": "positive",
+      "query": "我想复现实验，A15 的 lipase 固定化 pH、温度、时间怎么设？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_2b1f1968fb70cddd",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_075_a15",
+      "kind": "positive",
+      "query": "ZIF-8 这种载体和普通吸附相比，有没有更适合先试的理由？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_95ceab5605660695",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_076_a15",
+      "kind": "positive",
+      "query": "这个 A15 里面的 ZIF-8 固定化脂肪酶，主要是什么策略？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_82f1de3ab424c8be",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_077_a15",
+      "kind": "positive",
+      "query": "A15 那个脂肪酶材料能复用几次，稳定性数据在哪？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_6bc6fed060fb9f7f",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_078_a15",
+      "kind": "positive",
+      "query": "我想复现实验，A15 的 lipase 固定化 pH、温度、时间怎么设？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_799ac717f55c3fc4",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_079_a15",
+      "kind": "positive",
+      "query": "ZIF-8 这种载体和普通吸附相比，有没有更适合先试的理由？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_f4a7805cd4b92662",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_080_a15",
+      "kind": "positive",
+      "query": "这个 A15 里面的 ZIF-8 固定化脂肪酶，主要是什么策略？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_24e02472f5d7f870",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_081_a11",
+      "kind": "positive",
+      "query": "A11 那个脂肪酶材料能复用几次，稳定性数据在哪？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_3904618fbd820665",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_082_a11",
+      "kind": "positive",
+      "query": "我想复现实验，A11 的 lipase 固定化 pH、温度、时间怎么设？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_82ba2b68d2c07d11",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_083_a11",
+      "kind": "positive",
+      "query": "MOF/载体 这种载体和普通吸附相比，有没有更适合先试的理由？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_af371f2c3c6df30d",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_084_a11",
+      "kind": "positive",
+      "query": "这个 A11 里面的 MOF/载体 固定化脂肪酶，主要是什么策略？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_cea22548873afe6b",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_085_a11",
+      "kind": "positive",
+      "query": "A11 那个脂肪酶材料能复用几次，稳定性数据在哪？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_b912702253720b40",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_086_a11",
+      "kind": "positive",
+      "query": "我想复现实验，A11 的 lipase 固定化 pH、温度、时间怎么设？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_24ff9b33f1ad63dc",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_087_a11",
+      "kind": "positive",
+      "query": "MOF/载体 这种载体和普通吸附相比，有没有更适合先试的理由？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_f735b8584521d331",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_user_paraphrase_088_a12",
+      "kind": "positive",
+      "query": "这个 A12 里面的 MOF/载体 固定化脂肪酶，主要是什么策略？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual user-like Chinese paraphrase generated from evidence metadata, not copied from paper text.",
+      "expected_plan": {
+        "intents": [
+          "condition"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_0a7dcfb808fa9308",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "forbidden_evidence": [],
+      "expected_behavior": {
+        "min_expected_evidence": 1,
+        "requires_citations": false
+      }
+    },
+    {
+      "id": "rq_cross_zif8_reuse_sds_bcl",
+      "kind": "positive",
+      "query": "ZIF-8 lipase 复用稳定性：BCL-ZIF-8 和 surfactant modified lipase-SDS ZIF-8 都给我找证据",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Cross-document comparison case with at least two evidence families.",
+      "expected_behavior": {
+        "min_expected_evidence": 2
+      },
+      "expected_plan": {
+        "intents": [
+          "performance",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "immobilization_strategy",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "text_contains_any": [
+            "BCL-ZIF-8",
+            "71.3",
+            "ZIF-8"
+          ]
+        },
+        {
+          "document_id": "B19",
+          "text_contains_any": [
+            "lipase-SDS ZIF-8",
+            "76%",
+            "six"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_cross_uio66_pfl_ays",
+      "kind": "positive",
+      "query": "UiO-66 固定化 Pseudomonas fluorescens lipase 和 AYS lipase 复用数据对比",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Cross-document comparison case with at least two evidence families.",
+      "expected_behavior": {
+        "min_expected_evidence": 2
+      },
+      "expected_plan": {
+        "intents": [
+          "performance",
+          "strategy"
+        ],
+        "record_type_priorities": [
+          "performance_metric",
+          "immobilization_strategy",
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B16",
+          "text_contains_any": [
+            "PFL-PEG@Uio-66",
+            "six cycles",
+            "37%"
+          ]
+        },
+        {
+          "document_id": "B18",
+          "text_contains_any": [
+            "AYS@U",
+            "residual activity",
+            "6 cycles"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_089_b10",
+      "kind": "positive",
+      "query": "B10 Candida rugosa biodiesel yield 78.5 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_f9e9a1333c42c476",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_090_b10",
+      "kind": "positive",
+      "query": "B10 Burkholderia sp. C20 B. cepacia lipase biodiesel yield 96.8 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_fa38441829810e04",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_091_b10",
+      "kind": "positive",
+      "query": "B10 B. cepacia lipase biodiesel yield 93.4 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_72e1b02a9c86fa8f",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_092_b10",
+      "kind": "positive",
+      "query": "B10 B. cepacia lipase biodiesel yield 91.0 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_0b82f38960024c84",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_093_b10",
+      "kind": "positive",
+      "query": "B10 P. fluorescens lipase biodiesel yield 80.0 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_8a9e0e6da883a4fe",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_094_b10",
+      "kind": "positive",
+      "query": "B10 Candida rugosa biodiesel yield 78.5 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_f9e9a1333c42c476",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_095_b10",
+      "kind": "positive",
+      "query": "B10 Burkholderia sp. C20 B. cepacia lipase biodiesel yield 96.8 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_fa38441829810e04",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_096_b10",
+      "kind": "positive",
+      "query": "B10 B. cepacia lipase biodiesel yield 93.4 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_72e1b02a9c86fa8f",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_097_b10",
+      "kind": "positive",
+      "query": "B10 B. cepacia lipase biodiesel yield 91.0 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_0b82f38960024c84",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_098_b10",
+      "kind": "positive",
+      "query": "B10 P. fluorescens lipase biodiesel yield 80.0 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_8a9e0e6da883a4fe",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_099_b10",
+      "kind": "positive",
+      "query": "B10 Candida rugosa biodiesel yield 78.5 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_f9e9a1333c42c476",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_100_b10",
+      "kind": "positive",
+      "query": "B10 Burkholderia sp. C20 B. cepacia lipase biodiesel yield 96.8 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_fa38441829810e04",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_101_b10",
+      "kind": "positive",
+      "query": "B10 B. cepacia lipase biodiesel yield 93.4 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_72e1b02a9c86fa8f",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_102_b10",
+      "kind": "positive",
+      "query": "B10 B. cepacia lipase biodiesel yield 91.0 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_0b82f38960024c84",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_103_b10",
+      "kind": "positive",
+      "query": "B10 P. fluorescens lipase biodiesel yield 80.0 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_8a9e0e6da883a4fe",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_104_b10",
+      "kind": "positive",
+      "query": "B10 Candida rugosa biodiesel yield 78.5 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_f9e9a1333c42c476",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_105_b10",
+      "kind": "positive",
+      "query": "B10 Burkholderia sp. C20 B. cepacia lipase biodiesel yield 96.8 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_fa38441829810e04",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_106_b10",
+      "kind": "positive",
+      "query": "B10 B. cepacia lipase biodiesel yield 93.4 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_72e1b02a9c86fa8f",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_107_b10",
+      "kind": "positive",
+      "query": "B10 B. cepacia lipase biodiesel yield 91.0 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_0b82f38960024c84",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_fill_table_108_b10",
+      "kind": "positive",
+      "query": "B10 P. fluorescens lipase biodiesel yield 80.0 table evidence",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "Filler retrieval-quality case from normalized table metric metadata to reach v1 quota.",
+      "expected_plan": {
+        "intents": [
+          "table",
+          "performance"
+        ],
+        "record_type_priorities": [
+          "table_comparison_row"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_8a9e0e6da883a4fe",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_cn_alias_calb_cubtc_search",
+      "kind": "positive",
+      "query": "南极假丝酵母脂肪酶B CAL-B Cu-BTC 固定化载体",
+      "difficulty": "medium",
+      "source": "regression_bug",
+      "construction_note": "Chinese CALB alias paired case; expected evidence comes from A12 CAL-B@Cu-BTC retrieval smoke.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "Cu-BTC",
+            "CAL-B@Cu-BTC",
+            "Candida antarctica"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_en_alias_calb_cubtc_search",
+      "kind": "positive",
+      "query": "Candida antarctica lipase B CAL-B immobilized in Cu-BTC MOF ultrasound",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "English pair for rq_cn_alias_calb_cubtc_search, migrated from retrieval_smoke expectation.",
+      "expected_plan": {
+        "intents": [
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "immobilization_strategy"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "Cu-BTC",
+            "CAL-B@Cu-BTC"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_cn_alias_crl_mnp_zif8_search",
+      "kind": "positive",
+      "query": "皱褶假丝酵母脂肪酶 CRL MNP@ZIF-8 固定化产率 88.4",
+      "difficulty": "medium",
+      "source": "regression_bug",
+      "construction_note": "Chinese CRL alias paired case; expected evidence comes from A29 CRL MNP@ZIF-8 retrieval smoke.",
+      "expected_plan": {
+        "intents": [
+          "performance",
+          "strategy",
+          "enzyme"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A29",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "88.4",
+            "MNP@ZIF-8",
+            "CRL"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_en_alias_crl_mnp_zif8_search",
+      "kind": "positive",
+      "query": "CRL Fe3O4 magnetic nanoparticles encapsulated ZIF-8 CRL MNP@ZIF-8 88.4 immobilization yield",
+      "difficulty": "medium",
+      "source": "literature_derived",
+      "literature_rewrite": true,
+      "construction_note": "English pair for rq_cn_alias_crl_mnp_zif8_search, migrated from retrieval_smoke expectation.",
+      "expected_evidence": [
+        {
+          "document_id": "A29",
+          "record_type": "immobilization_strategy",
+          "text_contains_any": [
+            "88.4",
+            "MNP@ZIF-8",
+            "CRL"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    },
+    {
+      "id": "rq_cn_alias_ppl_mzif67_search",
+      "kind": "positive",
+      "query": "猪胰脂肪酶 PPL@mZIF-67 固定化条件 pH 9.0",
+      "difficulty": "medium",
+      "source": "regression_bug",
+      "construction_note": "Chinese PPL alias case; expected evidence comes from A30 PPL@mZIF-67 retrieval smoke.",
+      "expected_plan": {
+        "intents": [
+          "condition",
+          "strategy",
+          "enzyme"
+        ],
+        "record_type_priorities": [
+          "formulation_condition"
+        ]
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A30",
+          "record_type": "formulation_condition",
+          "text_contains_any": [
+            "9.0",
+            "PPL@mZIF-67"
+          ]
+        }
+      ],
+      "forbidden_evidence": []
+    }
+  ]
+}

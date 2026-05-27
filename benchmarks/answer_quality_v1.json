@@ -1,0 +1,1473 @@
+{
+  "name": "enzyme_immobilization_answer_quality_v1",
+  "version": "v1-220-20260527",
+  "description": "Endpoint-level answer quality benchmark for recommendation and evidence QA. Uses deterministic checks for expected facts, forbidden claims, citation grounding, condition-type wording, and Chinese enzyme alias regressions.",
+  "target_case_count": 54,
+  "defaults": {
+    "endpoint": "recommend",
+    "top_k": 5,
+    "usable_only": true,
+    "literature_rewrite": false,
+    "expected_behavior": {
+      "requires_citations": true,
+      "min_expected_facts": 1,
+      "forbid_global_optimum": true
+    }
+  },
+  "cases": [
+    {
+      "id": "aq_bcl_biodiesel_recommendation",
+      "kind": "answer_quality",
+      "query": "伯克霍尔德菌脂肪酶用于大豆油和乙醇转酯制备 biodiesel，推荐固定化载体和关键条件。",
+      "enzyme_name": "Burkholderia cepacia lipase",
+      "application_context": "大豆油和乙醇转酯制备 biodiesel，关注产率、重复使用稳定性和固定化条件。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Professional recommendation case from functional testing.",
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "text_contains_any": [
+            "BCL-ZIF-8",
+            "93.4",
+            "71.3",
+            "ZIF-8"
+          ]
+        }
+      ],
+      "expected_answer_facts": [
+        "93.4"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_bcl_b10_optimization_process",
+      "kind": "answer_quality",
+      "query": "B10 论文里 BCL-ZIF-8 的固定化优化流程是什么？",
+      "enzyme_name": "Burkholderia cepacia lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "B10 论文里 BCL-ZIF-8 的固定化优化流程是什么？请说明 loading、adsorption time、pH 和 temperature。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Evidence QA case requiring formulation condition facts rather than table-only answer.",
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition",
+          "text_contains_any": [
+            "700",
+            "30 min",
+            "7.5",
+            "12-fold"
+          ]
+        }
+      ],
+      "expected_answer_facts": [
+        "700",
+        "30",
+        "7.5"
+      ],
+      "forbidden_claims": [
+        "900.00",
+        "全局最优"
+      ]
+    },
+    {
+      "id": "aq_zrmof_condition_type",
+      "kind": "answer_quality",
+      "query": "Zr-MOF 固定化脂肪酶时最佳 pH 和温度是多少？",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "Zr-MOF 固定化脂肪酶时最佳 pH 和温度是多少？请区分固定化条件、assay 条件和反应条件。",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Condition-type disambiguation case; answer should not collapse all pH/temperature values into one universal optimum.",
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_facts": 1,
+        "condition_type_terms": [
+          "固定化",
+          "assay"
+        ],
+        "forbid_global_optimum": true
+      },
+      "expected_evidence": [
+        {
+          "record_type": "formulation_condition",
+          "text_contains_any": [
+            "Zr-MOF",
+            "UiO-66",
+            "pH 9",
+            "35"
+          ]
+        }
+      ],
+      "expected_answer_facts": [
+        "pH"
+      ],
+      "forbidden_claims": [
+        "所有 Zr-MOF",
+        "唯一最佳"
+      ]
+    },
+    {
+      "id": "aq_pseudomonas_best_boundary",
+      "kind": "answer_quality",
+      "query": "假单胞菌脂肪酶的最佳固化剂？我是非专业用户。",
+      "enzyme_name": "Pseudomonas lipase",
+      "application_context": "假单胞菌脂肪酶的最佳固化剂？我是非专业用户，只想知道首选方案和为什么。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Non-expert best-carrier question should preserve evidence insufficiency boundary.",
+      "expected_evidence": [
+        {
+          "text_contains_any": [
+            "Pseudomonas lipase",
+            "P. fluorescens lipase",
+            "ZIF-8",
+            "activity recovery"
+          ]
+        }
+      ],
+      "expected_answer_facts": [
+        "Pseudomonas"
+      ],
+      "forbidden_claims": [
+        "全局最佳",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "aq_stream_no_contradiction_bcl",
+      "kind": "answer_quality",
+      "endpoint": "recommend_stream",
+      "query": "伯克霍尔德菌脂肪酶做生物柴油用啥载体更稳？",
+      "enzyme_name": "Burkholderia cepacia lipase",
+      "application_context": "伯克霍尔德菌脂肪酶做生物柴油用啥载体更稳？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Stream/final consistency positive case.",
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "text_contains_any": [
+            "BCL-ZIF-8",
+            "93.4",
+            "71.3",
+            "ZIF-8"
+          ]
+        }
+      ],
+      "expected_answer_facts": [
+        "ZIF"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_001_a11_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A11 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A11 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_3904618fbd820665",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "9.5"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_002_a11_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A11 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A11 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_82ba2b68d2c07d11",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "7.5"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_003_a11_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A11 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A11 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_af371f2c3c6df30d",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "20.0"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_004_a11_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A11 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A11 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_cea22548873afe6b",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "20.0"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_005_a11_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A11 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A11 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_b912702253720b40",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "40.0"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_006_a11_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A11 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A11 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_24ff9b33f1ad63dc",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "7.5"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_007_a11_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A11 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A11 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_f735b8584521d331",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "40.0"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_008_a12_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_0a7dcfb808fa9308",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "8.2"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_009_a12_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_692d9158c70df92c",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "8.5"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_010_a12_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_d9af2834bfec83be",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "20.0"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_011_a12_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_dd35af090a8fc0ac",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "8.5"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_012_a12_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_47bf4f28d7f84143",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "7.2"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_013_a12_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_c8371c41292a8506",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "7.2"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_014_a12_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_ec3634e49d2d2caa",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "8.5"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_015_a12_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_3e656ab8bacd1ae7",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "50.0"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_016_a12_formulation_condition",
+      "kind": "answer_quality",
+      "query": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A12 这篇里脂肪酶固定化条件怎么设？请回答关键 pH、温度、时间或用量。",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_5f2f5b1aa887b178",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_answer_facts": [
+        "75.0"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_017_a11_performance_metric",
+      "kind": "answer_quality",
+      "query": "A11 的固定化脂肪酶复用/稳定性结果是什么？",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A11 的固定化脂肪酶复用/稳定性结果是什么？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_3fe27128ea3f2a6f",
+          "record_type": "performance_metric"
+        }
+      ],
+      "expected_answer_facts": [
+        "7"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_018_a14_performance_metric",
+      "kind": "answer_quality",
+      "query": "A14 的固定化脂肪酶复用/稳定性结果是什么？",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A14 的固定化脂肪酶复用/稳定性结果是什么？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A14",
+          "source_id": "ev_41eed2a440c7f446",
+          "record_type": "performance_metric"
+        }
+      ],
+      "expected_answer_facts": [
+        "10"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_019_a17_performance_metric",
+      "kind": "answer_quality",
+      "query": "A17 的固定化脂肪酶复用/稳定性结果是什么？",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A17 的固定化脂肪酶复用/稳定性结果是什么？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A17",
+          "source_id": "ev_99102f9cfdd8a217",
+          "record_type": "performance_metric"
+        }
+      ],
+      "expected_answer_facts": [
+        "6"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_020_a18_performance_metric",
+      "kind": "answer_quality",
+      "query": "A18 的固定化脂肪酶复用/稳定性结果是什么？",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A18 的固定化脂肪酶复用/稳定性结果是什么？",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A18",
+          "source_id": "ev_96ec37f563aee0f7",
+          "record_type": "performance_metric"
+        }
+      ],
+      "expected_answer_facts": [
+        "8"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_021_a18_performance_metric",
+      "kind": "answer_quality",
+      "query": "A18 的固定化脂肪酶复用/稳定性结果是什么？",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A18 的固定化脂肪酶复用/稳定性结果是什么？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A18",
+          "source_id": "ev_aa4e88836566c7aa",
+          "record_type": "performance_metric"
+        }
+      ],
+      "expected_answer_facts": [
+        "8"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_022_a18_performance_metric",
+      "kind": "answer_quality",
+      "query": "A18 的固定化脂肪酶复用/稳定性结果是什么？",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A18 的固定化脂肪酶复用/稳定性结果是什么？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A18",
+          "source_id": "ev_bdf371268fa28045",
+          "record_type": "performance_metric"
+        }
+      ],
+      "expected_answer_facts": [
+        "8"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_023_a20_performance_metric",
+      "kind": "answer_quality",
+      "query": "A20 的固定化脂肪酶复用/稳定性结果是什么？",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A20 的固定化脂肪酶复用/稳定性结果是什么？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A20",
+          "source_id": "ev_d152c3367e642f86",
+          "record_type": "performance_metric"
+        }
+      ],
+      "expected_answer_facts": [
+        "6"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_024_a23_performance_metric",
+      "kind": "answer_quality",
+      "query": "A23 的固定化脂肪酶复用/稳定性结果是什么？",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A23 的固定化脂肪酶复用/稳定性结果是什么？",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A23",
+          "source_id": "ev_149389b11438c866",
+          "record_type": "performance_metric"
+        }
+      ],
+      "expected_answer_facts": [
+        "7"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_025_a24_performance_metric",
+      "kind": "answer_quality",
+      "query": "A24 的固定化脂肪酶复用/稳定性结果是什么？",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A24 的固定化脂肪酶复用/稳定性结果是什么？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A24",
+          "source_id": "ev_c4a60ea5b7b690a3",
+          "record_type": "performance_metric"
+        }
+      ],
+      "expected_answer_facts": [
+        "5"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_026_a25_performance_metric",
+      "kind": "answer_quality",
+      "query": "A25 的固定化脂肪酶复用/稳定性结果是什么？",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A25 的固定化脂肪酶复用/稳定性结果是什么？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A25",
+          "source_id": "ev_17d3cd57dadbe944",
+          "record_type": "performance_metric"
+        }
+      ],
+      "expected_answer_facts": [
+        "5"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_027_a26_performance_metric",
+      "kind": "answer_quality",
+      "query": "A26 的固定化脂肪酶复用/稳定性结果是什么？",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A26 的固定化脂肪酶复用/稳定性结果是什么？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A26",
+          "source_id": "ev_d3a2acb9b278cb22",
+          "record_type": "performance_metric"
+        }
+      ],
+      "expected_answer_facts": [
+        "6"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_028_a3_performance_metric",
+      "kind": "answer_quality",
+      "query": "A3 的固定化脂肪酶复用/稳定性结果是什么？",
+      "enzyme_name": "lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "A3 的固定化脂肪酶复用/稳定性结果是什么？",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A3",
+          "source_id": "ev_ff2a5b6da926906c",
+          "record_type": "performance_metric"
+        }
+      ],
+      "expected_answer_facts": [
+        "5"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_029_b10_table_comparison_row",
+      "kind": "answer_quality",
+      "query": "B10 表格里 B. cepacia lipase 在 Palm oil 上的产率是多少？",
+      "enzyme_name": "B. cepacia lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "B10 表格里 B. cepacia lipase 在 Palm oil 上的产率是多少？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_468d661d56f889c0",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "expected_answer_facts": [
+        "100.0"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_030_b10_table_comparison_row",
+      "kind": "answer_quality",
+      "query": "B10 表格里 Burkholderia sp. C20 B. cepacia lipase 在 Soybean oil 上的产率是多少？",
+      "enzyme_name": "Burkholderia sp. C20 B. cepacia lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "B10 表格里 Burkholderia sp. C20 B. cepacia lipase 在 Soybean oil 上的产率是多少？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_fa38441829810e04",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "expected_answer_facts": [
+        "96.8"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_031_b10_table_comparison_row",
+      "kind": "answer_quality",
+      "query": "B10 表格里 B. cepacia lipase 在 Jatropha oil 上的产率是多少？",
+      "enzyme_name": "B. cepacia lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "B10 表格里 B. cepacia lipase 在 Jatropha oil 上的产率是多少？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_6b667d8aade09354",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "expected_answer_facts": [
+        "94.0"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_032_b10_table_comparison_row",
+      "kind": "answer_quality",
+      "query": "B10 表格里 B. cepacia lipase 在 Soybean oil 上的产率是多少？",
+      "enzyme_name": "B. cepacia lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "B10 表格里 B. cepacia lipase 在 Soybean oil 上的产率是多少？",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_72e1b02a9c86fa8f",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "expected_answer_facts": [
+        "93.4"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_033_b10_table_comparison_row",
+      "kind": "answer_quality",
+      "query": "B10 表格里 Lipase from 在 Olive oil 上的产率是多少？",
+      "enzyme_name": "Lipase from",
+      "objective": "answer_evidence_question",
+      "application_context": "B10 表格里 Lipase from 在 Olive oil 上的产率是多少？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_63ff9c96a08be12d",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "expected_answer_facts": [
+        "92.0"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_034_b10_table_comparison_row",
+      "kind": "answer_quality",
+      "query": "B10 表格里 B. cepacia lipase 在 Waste cooking oil 上的产率是多少？",
+      "enzyme_name": "B. cepacia lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "B10 表格里 B. cepacia lipase 在 Waste cooking oil 上的产率是多少？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_0b82f38960024c84",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "expected_answer_facts": [
+        "91.0"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_035_b10_table_comparison_row",
+      "kind": "answer_quality",
+      "query": "B10 表格里 Novozym 435 在 Refined palm oil 上的产率是多少？",
+      "enzyme_name": "Novozym 435",
+      "objective": "answer_evidence_question",
+      "application_context": "B10 表格里 Novozym 435 在 Refined palm oil 上的产率是多少？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_a2e4044517786e61",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "expected_answer_facts": [
+        "85.0"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_036_b10_table_comparison_row",
+      "kind": "answer_quality",
+      "query": "B10 表格里 P. fluorescens lipase 在 Soybean oil 上的产率是多少？",
+      "enzyme_name": "P. fluorescens lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "B10 表格里 P. fluorescens lipase 在 Soybean oil 上的产率是多少？",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_8a9e0e6da883a4fe",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "expected_answer_facts": [
+        "80.0"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_037_b10_table_comparison_row",
+      "kind": "answer_quality",
+      "query": "B10 表格里 Pseudomonas lipase 在 Sunflower oil 上的产率是多少？",
+      "enzyme_name": "Pseudomonas lipase",
+      "objective": "answer_evidence_question",
+      "application_context": "B10 表格里 Pseudomonas lipase 在 Sunflower oil 上的产率是多少？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_8cd53bbc25358ddc",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "expected_answer_facts": [
+        "79.0"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_038_b10_table_comparison_row",
+      "kind": "answer_quality",
+      "query": "B10 表格里 Candida rugosa 在 Soybean oil 上的产率是多少？",
+      "enzyme_name": "Candida rugosa",
+      "objective": "answer_evidence_question",
+      "application_context": "B10 表格里 Candida rugosa 在 Soybean oil 上的产率是多少？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_f9e9a1333c42c476",
+          "record_type": "table_comparison_row"
+        }
+      ],
+      "expected_answer_facts": [
+        "78.5"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_039_a11_immobilization_strategy",
+      "kind": "answer_quality",
+      "query": "A11 文献推荐的脂肪酶固定化载体/方法是什么？",
+      "enzyme_name": "lipase",
+      "objective": "recommend_best_immobilization_agent",
+      "application_context": "A11 文献推荐的脂肪酶固定化载体/方法是什么？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_defac91240ac11a1",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "expected_answer_facts": [
+        "ZIF-8"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_040_a12_immobilization_strategy",
+      "kind": "answer_quality",
+      "query": "A12 文献推荐的脂肪酶固定化载体/方法是什么？",
+      "enzyme_name": "lipase",
+      "objective": "recommend_best_immobilization_agent",
+      "application_context": "A12 文献推荐的脂肪酶固定化载体/方法是什么？",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_a38a347d351940a1",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "expected_answer_facts": [
+        "ZIF-8"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_041_a15_immobilization_strategy",
+      "kind": "answer_quality",
+      "query": "A15 文献推荐的脂肪酶固定化载体/方法是什么？",
+      "enzyme_name": "lipase",
+      "objective": "recommend_best_immobilization_agent",
+      "application_context": "A15 文献推荐的脂肪酶固定化载体/方法是什么？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_d1eca83f3b4110c9",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "expected_answer_facts": [
+        "ZIF-8"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_042_a15_immobilization_strategy",
+      "kind": "answer_quality",
+      "query": "A15 文献推荐的脂肪酶固定化载体/方法是什么？",
+      "enzyme_name": "lipase",
+      "objective": "recommend_best_immobilization_agent",
+      "application_context": "A15 文献推荐的脂肪酶固定化载体/方法是什么？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_2b1f1968fb70cddd",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "expected_answer_facts": [
+        "ZIF-8"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_043_a15_immobilization_strategy",
+      "kind": "answer_quality",
+      "query": "A15 文献推荐的脂肪酶固定化载体/方法是什么？",
+      "enzyme_name": "lipase",
+      "objective": "recommend_best_immobilization_agent",
+      "application_context": "A15 文献推荐的脂肪酶固定化载体/方法是什么？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_95ceab5605660695",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "expected_answer_facts": [
+        "ZIF-8"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_044_a15_immobilization_strategy",
+      "kind": "answer_quality",
+      "query": "A15 文献推荐的脂肪酶固定化载体/方法是什么？",
+      "enzyme_name": "lipase",
+      "objective": "recommend_best_immobilization_agent",
+      "application_context": "A15 文献推荐的脂肪酶固定化载体/方法是什么？",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_82f1de3ab424c8be",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "expected_answer_facts": [
+        "ZIF-8"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_curated_045_a15_immobilization_strategy",
+      "kind": "answer_quality",
+      "query": "A15 文献推荐的脂肪酶固定化载体/方法是什么？",
+      "enzyme_name": "lipase",
+      "objective": "recommend_best_immobilization_agent",
+      "application_context": "A15 文献推荐的脂肪酶固定化载体/方法是什么？",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Manual-style answer-quality case anchored to a curated evidence record and deterministic fact substring.",
+      "expected_evidence": [
+        {
+          "document_id": "A15",
+          "source_id": "ev_6bc6fed060fb9f7f",
+          "record_type": "immobilization_strategy"
+        }
+      ],
+      "expected_answer_facts": [
+        "ZIF-8"
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_cn_alias_calb_recommend",
+      "kind": "answer_quality",
+      "query": "南极假丝酵母脂肪酶B 推荐固定化载体，优先看 Cu-BTC 或 MOF 证据。",
+      "enzyme_name": "南极假丝酵母脂肪酶B",
+      "objective": "recommend_best_immobilization_agent",
+      "application_context": "南极假丝酵母脂肪酶B 推荐固定化载体，优先看 Cu-BTC 或 MOF 证据。",
+      "difficulty": "medium",
+      "source": "regression_bug",
+      "construction_note": "Chinese CALB recommendation regression; evidence anchored to A12 CAL-B@Cu-BTC instead of generic lipase.",
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_facts": 0,
+        "forbid_global_optimum": true
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "text_contains_any": [
+            "Cu-BTC",
+            "CAL-B@Cu-BTC",
+            "Candida antarctica"
+          ]
+        }
+      ],
+      "expected_answer_facts": [],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_cn_alias_crl_recommend",
+      "kind": "answer_quality",
+      "query": "皱褶假丝酵母脂肪酶用什么固定化材料更稳？请基于 CRL 证据回答。",
+      "enzyme_name": "皱褶假丝酵母脂肪酶",
+      "objective": "recommend_best_immobilization_agent",
+      "application_context": "皱褶假丝酵母脂肪酶用什么固定化材料更稳？请基于 CRL 证据回答。",
+      "difficulty": "medium",
+      "source": "regression_bug",
+      "construction_note": "Chinese CRL recommendation regression; evidence anchored to CRL MNP@ZIF-8 / magnetic MOF literature.",
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_facts": 0,
+        "forbid_global_optimum": true
+      },
+      "expected_evidence": [
+        {
+          "text_contains_any": [
+            "Candida rugosa",
+            "CRL",
+            "MNP@ZIF-8",
+            "magnetic"
+          ]
+        }
+      ],
+      "expected_answer_facts": [],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_cn_alias_pseudomonas_recommend",
+      "kind": "answer_quality",
+      "query": "假单胞菌脂肪酶 推荐固定化载体，关注活性回收和复用。",
+      "enzyme_name": "假单胞菌脂肪酶",
+      "objective": "recommend_best_immobilization_agent",
+      "application_context": "假单胞菌脂肪酶 推荐固定化载体，关注活性回收和复用。",
+      "difficulty": "medium",
+      "source": "regression_bug",
+      "construction_note": "Chinese Pseudomonas/PFL recommendation regression; should resolve to Pseudomonas lipase evidence, not generic lipase only.",
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_facts": 0,
+        "forbid_global_optimum": true
+      },
+      "expected_evidence": [
+        {
+          "text_contains_any": [
+            "Pseudomonas lipase",
+            "P. fluorescens lipase",
+            "PFL",
+            "activity recovery"
+          ]
+        }
+      ],
+      "expected_answer_facts": [],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "aq_cn_alias_tll_recommend",
+      "kind": "answer_quality",
+      "query": "疏棉状嗜热丝孢菌脂肪酶适合什么固定化方法？",
+      "enzyme_name": "疏棉状嗜热丝孢菌脂肪酶",
+      "objective": "recommend_best_immobilization_agent",
+      "application_context": "疏棉状嗜热丝孢菌脂肪酶适合什么固定化方法？优先看 TLL 或 Thermomyces lanuginosus 证据。",
+      "difficulty": "medium",
+      "source": "regression_bug",
+      "construction_note": "Chinese TLL recommendation regression; expected evidence comes from A14 HA/GL/Li-MOF TLL literature or related TLL rows.",
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_facts": 0,
+        "forbid_global_optimum": true
+      },
+      "expected_evidence": [
+        {
+          "text_contains_any": [
+            "TLL",
+            "Thermomyces lanuginosus",
+            "HA/GL/Li-MOF",
+            "Li-MOF"
+          ]
+        }
+      ],
+      "expected_answer_facts": [],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    }
+  ]
+}

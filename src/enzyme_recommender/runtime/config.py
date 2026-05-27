@@ -51,6 +51,8 @@ class EmbeddingConfig(StrictBaseModel):
 class RetrievalConfig(StrictBaseModel):
     top_k: int = Field(default=8, ge=1, le=100)
     usable_only: bool = True
+    formulation_candidate_multiplier: int = Field(default=16, ge=1, le=40)
+    formulation_candidate_min: int = Field(default=80, ge=1, le=200)
 
 
 class GeneratorProviderConfig(StrictBaseModel):

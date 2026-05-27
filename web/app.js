@@ -240,11 +240,54 @@ function buildOptimizePayload(rawInput) {
   };
 }
 
+const ENZYME_NAME_ALIASES = [
+  {
+    pattern: /伯克霍尔德(?:菌)?脂肪酶|伯克霍尔德|Burkholderia(?:\s+cepacia)?\s+lipase|\bBCL\b/i,
+    canonical: "Burkholderia cepacia lipase",
+  },
+  {
+    pattern: /假单胞菌脂肪酶|假单胞菌|Pseudomonas(?:\s+\w+)?\s+lipase|\bPFL\b/i,
+    canonical: "Pseudomonas lipase",
+  },
+  {
+    pattern: /南极假丝酵母脂肪酶\s*B?|南极假丝酵母|Candida\s+antarctica\s+lipase\s+B|\bCAL-?B\b/i,
+    canonical: "Candida antarctica lipase B",
+  },
+  {
+    pattern: /皱褶假丝酵母脂肪酶|皱褶假丝酵母|Candida\s+rugosa\s+lipase|\bCRL\b/i,
+    canonical: "Candida rugosa lipase",
+  },
+  {
+    pattern: /猪胰(?:腺)?脂肪酶|porcine\s+pancreatic\s+lipase|\bPPL\b/i,
+    canonical: "porcine pancreatic lipase",
+  },
+  {
+    pattern: /米根霉脂肪酶|米黑根毛霉脂肪酶|Rhizomucor\s+miehei\s+lipase|\bRML\b/i,
+    canonical: "Rhizomucor miehei lipase",
+  },
+  {
+    pattern: /疏棉状嗜热丝孢菌脂肪酶|嗜热真菌脂肪酶|Thermomyces\s+lanuginosus\s+lipase|\bTLL\b/i,
+    canonical: "Thermomyces lanuginosus lipase",
+  },
+];
+
 function extractEnzymeName(rawInput) {
-  const knownNames = ["Burkholderia cepacia lipase", "BCL", "lipase"];
-  const lower = rawInput.toLowerCase();
+  const value = String(rawInput || "").trim();
+  const matchedAlias = ENZYME_NAME_ALIASES.find((item) => item.pattern.test(value));
+  if (matchedAlias) return matchedAlias.canonical;
+
+  const knownNames = [
+    "Burkholderia cepacia lipase",
+    "Candida antarctica lipase B",
+    "Candida rugosa lipase",
+    "Pseudomonas lipase",
+    "porcine pancreatic lipase",
+    "Rhizomucor miehei lipase",
+    "Thermomyces lanuginosus lipase",
+  ];
+  const lower = value.toLowerCase();
   const match = knownNames.find((name) => lower.includes(name.toLowerCase()));
-  return match === "BCL" ? "Burkholderia cepacia lipase" : match || rawInput.split(/[，,。.\n]/)[0].trim();
+  return match || value.split(/[，,。.\n]/)[0].trim();
 }
 
 function hasRecommendationIntent(rawInput) {
