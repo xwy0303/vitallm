@@ -14,6 +14,11 @@ from enzyme_recommender.ingestion.registry import (
     IngestionRegistry,
     safe_identifier,
 )
+from enzyme_recommender.ingestion.state_machine import (
+    assert_transition,
+    failure_status_for_stage,
+    stages_from,
+)
 from enzyme_recommender.rag import build_rag_inputs
 from enzyme_recommender.rag.artifacts import find_mineru_auto_dir, write_json, write_jsonl
 from enzyme_recommender.rag.embedding import (
@@ -71,6 +76,7 @@ class IngestionPipeline:
         document_id: str,
         job: Optional[IngestionJob] = None,
         reindex_only: Optional[bool] = None,
+        resume_from_stage: Optional[str] = None,
     ) -> IngestionRunResult:
         document = self.registry.get_document(document_id)
         if document is None:
@@ -78,19 +84,76 @@ class IngestionPipeline:
         job = job or self.registry.create_job(document)
         effective_reindex_only = self.options.reindex_only if reindex_only is None else reindex_only
 
-        job = self.registry.update_job(job, stage="mineru_parse", status="running")
+        start_stage = resume_from_stage or "mineru_parse"
+        if effective_reindex_only and resume_from_stage is None:
+            start_stage = "rag_build"
+        job = self.registry.update_job(job, stage=start_stage, status="running")
         try:
-            if effective_reindex_only:
-                artifact_dir = require_existing_path(document.active_artifact_dir, "active_artifact_dir")
-            elif self.options.skip_mineru and (cached_artifact_dir := resolve_existing_artifact_dir(document)):
-                artifact_dir = cached_artifact_dir
-            else:
-                document, artifact_dir = self.run_mineru(document, job)
+            artifact_dir: Optional[Path] = None
+            rag_dir: Optional[Path] = None
+            evidence_dir: Optional[Path] = None
+            point_counts: Dict[str, int] = {}
 
-            document, rag_dir = self.build_rag(document, artifact_dir, job)
-            document, evidence_dir = self.extract_evidence(document, rag_dir, job)
-            document, point_counts = self.index_document(document, rag_dir, evidence_dir, job)
-            document = self.verify_retrieval(document, point_counts, job)
+            if "mineru_parse" in stages_from(start_stage):
+                if start_stage == "mineru_parse":
+                    if self.options.skip_mineru and (
+                        cached_artifact_dir := resolve_existing_artifact_dir(document, self.options.artifact_root)
+                    ):
+                        artifact_dir = cached_artifact_dir
+                        document = self.update_document_status(
+                            document,
+                            status="mineru_succeeded",
+                            allow_recovery=True,
+                            active_artifact_dir=str(artifact_dir),
+                            active_artifact_version=parser_version(self.runtime),
+                            last_error_code=None,
+                            last_error_message=None,
+                        )
+                    else:
+                        document, artifact_dir = self.run_mineru(document, job)
+                else:
+                    artifact_dir = resolve_existing_artifact_dir(document, self.options.artifact_root)
+
+            if "rag_build" in stages_from(start_stage):
+                if start_stage in {"mineru_parse", "rag_build"}:
+                    artifact_dir = artifact_dir or resolve_existing_artifact_dir(document, self.options.artifact_root)
+                    if artifact_dir is None:
+                        raise FileNotFoundError(f"no reusable MinerU artifact found for {document.document_id}")
+                    if document.current_status not in {"mineru_succeeded", "rag_built", "evidence_extracted", "indexed", "retrieval_verified", "searchable", "needs_review"}:
+                        document = self.update_document_status(
+                            document,
+                            status="mineru_succeeded",
+                            allow_recovery=True,
+                            active_artifact_dir=str(artifact_dir),
+                            active_artifact_version=parser_version(self.runtime),
+                            last_error_code=None,
+                            last_error_message=None,
+                        )
+                    document, rag_dir = self.build_rag(document, artifact_dir, job)
+                else:
+                    rag_dir = resolve_existing_rag_dir(document, self.options.artifact_root)
+
+            if "evidence_extract" in stages_from(start_stage):
+                if start_stage in {"mineru_parse", "rag_build", "evidence_extract"}:
+                    rag_dir = rag_dir or resolve_existing_rag_dir(document, self.options.artifact_root)
+                    if rag_dir is None:
+                        raise FileNotFoundError(f"no reusable RAG inputs found for {document.document_id}")
+                    document, evidence_dir = self.extract_evidence(document, rag_dir, job)
+                else:
+                    evidence_dir = resolve_existing_evidence_dir(document, self.options.artifact_root)
+
+            if "qdrant_index" in stages_from(start_stage):
+                if start_stage in {"mineru_parse", "rag_build", "evidence_extract", "qdrant_index"}:
+                    rag_dir = rag_dir or resolve_existing_rag_dir(document, self.options.artifact_root)
+                    evidence_dir = evidence_dir or resolve_existing_evidence_dir(document, self.options.artifact_root)
+                    if rag_dir is None:
+                        raise FileNotFoundError(f"no reusable RAG inputs found for {document.document_id}")
+                    if evidence_dir is None:
+                        raise FileNotFoundError(f"no reusable evidence records found for {document.document_id}")
+                    document, point_counts = self.index_document(document, rag_dir, evidence_dir, job)
+
+            if "retrieval_verify" in stages_from(start_stage):
+                document = self.verify_retrieval(document, point_counts, job)
             job = self.registry.update_job(
                 job,
                 stage="complete",
@@ -106,9 +169,10 @@ class IngestionPipeline:
         except Exception as exc:
             latest_job = self.registry.load_jobs().get(job.job_id, job)
             status, stage = classify_failure(latest_job.stage)
-            document = self.registry.update_document(
+            document = self.update_document_status(
                 document,
                 status=status,
+                allow_recovery=True,
                 last_error_code=stage,
                 last_error_message=str(exc),
             )
@@ -124,7 +188,7 @@ class IngestionPipeline:
         manifest = client.build_manifest(task_id, [pdf_path], options=options, raw_submit_response=payload)
         manifest.artifact_dir = str(artifact_dir)
         client.write_manifest(manifest, artifact_dir)
-        document = self.registry.update_document(
+        document = self.update_document_status(
             document,
             status="mineru_submitted",
             active_task_id=task_id,
@@ -149,7 +213,7 @@ class IngestionPipeline:
         else:
             artifact_source_dir = artifact_dir
         auto_dir = find_mineru_auto_dir(artifact_source_dir)
-        document = self.registry.update_document(
+        document = self.update_document_status(
             document,
             status="mineru_succeeded",
             active_task_id=task_id,
@@ -171,6 +235,7 @@ class IngestionPipeline:
             source_pdf=document.source_pdf,
             document_id=document.document_id,
             artifact_root=self.options.artifact_root,
+            fallback_manifest_path=resolve_job_fallback_manifest(job),
         )
         if not self.options.dry_run:
             rag_dir.mkdir(parents=True, exist_ok=True)
@@ -178,9 +243,10 @@ class IngestionPipeline:
             write_jsonl(rag_dir / "rag_chunks.jsonl", outputs["rag_chunks"])
             write_jsonl(rag_dir / "table_records.jsonl", outputs["table_records"])
             write_jsonl(rag_dir / "extraction_candidates.jsonl", outputs["extraction_candidates"])
-        document = self.registry.update_document(
+        document = self.update_document_status(
             document,
             status="rag_built",
+            allow_recovery=True,
             active_rag_dir=str(rag_dir),
             last_error_code=None,
             last_error_message=None,
@@ -208,9 +274,10 @@ class IngestionPipeline:
             write_jsonl(evidence_dir / "review_queue.jsonl", outputs["review_queue"])
             write_json(evidence_dir / "validation_report.json", outputs["validation_report"])
         report = outputs["validation_report"]
-        document = self.registry.update_document(
+        document = self.update_document_status(
             document,
             status="evidence_extracted",
+            allow_recovery=True,
             active_evidence_dir=str(evidence_dir),
             last_error_code=None,
             last_error_message=None,
@@ -275,9 +342,10 @@ class IngestionPipeline:
                 embedding_model=embedding_model.name,
                 embedding_dimensions=embedding_model.dimensions,
             )
-        document = self.registry.update_document(
+        document = self.update_document_status(
             document,
             status="indexed",
+            allow_recovery=True,
             active_collection=index_identity.collection,
             active_index_version=index_identity.index_version,
             last_error_code=None,
@@ -304,7 +372,7 @@ class IngestionPipeline:
     ) -> IngestionDocument:
         self.registry.update_job(job, stage="retrieval_verify", status="running")
         if self.options.dry_run:
-            return self.registry.update_document(document, status="retrieval_verified")
+            return self.update_document_status(document, status="retrieval_verified", allow_recovery=True)
         total_points = 0
         payloads: list[dict[str, Any]] = []
         with QdrantRestClient(self.runtime.qdrant_config()) as client:
@@ -318,10 +386,21 @@ class IngestionPipeline:
         source_pdfs = {payload.get("source_pdf") for payload in payloads if payload.get("source_pdf")}
         if document.source_pdf not in source_pdfs:
             raise RuntimeError(f"retrieval verification failed: source_pdf mismatch for {document.document_id}")
+        if not point_counts:
+            point_counts = count_payload_point_types(payloads)
         verified_status = "searchable"
         if point_counts.get("evidence_record", 0) == 0:
             verified_status = "needs_review"
-        document = self.registry.update_document(document, status=verified_status)
+        embedding_model = build_embedding_model(self.runtime)
+        document = self.update_document_status(
+            document,
+            status=verified_status,
+            allow_recovery=True,
+            active_collection=self.runtime.qdrant_config().collection,
+            active_index_version=build_index_version(embedding_model),
+            last_error_code=None,
+            last_error_message=None,
+        )
         self.registry.update_job(
             job,
             stage="retrieval_verify",
@@ -332,6 +411,17 @@ class IngestionPipeline:
 
     def mineru_artifact_root(self, document: IngestionDocument, task_id: str) -> Path:
         return self.options.artifact_root / "mineru" / document.document_id / task_id
+
+    def update_document_status(
+        self,
+        document: IngestionDocument,
+        status: str,
+        allow_recovery: bool = False,
+        **fields: Any,
+    ) -> IngestionDocument:
+        latest = self.registry.get_document(document.document_id) or document
+        assert_transition(latest.current_status, status, allow_recovery=allow_recovery)
+        return self.registry.update_document(latest, status=status, **fields)
 
 
 def build_embedding_model(runtime: RuntimeServices) -> HashEmbeddingModel | SentenceEmbeddingModel:
@@ -351,18 +441,24 @@ def document_filter(document_id: str) -> Dict[str, Any]:
     return {"must": [{"key": "document_id", "match": {"value": document_id}}]}
 
 
+def count_payload_point_types(payloads: list[dict[str, Any]]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for payload in payloads:
+        point_type = str(payload.get("point_type") or "unknown")
+        counts[point_type] = counts.get(point_type, 0) + 1
+    return counts
+
+
 def classify_failure(stage: str) -> tuple[str, str]:
-    if stage == "mineru_parse":
-        return "failed_mineru", "failed_mineru"
-    if stage == "rag_build":
-        return "failed_rag_build", "failed_rag_build"
-    if stage == "evidence_extract":
-        return "failed_evidence", "failed_evidence"
-    if stage == "qdrant_index":
-        return "failed_indexing", "failed_indexing"
-    if stage == "retrieval_verify":
-        return "failed_retrieval_verification", "failed_retrieval_verification"
-    return "failed_upload_validation", "failed_upload_validation"
+    status = failure_status_for_stage(stage)
+    return status, status
+
+
+def resolve_job_fallback_manifest(job: IngestionJob) -> Optional[Path]:
+    value = job.metadata.get("fallback_manifest")
+    if not value:
+        return None
+    return Path(str(value)).expanduser()
 
 
 def require_existing_path(value: Optional[str], field_name: str) -> Path:
@@ -381,16 +477,43 @@ def resolve_document_pdf_path(value: str) -> Path:
     return path.resolve()
 
 
-def resolve_existing_artifact_dir(document: IngestionDocument) -> Optional[Path]:
-    if not document.active_artifact_dir:
-        return None
-    path = Path(document.active_artifact_dir)
-    if not path.is_dir():
-        return None
-    try:
-        return find_mineru_auto_dir(path)
-    except (FileNotFoundError, ValueError):
-        return None
+def resolve_existing_artifact_dir(document: IngestionDocument, artifact_root: Path) -> Optional[Path]:
+    candidates: list[Path] = []
+    if document.active_artifact_dir:
+        candidates.append(Path(document.active_artifact_dir))
+    standard_root = artifact_root / "mineru" / document.document_id
+    if standard_root.is_dir():
+        candidates.extend(sorted(path for path in standard_root.iterdir() if path.is_dir()))
+    for path in candidates:
+        if not path.is_dir():
+            continue
+        try:
+            return find_mineru_auto_dir(path)
+        except (FileNotFoundError, ValueError):
+            continue
+    return None
+
+
+def resolve_existing_rag_dir(document: IngestionDocument, artifact_root: Path) -> Optional[Path]:
+    candidates = []
+    if document.active_rag_dir:
+        candidates.append(Path(document.active_rag_dir))
+    candidates.append(artifact_root / "rag_inputs" / document.document_id)
+    for path in candidates:
+        if (path / "rag_chunks.jsonl").is_file() and (path / "document_manifest.json").is_file():
+            return path
+    return None
+
+
+def resolve_existing_evidence_dir(document: IngestionDocument, artifact_root: Path) -> Optional[Path]:
+    candidates = []
+    if document.active_evidence_dir:
+        candidates.append(Path(document.active_evidence_dir))
+    candidates.append(artifact_root / "evidence" / document.document_id)
+    for path in candidates:
+        if (path / "evidence_records.jsonl").is_file():
+            return path
+    return None
 
 
 def extract_zip_safe(zip_path: Path, target_dir: Path) -> None:
