@@ -571,12 +571,14 @@ def evaluate_citation_check(endpoint_result: EndpointResult, behavior: Dict[str,
     if endpoint_result.generation_skipped:
         return True
     requires_citations = bool(behavior.get("requires_citations"))
-    if requires_citations and not endpoint_result.citations:
+    inline_citations = collect_inline_reference_citations(endpoint_result)
+    all_citations = sorted(set(endpoint_result.citations) | set(inline_citations))
+    if requires_citations and not all_citations:
         return False
-    if not endpoint_result.citations:
+    if not all_citations:
         return True
     retrieved_citations = {hit.citation for hit in endpoint_result.evidence_hits if hit.citation}
-    return all(citation in retrieved_citations for citation in endpoint_result.citations)
+    return all(citation in retrieved_citations for citation in all_citations)
 
 
 def evaluate_no_answer(endpoint_result: EndpointResult, behavior: Dict[str, Any], text: str) -> Dict[str, Any]:
@@ -987,7 +989,7 @@ def compact_actual(endpoint_result: EndpointResult) -> Dict[str, Any]:
         "stream_text": endpoint_result.stream_text[:1200],
         "candidates_count": len(endpoint_result.candidates),
         "changes_count": len(endpoint_result.changes),
-        "citations": endpoint_result.citations,
+        "citations": sorted(set(endpoint_result.citations) | set(collect_inline_reference_citations(endpoint_result))),
         "next_experiment_suggestions_count": len(endpoint_result.next_experiment_suggestions),
     }
 
@@ -1000,6 +1002,18 @@ def collect_citations(items: Iterable[Any]) -> List[str]:
         for citation in item.get("citations") or []:
             if citation:
                 citations.append(str(citation))
+    return sorted(set(citations))
+
+
+def collect_inline_reference_citations(endpoint_result: EndpointResult) -> List[str]:
+    text = "\n".join([endpoint_result.generated_text or "", endpoint_result.stream_text or ""])
+    citations = []
+    for raw_ref in re.findall(r"\[(\d{1,2})\]", text):
+        index = int(raw_ref) - 1
+        if 0 <= index < len(endpoint_result.evidence_hits):
+            citation = endpoint_result.evidence_hits[index].citation
+            if citation:
+                citations.append(citation)
     return sorted(set(citations))
 
 
