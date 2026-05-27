@@ -4,14 +4,21 @@ import hashlib
 import json
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from enzyme_recommender.generators import ChatMessage, GenerationRequest, GenerationResponse
+from enzyme_recommender.rag.enzyme_aliases import matched_enzyme_alias_terms
 from enzyme_recommender.rag.retrieval import RetrievalHit, RetrievalResponse
-from enzyme_recommender.rag.query_guard import expand_query_for_retrieval
-from enzyme_recommender.recommendation.enzyme import parse_json_object, resolve_evidence_refs
+from enzyme_recommender.recommendation.enzyme import (
+    SpecificEnzymeAliasContext,
+    hit_supports_specific_enzyme_alias,
+    parse_json_object,
+    refs_support_specific_enzyme_alias,
+    resolve_evidence_refs,
+    specific_enzyme_alias_context_from_request,
+)
 from enzyme_recommender.runtime import RuntimeServices
 
 
@@ -81,13 +88,23 @@ class FormulationOptimizationService:
 
     def retrieve_evidence(self, request: FormulationOptimizationRequest) -> RetrievalResponse:
         retrieval_query = build_formulation_retrieval_query(request)
+        requested_top_k = request.top_k or self.runtime.config.retrieval.top_k
+        retrieval_top_k = max(
+            requested_top_k * self.runtime.config.retrieval.formulation_candidate_multiplier,
+            self.runtime.config.retrieval.formulation_candidate_min,
+        )
         retrieval = self.runtime.retriever().retrieve(
             query=retrieval_query,
-            top_k=request.top_k or self.runtime.config.retrieval.top_k,
+            top_k=retrieval_top_k,
             usable_only=self.runtime.config.retrieval.usable_only,
         )
-        retrieval = supplement_bcl_zif8_formulation_hits(self.runtime, request, retrieval, retrieval_query)
-        return boost_formulation_hits(request, retrieval)
+        document_scoped = bool(retrieval.query_plan and retrieval.query_plan.document_scope)
+        prioritized_hits = prioritize_formulation_hits(
+            retrieval.hits,
+            query=retrieval_query,
+            document_scoped=document_scoped,
+        )
+        return retrieval.model_copy(update={"top_k": requested_top_k, "hits": prioritized_hits[:requested_top_k]})
 
     def build_generation_request(
         self,
@@ -132,7 +149,14 @@ class FormulationOptimizationService:
         generation: GenerationResponse,
     ) -> FormulationOptimizationResponse:
         generation_json = parse_json_object(generation.content)
-        changes = build_changes_from_generation_or_evidence(generation_json, request, retrieval)
+        alias_context = specific_enzyme_alias_context_from_request(
+            enzyme_name=request.enzyme_name,
+            application_context=request.application_context,
+            constraints=request.constraints,
+            objective=request.objective,
+            retrieval=retrieval,
+        )
+        changes = build_changes_from_generation_or_evidence(generation_json, request, retrieval, alias_context)
         return FormulationOptimizationResponse(
             optimization_id=make_optimization_id(request, retrieval),
             created_at=datetime.now(timezone.utc).isoformat(),
@@ -145,8 +169,13 @@ class FormulationOptimizationService:
             evidence_hits=retrieval.hits,
             generation_content=generation.content,
             generation_json=generation_json,
-            limitations=build_optimization_limitations(generation, retrieval, changes, generation_json),
-            next_experiment_suggestions=build_optimization_experiment_suggestions(changes, retrieval, generation_json),
+            limitations=build_optimization_limitations(generation, retrieval, changes, generation_json, alias_context),
+            next_experiment_suggestions=build_optimization_experiment_suggestions(
+                changes,
+                retrieval,
+                generation_json,
+                alias_context,
+            ),
         )
 
     def _generate_optimization(
@@ -176,86 +205,7 @@ def build_formulation_retrieval_query(request: FormulationOptimizationRequest) -
         formulation_text,
         "immobilization formulation conditions enzyme loading carrier amount pH temperature time activity recovery yield reusability",
     ]
-    return expand_query_for_retrieval(" ".join(part for part in parts if part).strip())
-
-
-def boost_formulation_hits(
-    request: FormulationOptimizationRequest,
-    retrieval: RetrievalResponse,
-) -> RetrievalResponse:
-    if not retrieval.hits:
-        return retrieval
-    query_text = " ".join(
-        [
-            request.enzyme_name,
-            request.application_context or "",
-            " ".join(request.constraints),
-            json.dumps(request.user_formulation, ensure_ascii=False, sort_keys=True),
-        ]
-    )
-    adjusted = []
-    for hit in retrieval.hits:
-        score = hit.score
-        if hit.record_type == "formulation_condition":
-            score += 0.24
-        if hit.record_type == "formulation_condition" and hit.document_id == "B10" and re.search(
-            r"\b(?:BCL|Burkholderia|ZIF-?8|ZIF8)\b|伯克霍尔德",
-            query_text,
-            re.I,
-        ):
-            score += 0.42
-            if is_b10_optimal_condition_hit(hit):
-                score += 0.36
-        if hit.document_id == "B10" and re.search(r"\b(?:BCL|Burkholderia|ZIF-?8|ZIF8)\b|伯克霍尔德", query_text, re.I):
-            score += 0.34
-        if hit.record_type == "table_comparison_row":
-            score -= 0.12
-        adjusted.append(hit.model_copy(update={"score": score, "rerank_score": score}))
-    return retrieval.model_copy(
-        update={
-            "hits": sorted(
-                adjusted,
-                key=lambda item: item.rerank_score if item.rerank_score is not None else item.score,
-                reverse=True,
-            )[: retrieval.top_k]
-        }
-    )
-
-
-def supplement_bcl_zif8_formulation_hits(
-    runtime: RuntimeServices,
-    request: FormulationOptimizationRequest,
-    retrieval: RetrievalResponse,
-    retrieval_query: str,
-) -> RetrievalResponse:
-    if not is_bcl_zif8_request(request):
-        return retrieval
-    supplement = runtime.retriever().retrieve_document_scope(
-        query=f"{retrieval_query} BCL-ZIF-8 loading 700 mg adsorption time 30 min pH value 7.5",
-        document_id="B10",
-        source_pdf="B10.pdf",
-        top_k=max(retrieval.top_k, 8),
-        include_review=False,
-    )
-    merged = {hit.source_id: hit for hit in retrieval.hits}
-    for hit in supplement.hits:
-        if hit.source_id not in merged:
-            merged[hit.source_id] = hit
-    return retrieval.model_copy(update={"hits": list(merged.values())})
-
-
-def is_bcl_zif8_request(request: FormulationOptimizationRequest) -> bool:
-    text = " ".join(
-        [
-            request.enzyme_name,
-            request.application_context or "",
-            " ".join(request.constraints),
-            json.dumps(request.user_formulation, ensure_ascii=False, sort_keys=True),
-        ]
-    )
-    return bool(re.search(r"\b(?:BCL|Burkholderia|ZIF-?8|ZIF8)\b|伯克霍尔德", text, re.I)) and bool(
-        re.search(r"\b(?:ZIF-?8|ZIF8)\b", text, re.I)
-    )
+    return " ".join(part for part in parts if part).strip()
 
 
 def build_optimization_prompt(request: FormulationOptimizationRequest, retrieval: RetrievalResponse) -> str:
@@ -303,7 +253,9 @@ def build_changes_from_generation_or_evidence(
     generation_json: Optional[Dict[str, Any]],
     request: FormulationOptimizationRequest,
     retrieval: RetrievalResponse,
+    alias_context: Optional[SpecificEnzymeAliasContext] = None,
 ) -> List[FormulationChange]:
+    specific_alias_keys = alias_context.alias_keys if alias_context and alias_context.enabled else frozenset()
     if generation_json and isinstance(generation_json.get("changes"), list):
         changes = []
         for raw_change in generation_json["changes"]:
@@ -312,6 +264,8 @@ def build_changes_from_generation_or_evidence(
             raw_change = sanitize_generation_change(raw_change, retrieval)
             if not raw_change["evidence_ids"] and not raw_change["citations"]:
                 continue
+            if not refs_support_specific_enzyme_alias(raw_change, retrieval, specific_alias_keys):
+                continue
             try:
                 changes.append(FormulationChange.model_validate(raw_change))
             except ValueError:
@@ -319,7 +273,7 @@ def build_changes_from_generation_or_evidence(
         if changes:
             return changes
 
-    reference_items = collect_reference_items(retrieval)
+    reference_items = collect_reference_items(retrieval, specific_alias_keys=specific_alias_keys)
     current_by_alias = flatten_with_aliases(request.user_formulation)
     changes: List[FormulationChange] = []
     seen_fields: set[str] = set()
@@ -390,51 +344,355 @@ CONDITION_KEYS = {
 }
 
 
-def collect_reference_items(retrieval: RetrievalResponse) -> List[ReferenceItem]:
+def collect_reference_items(
+    retrieval: RetrievalResponse,
+    specific_alias_keys: Optional[frozenset[str]] = None,
+) -> List[ReferenceItem]:
     items: List[ReferenceItem] = []
     for hit in retrieval.hits:
+        if not hit_supports_specific_enzyme_alias(hit, specific_alias_keys or frozenset()):
+            continue
         if hit.record_type not in {"formulation_condition", "immobilization_strategy", "table_comparison_row"}:
             continue
         for key, value in hit.extracted.items():
             if key not in CONDITION_KEYS or value is None or value == "" or value == []:
                 continue
             items.append(ReferenceItem(key=key, value=value, hit=hit))
-    items.sort(key=reference_item_sort_key)
     return items
 
 
-def reference_item_sort_key(item: ReferenceItem) -> tuple[int, int, int, str]:
-    priority = {
-        "enzyme_loading": 0,
-        "pH": 1,
-        "ph": 1,
-        "adsorption_time": 2,
-        "immobilization_time": 2,
-        "immobilization_temperature": 3,
-        "temperature": 3,
-        "carrier": 4,
-        "carrier_variant": 4,
-        "immobilization_method": 5,
+def prioritize_formulation_hits(
+    hits: List[RetrievalHit],
+    query: str = "",
+    document_scoped: bool = False,
+) -> List[RetrievalHit]:
+    def key(hit: RetrievalHit) -> tuple[int, int, float, int]:
+        if hit.record_type == "formulation_condition":
+            record_rank = 0
+        elif hit.record_type == "immobilization_strategy":
+            record_rank = 1
+        elif hit.record_type == "table_comparison_row":
+            record_rank = 2
+        else:
+            record_rank = 3
+        has_condition_fields = int(not any(field in hit.extracted for field in CONDITION_KEYS))
+        page = hit.page_start if hit.page_start is not None else 10_000
+        score = hit.rerank_score if hit.rerank_score is not None else hit.score
+        if document_scoped:
+            return (record_rank, has_condition_fields, float(page), int(-float(score) * 1_000_000))
+        return (record_rank, has_condition_fields, -formulation_query_match_score(query, hit, float(score)), page)
+
+    return sorted(hits, key=key)
+
+
+def formulation_query_match_score(query: str, hit: RetrievalHit, base_score: float) -> float:
+    text = formulation_hit_text(hit)
+    query_terms = formulation_match_terms(query)
+    text_terms = formulation_match_terms(text)
+    bonus = 0.0
+    entity_overlap = query_terms["entities"] & text_terms["entities"]
+    condition_overlap = query_terms["conditions"] & text_terms["conditions"]
+    protein_overlap = query_terms["proteins"] & text_terms["proteins"]
+    material_overlap = query_terms["materials"] & text_terms["materials"]
+    numeric_condition_overlap = query_terms["numeric_conditions"] & text_terms["numeric_conditions"]
+    numeric_overlap = query_terms["numeric"] & text_terms["numeric"]
+    construct_overlap = query_terms["constructs"] & text_terms["constructs"]
+    bonus += min(0.18, 0.06 * len(entity_overlap))
+    bonus += min(0.12, 0.035 * len(numeric_overlap))
+    bonus += min(0.28, 0.14 * len(numeric_condition_overlap))
+    bonus += min(0.18, 0.045 * len(condition_overlap))
+    bonus += min(0.24, 0.12 * len(protein_overlap))
+    bonus += min(0.18, 0.06 * len(material_overlap))
+    bonus += min(0.48, 0.32 * len(construct_overlap))
+    extracted = hit.extracted if isinstance(hit.extracted, dict) else {}
+    if "loading" in query_terms["conditions"] and extracted.get("enzyme_loading") is not None:
+        bonus += 0.18
+    if "time" in query_terms["conditions"] and (
+        extracted.get("adsorption_time") is not None or extracted.get("immobilization_time") is not None
+    ):
+        bonus += 0.18
+    return base_score + bonus
+
+
+FORMULATION_HYPHEN_TRANSLATION = str.maketrans(
+    {
+        "\u2010": "-",
+        "\u2011": "-",
+        "\u2012": "-",
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2015": "-",
+        "\u2212": "-",
     }
-    b10_bonus = 0 if item.hit.document_id == "B10" else 1
-    specificity_bonus = 0 if is_b10_optimal_condition_hit(item.hit) else 1
-    return (b10_bonus, specificity_bonus, priority.get(item.key, 20), item.key)
+)
+FORMULATION_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9@+\-/\.]{1,}|[0-9]+(?:\.[0-9]+)?%?", re.I)
+FORMULATION_ENTITY_RE = re.compile(
+    r"\b(?:[A-Za-z]{1,8}\s*@\s*)?[A-Za-z0-9]+(?:[-/][A-Za-z0-9]+)+(?:[-/][A-Za-z0-9]+)*\b",
+    re.I,
+)
+FORMULATION_MATERIAL_RE = re.compile(
+    r"\b(?:"
+    r"zif-?\d+|uio-?\d+(?:-nh2)?|mil-?\d+[a-z]?|mof-?\d+|bio-mof|hkust-?\d+|"
+    r"cu-btc|zn-btc|fe3o4|mcm-?\d+|nkmof-?\d+(?:-[a-z0-9]+)?|nu-?\d+|"
+    r"mofs?|mnp|magnetic|sds|peg|carrier|support"
+    r")\b",
+    re.I,
+)
+FORMULATION_CONDITION_VALUE_PATTERNS = [
+    ("ph", re.compile(r"\bph\s*(?:value\s*)?(?:of\s*)?[:=]?\s*(\d+(?:\.\d+)?)", re.I)),
+    ("temperature", re.compile(r"\b(\d+(?:\.\d+)?)\s*(?:degc|°c|c)\b", re.I)),
+    ("time", re.compile(r"\b(\d+(?:\.\d+)?)\s*(?:min|mins|minute|minutes|h|hr|hrs|hour|hours)\b", re.I)),
+    ("loading", re.compile(r"\b(\d+(?:\.\d+)?)\s*(?:mg/g|mg\s*/\s*g|mg|g)\b", re.I)),
+]
+FORMULATION_CONDITION_ALIASES = {
+    "loading": "loading",
+    "enzyme_loading": "loading",
+    "carrier_amount": "carrier_amount",
+    "amount": "carrier_amount",
+    "dosage": "carrier_amount",
+    "ph": "ph",
+    "temperature": "temperature",
+    "time": "time",
+    "adsorption_time": "time",
+    "immobilization_time": "time",
+    "buffer": "buffer",
+    "concentration": "concentration",
+    "ratio": "ratio",
+    "yield": "yield",
+    "activity": "activity",
+    "recovery": "recovery",
+    "reuse": "reuse",
+    "reusability": "reuse",
+    "cycles": "reuse",
+    "cycle": "reuse",
+    "stability": "stability",
+    "conversion": "conversion",
+    "条件": "condition",
+    "配方": "condition",
+    "优化": "condition",
+    "制备": "condition",
+    "温度": "temperature",
+    "时间": "time",
+    "浓度": "concentration",
+    "比例": "ratio",
+    "投料": "carrier_amount",
+    "加量": "carrier_amount",
+    "酶量": "loading",
+    "活性": "activity",
+    "回收率": "recovery",
+    "产率": "yield",
+    "转化率": "conversion",
+    "复用": "reuse",
+    "循环": "reuse",
+    "稳定性": "stability",
+}
+FORMULATION_GENERIC_TOKENS = {
+    "lipase",
+    "enzyme",
+    "immobilization",
+    "immobilized",
+    "formulation",
+    "condition",
+    "conditions",
+    "carrier",
+    "support",
+    "method",
+    "activity",
+    "固定化",
+    "脂肪酶",
+    "载体",
+    "材料",
+}
+FORMULATION_PROTEIN_ALIASES = {
+    "bcl": {"bcl", "burkholderia", "cepacia"},
+    "calb": {"calb", "cal-b", "candida", "antarctica"},
+    "crl": {"crl", "rugosa"},
+    "pfl": {"pfl", "pseudomonas", "fluorescens"},
+    "ppl": {"ppl", "porcine", "pancreatic"},
+    "rml": {"rml", "rhizomucor", "miehei"},
+    "tll": {"tll", "thermomyces", "lanuginosus"},
+    "lipase": {"lipase"},
+    "enzyme": {"enzyme"},
+}
 
 
-def is_b10_optimal_condition_hit(hit: RetrievalHit) -> bool:
-    if hit.document_id != "B10" or hit.record_type != "formulation_condition":
-        return False
-    text = "\n".join(
+def formulation_hit_text(hit: RetrievalHit) -> str:
+    return " ".join(
         [
             hit.text or "",
-            json.dumps(hit.extracted or {}, ensure_ascii=False, sort_keys=True),
+            hit.embedding_text or "",
+            json.dumps(hit.extracted, ensure_ascii=False, sort_keys=True),
+            json.dumps(hit.metrics, ensure_ascii=False, sort_keys=True),
         ]
     )
-    return bool(
-        re.search(r"700\s*(?:mg|\.0)", text, re.I)
-        and re.search(r"30\s*(?:min|\.0)", text, re.I)
-        and re.search(r"7\.5", text, re.I)
+
+
+def formulation_match_terms(text: str) -> Dict[str, set[str]]:
+    normalized = normalize_formulation_text(text)
+    raw_tokens = {canonical_formulation_token(match.group(0)) for match in FORMULATION_TOKEN_RE.finditer(normalized)}
+    raw_tokens = {token for token in raw_tokens if token}
+    tokens = {token for token in raw_tokens if token not in FORMULATION_GENERIC_TOKENS}
+    entities = {
+        canonical_formulation_token(match.group(0))
+        for match in FORMULATION_ENTITY_RE.finditer(normalized)
+        if canonical_formulation_token(match.group(0))
+    }
+    materials = formulation_material_terms(normalized, tokens | entities)
+    entities.update(
+        token
+        for token in tokens
+        if (
+            "@" in token
+            or "-" in token
+            or "/" in token
+            or any(marker in token for marker in ("zif", "uio", "mil", "mof", "hkust", "btc", "fe3o4", "mcm", "pnipam"))
+        )
     )
+    numeric = {token.rstrip("%") for token in tokens if re.fullmatch(r"\d+(?:\.\d+)?%?", token)}
+    conditions = {FORMULATION_CONDITION_ALIASES[token] for token in tokens if token in FORMULATION_CONDITION_ALIASES}
+    conditions.update(
+        alias for raw, alias in FORMULATION_CONDITION_ALIASES.items() if any(ord(char) > 127 for char in raw) and raw in normalized
+    )
+    proteins = formulation_protein_terms(raw_tokens | entities)
+    constructs = formulation_construct_terms(normalized, proteins, materials, tokens | entities)
+    numeric_conditions = formulation_numeric_condition_terms(normalized)
+    return {
+        "entities": entities,
+        "numeric": numeric,
+        "numeric_conditions": numeric_conditions,
+        "conditions": conditions,
+        "materials": materials,
+        "proteins": proteins,
+        "constructs": constructs,
+        "tokens": tokens,
+    }
+
+
+def formulation_protein_terms(tokens: Sequence[str]) -> set[str]:
+    proteins: set[str] = set()
+    for protein, aliases in FORMULATION_PROTEIN_ALIASES.items():
+        if (
+            protein in tokens
+            or len(set(tokens) & aliases) >= 2
+            or any(token.startswith(f"{protein}-") or token.startswith(f"{protein}@") for token in tokens)
+        ):
+            proteins.add(protein)
+    return proteins
+
+
+def formulation_material_terms(normalized: str, tokens: Sequence[str]) -> set[str]:
+    materials = {canonical_material_token(match.group(0)) for match in FORMULATION_MATERIAL_RE.finditer(normalized)}
+    for token in tokens:
+        for match in FORMULATION_MATERIAL_RE.finditer(token):
+            material = canonical_material_token(match.group(0))
+            if material:
+                materials.add(material)
+    return {material for material in materials if material}
+
+
+def formulation_construct_terms(
+    normalized: str,
+    proteins: set[str],
+    materials: set[str],
+    tokens: Sequence[str],
+) -> set[str]:
+    constructs: set[str] = set()
+    token_text = " ".join(tokens)
+    for protein in proteins:
+        for material in materials:
+            if material in {"carrier", "support"} and protein not in {"enzyme", "lipase"}:
+                continue
+            constructs.add(f"{protein}|{material}")
+
+    # Preserve modifier-aware forms when the query or evidence names a concrete complex.
+    modifier_tokens = {
+        modifier
+        for token in tokens
+        for modifier in {"sds", "peg", "mnp", "magnetic"}
+        if canonical_formulation_token(token) == modifier
+        or canonical_formulation_token(token).startswith(f"{modifier}-")
+        or f"-{modifier}" in canonical_formulation_token(token)
+        or f"@{modifier}" in canonical_formulation_token(token)
+    }
+    for protein in proteins:
+        for material in materials:
+            for modifier in modifier_tokens:
+                if modifier == material:
+                    continue
+                if construct_components_are_near(normalized, protein, modifier, material) or construct_components_are_near(
+                    token_text, protein, modifier, material
+                ):
+                    constructs.add(f"{protein}|{modifier}|{material}")
+    return constructs
+
+
+def construct_components_are_near(text: str, protein: str, modifier: str, material: str) -> bool:
+    pattern = re.compile(
+        rf"\b{re.escape(protein)}\b[\w\s@+\-/]{{0,36}}\b{re.escape(modifier)}\b[\w\s@+\-/]{{0,36}}\b{re.escape(material)}\b"
+        rf"|\b{re.escape(protein)}\b[\w\s@+\-/]{{0,36}}\b{re.escape(material)}\b[\w\s@+\-/]{{0,36}}\b{re.escape(modifier)}\b",
+        re.I,
+    )
+    return bool(pattern.search(text))
+
+
+def formulation_numeric_condition_terms(normalized: str) -> set[str]:
+    terms: set[str] = set()
+    for label, pattern in FORMULATION_CONDITION_VALUE_PATTERNS:
+        for match in pattern.finditer(normalized):
+            value = canonical_formulation_token(match.group(1))
+            if value:
+                terms.add(f"{label}:{value.rstrip('%')}")
+    return terms
+
+
+def canonical_material_token(token: str) -> str:
+    value = canonical_formulation_token(token)
+    replacements = {
+        "zif8": "zif-8",
+        "uio66": "uio-66",
+        "uio-66-nh2": "uio-66-nh2",
+        "mof": "mof",
+        "mofs": "mof",
+        "mnp": "mnp",
+    }
+    return replacements.get(value, value)
+
+
+def normalize_formulation_text(text: str) -> str:
+    normalized = (text or "").translate(FORMULATION_HYPHEN_TRANSLATION).lower()
+    alias_terms = matched_enzyme_alias_terms(text or "")
+    if alias_terms:
+        normalized = " ".join([normalized, *(term.lower() for term in alias_terms)])
+    replacements = {
+        "脂肪酶": " lipase ",
+        "生物柴油": " biodiesel ",
+        "大豆油": " soybean oil ",
+        "乙醇": " ethanol ",
+        "甲醇": " methanol ",
+        "转酯": " transesterification ",
+        "酯化": " esterification ",
+        "重复使用": " reuse reusability cycles ",
+        "重复用": " reuse reusability cycles ",
+        "复用": " reuse reusability cycles ",
+        "循环": " cycles ",
+        "稳定性": " stability ",
+        "更稳": " stability retained activity ",
+    }
+    for raw, replacement in replacements.items():
+        normalized = normalized.replace(raw, replacement)
+    normalized = normalized.replace("°c", " c ")
+    normalized = re.sub(r"\blipa\s+se\s*@", "lipase@", normalized, flags=re.I)
+    return normalized
+
+
+def canonical_formulation_token(token: str) -> str:
+    value = (token or "").lower().strip("-_.,;:()[]{}\"'")
+    value = re.sub(r"\s*@\s*", "@", value)
+    value = value.replace("zif8", "zif-8").replace("uio66", "uio-66")
+    value = value.replace("bcl@zif-8", "bcl-zif-8")
+    if re.fullmatch(r"\d+\.0+", value):
+        value = value.split(".", 1)[0]
+    return value
 
 
 def flatten_with_aliases(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -510,14 +768,18 @@ def build_optimization_limitations(
     retrieval: RetrievalResponse,
     changes: List[FormulationChange],
     generation_json: Optional[Dict[str, Any]] = None,
+    alias_context: Optional[SpecificEnzymeAliasContext] = None,
 ) -> List[str]:
     limitations = []
+    specific_alias_keys = alias_context.alias_keys if alias_context and alias_context.enabled else frozenset()
     if generation_json:
         limitations.extend(string_items(generation_json.get("limitations")))
     if generation.provider == "mock":
         limitations.append("mock generator only validates pipeline wiring; final optimization wording requires SiliconFlow/DeepSeek.")
     if not retrieval.hits:
         limitations.append("no usable evidence was retrieved")
+    elif specific_alias_keys and not any(hit_supports_specific_enzyme_alias(hit, specific_alias_keys) for hit in retrieval.hits):
+        limitations.append("no usable evidence for the requested enzyme alias was retrieved")
     if not changes:
         limitations.append("no field-level changes were generated from the current evidence")
     if any(hit.requires_review for hit in retrieval.hits):
@@ -530,7 +792,11 @@ def build_optimization_experiment_suggestions(
     changes: List[FormulationChange],
     retrieval: RetrievalResponse,
     generation_json: Optional[Dict[str, Any]] = None,
+    alias_context: Optional[SpecificEnzymeAliasContext] = None,
 ) -> List[Dict[str, Any]]:
+    specific_alias_keys = alias_context.alias_keys if alias_context and alias_context.enabled else frozenset()
+    if specific_alias_keys and not any(hit_supports_specific_enzyme_alias(hit, specific_alias_keys) for hit in retrieval.hits):
+        return []
     generated = normalize_experiment_suggestions(generation_json)
     if generated:
         return generated

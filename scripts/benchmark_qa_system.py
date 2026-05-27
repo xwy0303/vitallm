@@ -25,6 +25,7 @@ from enzyme_recommender.recommendation import (
     FormulationOptimizationService,
     RecommendationService,
 )
+from enzyme_recommender.recommendation.enzyme import deterministic_no_answer_generation, retrieval_guard_reason
 from enzyme_recommender.runtime import RuntimeServices
 from scripts.benchmark_retrieval import evaluate_query_plan, hit_matches_expectation
 
@@ -358,7 +359,10 @@ def execute_endpoint(runtime: RuntimeServices, case: Dict[str, Any], generation_
                 query_plan=retrieval.query_plan,
                 generation_skipped=True,
             )
-        if endpoint == "recommend_stream":
+        if retrieval_guard_reason(retrieval):
+            generation = deterministic_no_answer_generation(retrieval)
+            stream_text = generation.content if endpoint == "recommend_stream" else ""
+        elif endpoint == "recommend_stream":
             generation = run_stream_generation(service, request, retrieval)
             stream_text = generation.content
         else:
@@ -1121,7 +1125,7 @@ def render_manifest_validation_markdown(summary: Dict[str, Any]) -> str:
         f"# QA Benchmark Manifest Validation - {summary['validated_at']}",
         "",
         f"- Benchmarks: {summary['benchmark_count']}",
-        f"- Seed cases: {summary['actual_case_count']}/{summary['target_case_count']} ({summary['coverage_ratio']:.3f})",
+        f"- Cases: {summary['actual_case_count']}/{summary['target_case_count']} ({summary['coverage_ratio']:.3f})",
         f"- Manual user-like ratio: {summary['manual_user_like_ratio']:.3f}",
         f"- Literature rewrite cases: {summary['literature_rewrite_cases']}",
         "",
@@ -1172,7 +1176,7 @@ def print_human_summary(summary: Dict[str, Any]) -> None:
 def print_manifest_validation_summary(summary: Dict[str, Any]) -> None:
     print(
         "QA benchmark manifests validated: "
-        f"{summary['actual_case_count']}/{summary['target_case_count']} seed cases "
+        f"{summary['actual_case_count']}/{summary['target_case_count']} cases "
         f"coverage={summary['coverage_ratio']:.3f}"
     )
     for benchmark in summary["benchmarks"]:

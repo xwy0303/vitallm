@@ -1190,10 +1190,10 @@ class RetrievalBenchmarkTests(unittest.TestCase):
 class QASystemBenchmarkTests(unittest.TestCase):
     def test_layered_manifests_load_with_target_counts(self) -> None:
         manifests = {
-            "benchmarks/retrieval_quality_v1.json": 120,
-            "benchmarks/answer_quality_v1.json": 50,
+            "benchmarks/retrieval_quality_v1.json": 125,
+            "benchmarks/answer_quality_v1.json": 54,
             "benchmarks/no_answer_intent_v1.json": 30,
-            "benchmarks/formulation_optimizer_v1.json": 20,
+            "benchmarks/formulation_optimizer_v1.json": 23,
         }
 
         for manifest_path, target_count in manifests.items():
@@ -1220,7 +1220,7 @@ class QASystemBenchmarkTests(unittest.TestCase):
         summary = summarize_manifest_validation(manifests)
 
         self.assertTrue(summary["ok"])
-        self.assertEqual(summary["target_case_count"], 220)
+        self.assertEqual(summary["target_case_count"], 232)
         self.assertGreater(summary["actual_case_count"], 0)
         self.assertIn("manual_user_like", summary["by_source"])
         self.assertIn("no_answer", summary["by_kind"])

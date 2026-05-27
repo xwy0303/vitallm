@@ -1,8 +1,8 @@
 {
   "name": "enzyme_immobilization_formulation_optimizer_v1",
-  "version": "v1-seed-20260526",
-  "description": "Field-level formulation optimization benchmark. Seed cases focus on BCL-ZIF-8 and evidence-backed starting-point recommendations.",
-  "target_case_count": 20,
+  "version": "v1-220-20260527",
+  "description": "Field-level formulation optimization benchmark. Full v1 cases cover BCL-ZIF-8, evidence-backed starting-point recommendations, and Chinese enzyme alias regressions.",
+  "target_case_count": 23,
   "defaults": {
     "endpoint": "optimize",
     "top_k": 5,
@@ -28,21 +28,51 @@
       "construction_note": "Functional-test formulation case. Expected suggestions are evidence-backed starting points, not global optima.",
       "user_formulation": {
         "carrier": "ZIF-8",
-        "enzyme_loading": {"value": 500, "unit": "mg/g"},
-        "buffer": {"pH": 7.0},
+        "enzyme_loading": {
+          "value": 500,
+          "unit": "mg/g"
+        },
+        "buffer": {
+          "pH": 7.0
+        },
         "immobilization_conditions": {
-          "temperature": {"value": 25, "unit": "degC"},
-          "time": {"value": 60, "unit": "min"}
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          },
+          "time": {
+            "value": 60,
+            "unit": "min"
+          }
         }
       },
       "expected_evidence": [
-        {"document_id": "B10", "record_type": "formulation_condition", "text_contains_any": ["700", "30 min", "7.5", "25"]}
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition",
+          "text_contains_any": [
+            "700",
+            "30 min",
+            "7.5",
+            "25"
+          ]
+        }
       ],
       "expected_changes": [
-        {"field_path": "buffer.pH", "recommended_contains": "7.5"},
-        {"field_path": "immobilization_conditions.time", "recommended_contains": "30"}
+        {
+          "field_path": "buffer.pH",
+          "recommended_contains": "7.5"
+        },
+        {
+          "field_path": "immobilization_conditions.time",
+          "recommended_contains": "30"
+        }
       ],
-      "forbidden_claims": ["全局最优", "唯一最佳", "保证 100%"]
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
     },
     {
       "id": "fo_bcl_zif8_missing_conditions",
@@ -57,13 +87,31 @@
         "carrier": "ZIF-8"
       },
       "expected_evidence": [
-        {"document_id": "B10", "record_type": "formulation_condition", "text_contains_any": ["700", "30 min", "7.5", "25"]}
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition",
+          "text_contains_any": [
+            "700",
+            "30 min",
+            "7.5",
+            "25"
+          ]
+        }
       ],
       "expected_changes": [
-        {"field_path": "enzyme.amount", "recommended_contains": "700"},
-        {"field_path": "buffer.pH", "recommended_contains": "7.5"}
+        {
+          "field_path": "enzyme.amount",
+          "recommended_contains": "700"
+        },
+        {
+          "field_path": "buffer.pH",
+          "recommended_contains": "7.5"
+        }
       ],
-      "forbidden_claims": ["全局最优", "唯一最佳"]
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳"
+      ]
     },
     {
       "id": "fo_magnetic_mof_reuse",
@@ -76,10 +124,20 @@
       "construction_note": "Magnetic MOF formulation case; expected evidence can come from related magnetic carrier literature.",
       "user_formulation": {
         "carrier": "magnetic nanoparticle",
-        "buffer": {"pH": 7.0}
+        "buffer": {
+          "pH": 7.0
+        }
       },
       "expected_evidence": [
-        {"text_contains_any": ["magnetic", "MNP", "Fe3O4", "reuse", "reusability"]}
+        {
+          "text_contains_any": [
+            "magnetic",
+            "MNP",
+            "Fe3O4",
+            "reuse",
+            "reusability"
+          ]
+        }
       ],
       "expected_changes": [],
       "expected_behavior": {
@@ -88,7 +146,11 @@
         "min_evidence_backed_change_rate": 0.0,
         "forbid_global_optimum": true
       },
-      "forbidden_claims": ["全局最优", "唯一最佳", "保证"]
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
     },
     {
       "id": "fo_no_glutaraldehyde_constraint",
@@ -96,16 +158,28 @@
       "query": "不要戊二醛，有没有更温和的脂肪酶固定化配方 starting point？",
       "enzyme_name": "lipase",
       "application_context": "不要戊二醛，寻找更温和的固定化 starting point。",
-      "constraints": ["avoid glutaraldehyde", "mild immobilization conditions"],
+      "constraints": [
+        "avoid glutaraldehyde",
+        "mild immobilization conditions"
+      ],
       "difficulty": "hard",
       "source": "manual_user_like",
       "construction_note": "Negative/exclusion constraint for unsafe overgeneralized crosslinker recommendation.",
       "user_formulation": {
-        "avoid": ["glutaraldehyde"],
+        "avoid": [
+          "glutaraldehyde"
+        ],
         "carrier": null
       },
       "expected_evidence": [
-        {"text_contains_any": ["adsorption", "biomineralization", "ZIF-8", "mild"]}
+        {
+          "text_contains_any": [
+            "adsorption",
+            "biomineralization",
+            "ZIF-8",
+            "mild"
+          ]
+        }
       ],
       "expected_changes": [],
       "expected_behavior": {
@@ -114,7 +188,879 @@
         "min_evidence_backed_change_rate": 0.0,
         "forbid_global_optimum": true
       },
-      "forbidden_claims": ["必须使用戊二醛", "只能用戊二醛", "全局最优"]
+      "forbidden_claims": [
+        "必须使用戊二醛",
+        "只能用戊二醛",
+        "全局最优"
+      ]
+    },
+    {
+      "id": "fo_bcl_zif8_low_loading",
+      "kind": "formulation",
+      "query": "BCL-ZIF-8 enzyme amount 200 mg，pH 6.5，20°C，固定化 90 min。",
+      "enzyme_name": "Burkholderia cepacia lipase",
+      "application_context": "BCL-ZIF-8 固定化用于 soybean oil ethanol biodiesel，关注 activity recovery 和复用稳定性。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Expanded BCL-ZIF-8 formulation case with deliberately off-target user fields.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "enzyme": {
+          "amount": 200,
+          "unit": "mg"
+        },
+        "buffer": {
+          "pH": 6.5
+        },
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 20,
+            "unit": "degC"
+          },
+          "time": {
+            "value": 90,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition",
+          "text_contains_any": [
+            "700",
+            "30 min",
+            "7.5",
+            "25"
+          ]
+        }
+      ],
+      "expected_changes": [
+        {
+          "field_path": "enzyme.amount",
+          "recommended_contains": "700"
+        },
+        {
+          "field_path": "buffer.pH",
+          "recommended_contains": "7.5"
+        }
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "fo_bcl_zif8_wrong_ph",
+      "kind": "formulation",
+      "query": "伯克霍尔德菌脂肪酶 ZIF8 固定化，当前 pH 9.0、time 10 min。",
+      "enzyme_name": "Burkholderia cepacia lipase",
+      "application_context": "BCL-ZIF-8 固定化用于 soybean oil ethanol biodiesel，关注 activity recovery 和复用稳定性。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Expanded BCL-ZIF-8 formulation case with deliberately off-target user fields.",
+      "user_formulation": {
+        "carrier": "ZIF8",
+        "buffer": {
+          "pH": 9.0
+        },
+        "immobilization_conditions": {
+          "time": {
+            "value": 10,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition",
+          "text_contains_any": [
+            "700",
+            "30 min",
+            "7.5",
+            "25"
+          ]
+        }
+      ],
+      "expected_changes": [
+        {
+          "field_path": "buffer.pH",
+          "recommended_contains": "7.5"
+        },
+        {
+          "field_path": "immobilization_conditions.time",
+          "recommended_contains": "30"
+        }
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "fo_bcl_zif8_missing_loading",
+      "kind": "formulation",
+      "query": "BCL 用 ZIF-8 包埋，缺 enzyme loading，只知道 25°C。",
+      "enzyme_name": "Burkholderia cepacia lipase",
+      "application_context": "BCL-ZIF-8 固定化用于 soybean oil ethanol biodiesel，关注 activity recovery 和复用稳定性。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Expanded BCL-ZIF-8 formulation case with deliberately off-target user fields.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition",
+          "text_contains_any": [
+            "700",
+            "30 min",
+            "7.5",
+            "25"
+          ]
+        }
+      ],
+      "expected_changes": [
+        {
+          "field_path": "enzyme.amount",
+          "recommended_contains": "700"
+        },
+        {
+          "field_path": "buffer.pH",
+          "recommended_contains": "7.5"
+        }
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "fo_bcl_zif8_high_time",
+      "kind": "formulation",
+      "query": "BCL-ZIF-8 固定化 time=120 min，pH=7.0，想做 biodiesel。",
+      "enzyme_name": "Burkholderia cepacia lipase",
+      "application_context": "BCL-ZIF-8 固定化用于 soybean oil ethanol biodiesel，关注 activity recovery 和复用稳定性。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Expanded BCL-ZIF-8 formulation case with deliberately off-target user fields.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "buffer": {
+          "pH": 7.0
+        },
+        "immobilization_conditions": {
+          "time": {
+            "value": 120,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "B10",
+          "record_type": "formulation_condition",
+          "text_contains_any": [
+            "700",
+            "30 min",
+            "7.5",
+            "25"
+          ]
+        }
+      ],
+      "expected_changes": [
+        {
+          "field_path": "immobilization_conditions.time",
+          "recommended_contains": "30"
+        },
+        {
+          "field_path": "buffer.pH",
+          "recommended_contains": "7.5"
+        }
+      ],
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证 100%"
+      ]
+    },
+    {
+      "id": "fo_curated_001_a11",
+      "kind": "formulation",
+      "query": "A11 lipase 固定化配方 starting point：carrier=ZIF-8, pH 7.0, 25 C, 60 min。",
+      "enzyme_name": "lipase",
+      "application_context": "A11 文献相关 lipase 固定化配方优化，关注 activity recovery 和 evidence traceability。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Evidence-derived formulation case; field correctness is checked through retrieval evidence and evidence-backed change rate, not as a universal optimum.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "buffer": {
+          "pH": 7.0
+        },
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          },
+          "time": {
+            "value": 60,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_3904618fbd820665",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "fo_curated_002_a11",
+      "kind": "formulation",
+      "query": "A11 lipase 固定化配方 starting point：carrier=ZIF-8, pH 7.0, 25 C, 60 min。",
+      "enzyme_name": "lipase",
+      "application_context": "A11 文献相关 lipase 固定化配方优化，关注 activity recovery 和 evidence traceability。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Evidence-derived formulation case; field correctness is checked through retrieval evidence and evidence-backed change rate, not as a universal optimum.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "buffer": {
+          "pH": 7.0
+        },
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          },
+          "time": {
+            "value": 60,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_82ba2b68d2c07d11",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "fo_curated_003_a11",
+      "kind": "formulation",
+      "query": "A11 lipase 固定化配方 starting point：carrier=ZIF-8, pH 7.0, 25 C, 60 min。",
+      "enzyme_name": "lipase",
+      "application_context": "A11 文献相关 lipase 固定化配方优化，关注 activity recovery 和 evidence traceability。",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Evidence-derived formulation case; field correctness is checked through retrieval evidence and evidence-backed change rate, not as a universal optimum.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "buffer": {
+          "pH": 7.0
+        },
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          },
+          "time": {
+            "value": 60,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_af371f2c3c6df30d",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "fo_curated_004_a11",
+      "kind": "formulation",
+      "query": "A11 lipase 固定化配方 starting point：carrier=ZIF-8, pH 7.0, 25 C, 60 min。",
+      "enzyme_name": "lipase",
+      "application_context": "A11 文献相关 lipase 固定化配方优化，关注 activity recovery 和 evidence traceability。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Evidence-derived formulation case; field correctness is checked through retrieval evidence and evidence-backed change rate, not as a universal optimum.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "buffer": {
+          "pH": 7.0
+        },
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          },
+          "time": {
+            "value": 60,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_cea22548873afe6b",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "fo_curated_005_a11",
+      "kind": "formulation",
+      "query": "A11 lipase 固定化配方 starting point：carrier=ZIF-8, pH 7.0, 25 C, 60 min。",
+      "enzyme_name": "lipase",
+      "application_context": "A11 文献相关 lipase 固定化配方优化，关注 activity recovery 和 evidence traceability。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Evidence-derived formulation case; field correctness is checked through retrieval evidence and evidence-backed change rate, not as a universal optimum.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "buffer": {
+          "pH": 7.0
+        },
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          },
+          "time": {
+            "value": 60,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_b912702253720b40",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "fo_curated_006_a11",
+      "kind": "formulation",
+      "query": "A11 lipase 固定化配方 starting point：carrier=ZIF-8, pH 7.0, 25 C, 60 min。",
+      "enzyme_name": "lipase",
+      "application_context": "A11 文献相关 lipase 固定化配方优化，关注 activity recovery 和 evidence traceability。",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Evidence-derived formulation case; field correctness is checked through retrieval evidence and evidence-backed change rate, not as a universal optimum.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "buffer": {
+          "pH": 7.0
+        },
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          },
+          "time": {
+            "value": 60,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_24ff9b33f1ad63dc",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "fo_curated_007_a11",
+      "kind": "formulation",
+      "query": "A11 lipase 固定化配方 starting point：carrier=ZIF-8, pH 7.0, 25 C, 60 min。",
+      "enzyme_name": "lipase",
+      "application_context": "A11 文献相关 lipase 固定化配方优化，关注 activity recovery 和 evidence traceability。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Evidence-derived formulation case; field correctness is checked through retrieval evidence and evidence-backed change rate, not as a universal optimum.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "buffer": {
+          "pH": 7.0
+        },
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          },
+          "time": {
+            "value": 60,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A11",
+          "source_id": "ev_f735b8584521d331",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "fo_curated_008_a12",
+      "kind": "formulation",
+      "query": "A12 lipase 固定化配方 starting point：carrier=ZIF-8, pH 7.0, 25 C, 60 min。",
+      "enzyme_name": "lipase",
+      "application_context": "A12 文献相关 lipase 固定化配方优化，关注 activity recovery 和 evidence traceability。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Evidence-derived formulation case; field correctness is checked through retrieval evidence and evidence-backed change rate, not as a universal optimum.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "buffer": {
+          "pH": 7.0
+        },
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          },
+          "time": {
+            "value": 60,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_0a7dcfb808fa9308",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "fo_curated_009_a12",
+      "kind": "formulation",
+      "query": "A12 lipase 固定化配方 starting point：carrier=ZIF-8, pH 7.0, 25 C, 60 min。",
+      "enzyme_name": "lipase",
+      "application_context": "A12 文献相关 lipase 固定化配方优化，关注 activity recovery 和 evidence traceability。",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Evidence-derived formulation case; field correctness is checked through retrieval evidence and evidence-backed change rate, not as a universal optimum.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "buffer": {
+          "pH": 7.0
+        },
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          },
+          "time": {
+            "value": 60,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_692d9158c70df92c",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "fo_curated_010_a12",
+      "kind": "formulation",
+      "query": "A12 lipase 固定化配方 starting point：carrier=ZIF-8, pH 7.0, 25 C, 60 min。",
+      "enzyme_name": "lipase",
+      "application_context": "A12 文献相关 lipase 固定化配方优化，关注 activity recovery 和 evidence traceability。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Evidence-derived formulation case; field correctness is checked through retrieval evidence and evidence-backed change rate, not as a universal optimum.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "buffer": {
+          "pH": 7.0
+        },
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          },
+          "time": {
+            "value": 60,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_d9af2834bfec83be",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "fo_curated_011_a12",
+      "kind": "formulation",
+      "query": "A12 lipase 固定化配方 starting point：carrier=ZIF-8, pH 7.0, 25 C, 60 min。",
+      "enzyme_name": "lipase",
+      "application_context": "A12 文献相关 lipase 固定化配方优化，关注 activity recovery 和 evidence traceability。",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Evidence-derived formulation case; field correctness is checked through retrieval evidence and evidence-backed change rate, not as a universal optimum.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "buffer": {
+          "pH": 7.0
+        },
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          },
+          "time": {
+            "value": 60,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_dd35af090a8fc0ac",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "fo_curated_012_a12",
+      "kind": "formulation",
+      "query": "A12 lipase 固定化配方 starting point：carrier=ZIF-8, pH 7.0, 25 C, 60 min。",
+      "enzyme_name": "lipase",
+      "application_context": "A12 文献相关 lipase 固定化配方优化，关注 activity recovery 和 evidence traceability。",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Evidence-derived formulation case; field correctness is checked through retrieval evidence and evidence-backed change rate, not as a universal optimum.",
+      "user_formulation": {
+        "carrier": "ZIF-8",
+        "buffer": {
+          "pH": 7.0
+        },
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          },
+          "time": {
+            "value": 60,
+            "unit": "min"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "source_id": "ev_47bf4f28d7f84143",
+          "record_type": "formulation_condition"
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "fo_cn_alias_calb_cubtc_conditions",
+      "kind": "formulation",
+      "query": "南极假丝酵母脂肪酶B 固定化条件优化：当前 carrier=Cu-BTC, pH 7.0, 25 C。",
+      "enzyme_name": "南极假丝酵母脂肪酶B",
+      "application_context": "南极假丝酵母脂肪酶B CALB / CAL-B 固定化配方优化，优先检索 Cu-BTC 和 MOF 证据。",
+      "difficulty": "medium",
+      "source": "regression_bug",
+      "construction_note": "Chinese CALB formulation regression; expected evidence is anchored to A12 CAL-B@Cu-BTC condition records.",
+      "user_formulation": {
+        "carrier": "Cu-BTC",
+        "buffer": {
+          "pH": 7.0
+        },
+        "immobilization_conditions": {
+          "temperature": {
+            "value": 25,
+            "unit": "degC"
+          }
+        }
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A12",
+          "record_type": "formulation_condition",
+          "text_contains_any": [
+            "pH 7.2",
+            "Cu-BTC",
+            "CAL-B@Cu-BTC"
+          ]
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "fo_cn_alias_ppl_mzif67_conditions",
+      "kind": "formulation",
+      "query": "猪胰脂肪酶 PPL@mZIF-67 配方优化：当前 pH 7.0，想做 flavor esters。",
+      "enzyme_name": "猪胰脂肪酶",
+      "application_context": "猪胰脂肪酶 PPL@mZIF-67 固定化条件优化，关注 flavor esters 和 pH。",
+      "difficulty": "medium",
+      "source": "regression_bug",
+      "construction_note": "Chinese PPL formulation regression; expected evidence is anchored to A30 PPL@mZIF-67 pH 9.0 condition records.",
+      "user_formulation": {
+        "carrier": "mZIF-67",
+        "buffer": {
+          "pH": 7.0
+        },
+        "application": "flavor esters"
+      },
+      "expected_evidence": [
+        {
+          "document_id": "A30",
+          "record_type": "formulation_condition",
+          "text_contains_any": [
+            "9.0",
+            "PPL@mZIF-67",
+            "porcine pancreatic lipase"
+          ]
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
+    },
+    {
+      "id": "fo_cn_alias_rml_table_context",
+      "kind": "formulation",
+      "query": "米根霉脂肪酶 固定化条件怎么优化？关注 sunflower oil 和 methanol。",
+      "enzyme_name": "米根霉脂肪酶",
+      "application_context": "米根霉脂肪酶 Rhizomucor miehei lipase RML 固定化条件优化，关注 sunflower oil、methanol、reusability。",
+      "difficulty": "medium",
+      "source": "regression_bug",
+      "construction_note": "Chinese RML formulation regression. The corpus currently has the B10 RML row only as requires_review/usable=false bad-table evidence, so this case verifies the alias is accepted while bad table rows remain excluded from deterministic optimization evidence.",
+      "user_formulation": {
+        "substrate": "sunflower oil",
+        "acyl_acceptor": "methanol"
+      },
+      "expected_evidence": [],
+      "forbidden_evidence": [
+        {
+          "document_id": "B10",
+          "source_id": "ev_a08f2537410f3f31",
+          "record_type": "table_comparison_row",
+          "requires_review": true
+        },
+        {
+          "document_id": "B10",
+          "record_type": "table_comparison_row",
+          "text_contains": "Rhizomucor miehei lipase",
+          "usable_for_ranking": false
+        }
+      ],
+      "expected_changes": [],
+      "expected_behavior": {
+        "requires_citations": true,
+        "min_expected_evidence": 0,
+        "min_expected_changes": 0,
+        "min_evidence_backed_change_rate": 0.0,
+        "forbid_global_optimum": true
+      },
+      "forbidden_claims": [
+        "全局最优",
+        "唯一最佳",
+        "保证"
+      ]
     }
   ]
 }

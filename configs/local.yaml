@@ -25,6 +25,8 @@ embedding:
 retrieval:
   top_k: 8
   usable_only: true
+  formulation_candidate_multiplier: 16
+  formulation_candidate_min: 80
 
 generator:
   provider: siliconflow

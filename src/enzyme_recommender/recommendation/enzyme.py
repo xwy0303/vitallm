@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import hashlib
 import re
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -16,8 +17,14 @@ from enzyme_recommender.rag.documents import (
     resolve_document_reference_from_hits,
     resolve_document_reference,
 )
-from enzyme_recommender.rag.retrieval import RetrievalHit, RetrievalResponse
-from enzyme_recommender.rag.query_guard import should_return_no_evidence
+from enzyme_recommender.rag.enzyme_aliases import matched_enzyme_alias_keys
+from enzyme_recommender.rag.retrieval import (
+    RetrievalHit,
+    RetrievalResponse,
+    build_query_plan,
+    classify_no_retrieval_query,
+    extract_document_ids,
+)
 from enzyme_recommender.recommendation.grounding import build_grounded_answer, build_no_answer_text
 from enzyme_recommender.runtime import RuntimeServices
 
@@ -78,26 +85,48 @@ class EnzymeRecommendationResponse(BaseModel):
     next_experiment_suggestions: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class SpecificEnzymeAliasContext:
+    alias_keys: frozenset[str] = frozenset()
+    enabled: bool = False
+    reason: str = "disabled"
+
+
 class RecommendationService:
     def __init__(self, runtime: RuntimeServices) -> None:
         self.runtime = runtime
 
     def recommend_by_enzyme(self, request: EnzymeRecommendationRequest) -> EnzymeRecommendationResponse:
         retrieval = self.retrieve_evidence(request)
-        generation = self._generate_recommendation(request, retrieval)
+        generation = (
+            deterministic_no_answer_generation(retrieval)
+            if retrieval_guard_reason(retrieval)
+            else self._generate_recommendation(request, retrieval)
+        )
         return self.build_response(request, retrieval, generation)
 
     def retrieve_evidence(self, request: EnzymeRecommendationRequest) -> RetrievalResponse:
-        retrieval_query = build_retrieval_query(request)
-        if request.objective == EVIDENCE_QA_OBJECTIVE and should_return_no_evidence(
-            request.application_context or request.enzyme_name
-        ):
-            return empty_retrieval_response(
-                query=retrieval_query,
+        guard_query = build_user_guard_query(request)
+        guard_plan = build_query_plan(guard_query, top_k=request.top_k or self.runtime.config.retrieval.top_k)
+        guard_reason = classify_no_retrieval_query(guard_query, guard_plan)
+        if guard_reason:
+            guarded_plan = guard_plan.model_copy(
+                update={
+                    "retrieval_guard": guard_reason,
+                    "intents": dedupe_strings([*guard_plan.intents, "no_answer"]),
+                }
+            )
+            return RetrievalResponse(
+                query=guard_query,
                 collection=self.runtime.qdrant_config().collection,
                 embedding_model=self.runtime.embedding_model().name,
                 top_k=request.top_k or self.runtime.config.retrieval.top_k,
+                usable_only=self.runtime.config.retrieval.usable_only,
+                query_plan=guarded_plan,
+                hits=[],
             )
+
+        retrieval_query = build_retrieval_query(request)
         if request.objective == PAPER_PROCESS_OBJECTIVE or is_paper_process_question(retrieval_query):
             request.objective = PAPER_PROCESS_OBJECTIVE
             resolution = resolve_request_document(self.runtime, request, retrieval_query)
@@ -176,9 +205,22 @@ class RecommendationService:
         retrieval: RetrievalResponse,
         generation: GenerationResponse,
     ) -> EnzymeRecommendationResponse:
+        if retrieval_guard_reason(retrieval):
+            generation = deterministic_no_answer_generation(retrieval)
         generation_json = parse_json_object(generation.content)
         generation_content = grounded_generation_content(request, retrieval, generation, generation_json)
-        candidates = [] if request.objective in QA_OBJECTIVES else build_candidates_from_generation_or_evidence(generation_json, retrieval)
+        alias_context = specific_enzyme_alias_context_from_request(
+            enzyme_name=request.enzyme_name,
+            application_context=request.application_context,
+            constraints=request.constraints,
+            objective=request.objective,
+            retrieval=retrieval,
+        )
+        candidates = (
+            []
+            if request.objective in QA_OBJECTIVES or retrieval_guard_reason(retrieval)
+            else build_candidates_from_generation_or_evidence(generation_json, retrieval, alias_context)
+        )
         return EnzymeRecommendationResponse(
             recommendation_id=make_recommendation_id(request, retrieval),
             created_at=datetime.now(timezone.utc).isoformat(),
@@ -191,10 +233,10 @@ class RecommendationService:
             evidence_hits=retrieval.hits,
             generation_content=generation_content,
             generation_json=generation_json,
-            limitations=build_limitations(generation, retrieval, generation_json),
+            limitations=build_limitations(generation, retrieval, generation_json, alias_context),
             next_experiment_suggestions=[]
-            if request.objective in QA_OBJECTIVES
-            else build_next_experiment_suggestions(retrieval, generation_json),
+            if request.objective in QA_OBJECTIVES or retrieval_guard_reason(retrieval)
+            else build_next_experiment_suggestions(retrieval, generation_json, alias_context),
         )
 
     def _generate_recommendation(
@@ -234,12 +276,23 @@ def build_retrieval_query(request: EnzymeRecommendationRequest) -> str:
     return " ".join(part for part in parts if part).strip()
 
 
+def build_user_guard_query(request: EnzymeRecommendationRequest) -> str:
+    parts = [
+        request.application_context or "",
+        " ".join(request.constraints),
+        request.enzyme_name,
+    ]
+    return " ".join(part for part in parts if part).strip()
+
+
 def grounded_generation_content(
     request: EnzymeRecommendationRequest,
     retrieval: RetrievalResponse,
     generation: GenerationResponse,
     generation_json: Optional[Dict[str, Any]],
 ) -> str:
+    if retrieval_guard_reason(retrieval):
+        return generation.content
     if not retrieval.hits:
         return build_no_answer_text()
     if request.objective in QA_OBJECTIVES:
@@ -296,6 +349,17 @@ def should_expand_recommendation_query(request: EnzymeRecommendationRequest, use
 
 
 def build_generation_prompt(request: EnzymeRecommendationRequest, retrieval: RetrievalResponse) -> str:
+    if retrieval_guard_reason(retrieval):
+        return "\n\n".join(
+            [
+                "任务：拒绝无关、低信息量或违反 evidence-first 边界的请求。",
+                f"拒答原因：{retrieval_guard_reason(retrieval)}",
+                "Evidence context: 无可用证据。",
+                "请输出 JSON object："
+                '{"candidates":[],"limitations":["no relevant enzyme immobilization evidence was retrieved"],'
+                '"next_experiment_suggestions":[]}',
+            ]
+        )
     return "\n\n".join(
         [
             "任务：根据 evidence context 推荐酶固定化载体/固化剂，并说明证据、适用边界和下一步实验。",
@@ -314,6 +378,15 @@ def build_generation_prompt(request: EnzymeRecommendationRequest, retrieval: Ret
 
 
 def build_stream_generation_prompt(request: EnzymeRecommendationRequest, retrieval: RetrievalResponse) -> str:
+    if retrieval_guard_reason(retrieval):
+        return "\n\n".join(
+            [
+                "任务：拒绝无关、低信息量或违反 evidence-first 边界的请求。",
+                f"拒答原因：{retrieval_guard_reason(retrieval)}",
+                "Evidence context: 无可用证据。",
+                "输出要求：说明没有足够相关证据，不输出候选方案，不输出引用，不建议下一步实验。",
+            ]
+        )
     if not retrieval.hits:
         return "\n\n".join(
             [
@@ -417,6 +490,23 @@ def build_paper_process_generation_prompt(
     )
 
 
+def retrieval_guard_reason(retrieval: RetrievalResponse) -> Optional[str]:
+    if retrieval.query_plan is None:
+        return None
+    return retrieval.query_plan.retrieval_guard
+
+
+def deterministic_no_answer_generation(retrieval: RetrievalResponse) -> GenerationResponse:
+    reason = retrieval_guard_reason(retrieval) or "no_relevant_evidence"
+    return GenerationResponse(
+        provider="retrieval_guard",
+        model="deterministic-no-answer-v1",
+        content=f"证据不足：{reason}。没有检索到足够相关的脂肪酶固定化证据，不能生成候选方案。",
+        finish_reason="guarded",
+        usage={"guarded": True, "retrieval_guard": reason},
+    )
+
+
 def is_paper_process_question(text: str) -> bool:
     value = text or ""
     lower = value.lower()
@@ -496,7 +586,9 @@ def empty_retrieval_response(query: str, collection: str, embedding_model: str, 
 def build_candidates_from_generation_or_evidence(
     generation_json: Optional[Dict[str, Any]],
     retrieval: RetrievalResponse,
+    alias_context: Optional[SpecificEnzymeAliasContext] = None,
 ) -> List[RecommendedCandidate]:
+    specific_alias_keys = alias_context.alias_keys if alias_context and alias_context.enabled else frozenset()
     if generation_json and isinstance(generation_json.get("candidates"), list):
         candidates = []
         for index, raw_candidate in enumerate(generation_json["candidates"], start=1):
@@ -504,6 +596,8 @@ def build_candidates_from_generation_or_evidence(
                 continue
             sanitized = _sanitize_candidate(raw_candidate, retrieval)
             if not sanitized["evidence_ids"] and not sanitized["citations"]:
+                continue
+            if not refs_support_specific_enzyme_alias(sanitized, retrieval, specific_alias_keys):
                 continue
             try:
                 candidates.append(RecommendedCandidate.model_validate(sanitized))
@@ -513,8 +607,10 @@ def build_candidates_from_generation_or_evidence(
             return candidates
 
     evidence_candidates = []
-    formulation_conditions = first_formulation_conditions(retrieval)
+    formulation_conditions = first_formulation_conditions(retrieval, specific_alias_keys=specific_alias_keys)
     for hit in retrieval.hits:
+        if not hit_supports_specific_enzyme_alias(hit, specific_alias_keys):
+            continue
         if hit.record_type not in {"immobilization_strategy", "table_comparison_row", "formulation_condition"}:
             continue
         extracted = hit.extracted
@@ -541,15 +637,16 @@ def build_candidates_from_generation_or_evidence(
 
     # Fallback: if no structured candidates were built but there are hits,
     # create a generic candidate from the top retrieval hit.
-    if not evidence_candidates and retrieval.hits:
-        top = retrieval.hits[0]
+    fallback_hits = [hit for hit in retrieval.hits if hit_supports_specific_enzyme_alias(hit, specific_alias_keys)]
+    if not evidence_candidates and fallback_hits:
+        top = fallback_hits[0]
         evidence_candidates.append(
             RecommendedCandidate(
                 rank=1,
                 strategy_summary=top.text[:300] if top.text else "retrieved evidence",
                 carrier=None,
                 immobilization_method=None,
-                recommended_conditions=first_formulation_conditions(retrieval),
+                recommended_conditions=first_formulation_conditions(retrieval, specific_alias_keys=specific_alias_keys),
                 expected_benefits=benefits_from_hit(top),
                 risks=[],
                 evidence_ids=[top.source_id],
@@ -561,8 +658,13 @@ def build_candidates_from_generation_or_evidence(
     return evidence_candidates
 
 
-def first_formulation_conditions(retrieval: RetrievalResponse) -> Dict[str, Any]:
+def first_formulation_conditions(
+    retrieval: RetrievalResponse,
+    specific_alias_keys: Optional[frozenset[str]] = None,
+) -> Dict[str, Any]:
     for hit in retrieval.hits:
+        if not hit_supports_specific_enzyme_alias(hit, specific_alias_keys or frozenset()):
+            continue
         if hit.record_type == "formulation_condition" and hit.extracted:
             return dict(hit.extracted)
     return {}
@@ -610,14 +712,18 @@ def build_limitations(
     generation: GenerationResponse,
     retrieval: RetrievalResponse,
     generation_json: Optional[Dict[str, Any]] = None,
+    alias_context: Optional[SpecificEnzymeAliasContext] = None,
 ) -> List[str]:
     limitations = []
+    specific_alias_keys = alias_context.alias_keys if alias_context and alias_context.enabled else frozenset()
     if generation_json:
         limitations.extend(string_items(generation_json.get("limitations")))
     if generation.provider == "mock":
         limitations.append("mock generator only validates pipeline wiring; final wording requires SiliconFlow/DeepSeek.")
     if not retrieval.hits:
         limitations.append("no usable evidence was retrieved")
+    elif specific_alias_keys and not any(hit_supports_specific_enzyme_alias(hit, specific_alias_keys) for hit in retrieval.hits):
+        limitations.append("no usable evidence for the requested enzyme alias was retrieved")
     if any(hit.requires_review for hit in retrieval.hits):
         limitations.append("some retrieved evidence requires review and should not be used for ranking")
     return dedupe_strings(limitations)
@@ -626,7 +732,11 @@ def build_limitations(
 def build_next_experiment_suggestions(
     retrieval: RetrievalResponse,
     generation_json: Optional[Dict[str, Any]] = None,
+    alias_context: Optional[SpecificEnzymeAliasContext] = None,
 ) -> List[Dict[str, Any]]:
+    specific_alias_keys = alias_context.alias_keys if alias_context and alias_context.enabled else frozenset()
+    if specific_alias_keys and not any(hit_supports_specific_enzyme_alias(hit, specific_alias_keys) for hit in retrieval.hits):
+        return []
     generated = normalize_experiment_suggestions(generation_json)
     if generated:
         return generated
@@ -749,3 +859,93 @@ def resolve_hit_ref(
         if 0 <= index < len(retrieval.hits):
             return retrieval.hits[index]
     return None
+
+
+ALIAS_GATE_DISABLED_OBJECTIVES = {EVIDENCE_QA_OBJECTIVE, PAPER_PROCESS_OBJECTIVE}
+CROSS_DOCUMENT_COMPARE_RE = re.compile(
+    r"(两篇|多篇|跨文档|跨论文|cross[-\s]?document|cross[-\s]?paper)",
+    re.I,
+)
+
+
+def specific_enzyme_alias_context_from_request(
+    enzyme_name: str,
+    application_context: Optional[str],
+    constraints: List[str],
+    objective: str,
+    retrieval: Optional[RetrievalResponse] = None,
+) -> SpecificEnzymeAliasContext:
+    if objective in ALIAS_GATE_DISABLED_OBJECTIVES:
+        return SpecificEnzymeAliasContext(reason=f"objective:{objective}")
+    if retrieval and retrieval.query_plan and retrieval.query_plan.document_scope:
+        return SpecificEnzymeAliasContext(reason="document_scope")
+
+    text = request_alias_text(enzyme_name, application_context, constraints)
+    alias_keys = matched_enzyme_alias_keys(text)
+    if len(extract_document_ids(text)) > 1:
+        return SpecificEnzymeAliasContext(reason="multiple_documents")
+    if CROSS_DOCUMENT_COMPARE_RE.search(text):
+        return SpecificEnzymeAliasContext(reason="cross_document_comparison")
+    if len(alias_keys) > 1:
+        return SpecificEnzymeAliasContext(alias_keys=frozenset(alias_keys), reason="multiple_specific_aliases")
+    if len(alias_keys) != 1:
+        return SpecificEnzymeAliasContext(
+            alias_keys=frozenset(alias_keys),
+            reason="no_unique_specific_alias" if alias_keys else "no_specific_alias",
+        )
+    return SpecificEnzymeAliasContext(alias_keys=frozenset(alias_keys), enabled=True, reason="unique_specific_alias")
+
+
+def request_alias_text(enzyme_name: str, application_context: Optional[str], constraints: List[str]) -> str:
+    return " ".join(
+        part
+        for part in [
+            enzyme_name or "",
+            application_context or "",
+            " ".join(constraints or []),
+        ]
+        if part
+    ).strip()
+
+
+def hit_supports_specific_enzyme_alias(hit: RetrievalHit, alias_keys: frozenset[str]) -> bool:
+    if not alias_keys:
+        return True
+    if hit.requires_review or not hit.usable_for_ranking:
+        return False
+    return bool(alias_keys & matched_enzyme_alias_keys(hit_alias_match_text(hit)))
+
+
+def refs_support_specific_enzyme_alias(
+    item: Dict[str, Any],
+    retrieval: RetrievalResponse,
+    alias_keys: frozenset[str],
+) -> bool:
+    if not alias_keys:
+        return True
+    hits_by_id = {hit.source_id: hit for hit in retrieval.hits}
+    hits_by_citation = {hit.citation: hit for hit in retrieval.hits if hit.citation}
+    refs: List[RetrievalHit] = []
+    for raw_ref in list(item.get("evidence_ids") or []) + list(item.get("citations") or []):
+        hit = resolve_hit_ref(str(raw_ref).strip(), retrieval, hits_by_id, hits_by_citation)
+        if hit is not None:
+            refs.append(hit)
+    return bool(refs) and any(hit_supports_specific_enzyme_alias(hit, alias_keys) for hit in refs)
+
+
+def hit_alias_match_text(hit: RetrievalHit) -> str:
+    return " ".join(
+        [
+            hit.text or "",
+            hit.embedding_text or "",
+            hit.source_chunk_text or "",
+            hit.section or "",
+            hit.document_id or "",
+            hit.source_pdf or "",
+            hit.citation or "",
+            hit.record_type or "",
+            hit.source_id or "",
+            json.dumps(hit.extracted, ensure_ascii=False, sort_keys=True),
+            json.dumps(hit.metrics, ensure_ascii=False, sort_keys=True),
+        ]
+    )

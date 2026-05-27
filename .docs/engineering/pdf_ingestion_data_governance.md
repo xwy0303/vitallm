@@ -88,31 +88,69 @@ artifacts/
 
 ## 状态机
 
-文档状态：
+PDF ingestion 使用有限状态机管理，状态定义集中在 `src/enzyme_recommender/ingestion/state_machine.py`。任何 worker、恢复脚本或人工补跑入口都不能跳过 FSM 直接写散落状态字符串。
+
+| 状态 | 阶段含义 | 必须存在的关键产物 | 下一步 |
+| --- | --- | --- | --- |
+| `uploaded` | PDF 已进入 registry，尚未完成去重/规范化 | `documents.jsonl` | `deduplicated` |
+| `deduplicated` | 原始 PDF 已有稳定 `document_id/sha256/raw_pdf_path` | raw PDF | `mineru_submitted` |
+| `mineru_submitted` | 已向 MinerU 提交任务并记录 `task_id` | MinerU job manifest | `mineru_succeeded` |
+| `mineru_succeeded` | MinerU artifact 可被定位到 `auto` 目录 | `*_content_list.json` / middle json | `rag_built` |
+| `rag_built` | 已生成 RAG 输入层 | `document_manifest.json`、`rag_chunks.jsonl`、`table_records.jsonl` | `evidence_extracted` |
+| `evidence_extracted` | 已生成机器 evidence 和 review queue | `evidence_records.jsonl`、`review_queue.jsonl` | `indexed` |
+| `indexed` | 当前文档 points 已 upsert 到目标 collection | indexing manifest、Qdrant points | `retrieval_verified` |
+| `retrieval_verified` | document_id/source_pdf/context point sanity check 通过 | Qdrant scroll 可验证 | `searchable` 或 `needs_review` |
+| `searchable` | 可被 RAG 正常检索，且有可用 context/evidence | registry、artifact、Qdrant 三方一致 | 终态 |
+| `needs_review` | 有可检索上下文，但无可用 evidence 或质量风险需要人工复核 | context points、review flags | 终态，人工复核后可重建 curated overlay |
+| `failed_upload_validation` | PDF 文件校验失败 | 错误码和错误消息 | 修复输入后从 upload validation 重试 |
+| `failed_mineru` | MinerU 解析失败或服务异常 | MinerU 错误、可选 partial artifact | 原 PDF retry 或 fallback 路径 |
+| `failed_rag_build` | artifact 到 RAG inputs 构建失败 | 可复用 MinerU artifact | 从 `rag_build` 恢复 |
+| `failed_evidence` | evidence 抽取失败 | 可复用 `rag_inputs` | 从 `evidence_extract` 恢复 |
+| `failed_indexing` | Qdrant 建点或 upsert 失败 | 可复用 `rag_inputs/evidence` | 从 `qdrant_index` 恢复 |
+| `failed_retrieval_verification` | Qdrant 有写入但 sanity check 未通过 | Qdrant payload 或 mismatch 错误 | 从 `retrieval_verify` 或上游修复后恢复 |
+
+正常 MinerU 路径：
 
 ```text
 uploaded
-  -> deduplicated
-  -> mineru_submitted
-  -> mineru_succeeded
-  -> rag_built
-  -> evidence_extracted
-  -> indexed
-  -> retrieval_verified
-  -> searchable
+-> deduplicated
+-> mineru_submitted
+-> mineru_succeeded
+-> rag_built
+-> evidence_extracted
+-> indexed
+-> retrieval_verified
+-> searchable | needs_review
 ```
 
-失败状态：
+OCR/raster fallback 路径：
 
 ```text
-failed_upload_validation
 failed_mineru
-failed_rag_build
-failed_evidence
-failed_indexing
-failed_retrieval_verification
-needs_review
+-> pdf_raster_fallback/<document_id>/fallback_manifest.json
+-> fallback_ready | fallback_ready_with_placeholders
+-> queue_fallback_ingestion
+-> deduplicated
+-> mineru_submitted
+-> mineru_succeeded
+-> rag_built
+-> evidence_extracted
+-> indexed
+-> retrieval_verified
+-> searchable | needs_review
 ```
+
+`fallback_manifest.json` 不是入库完成标志，只表示 fallback PDF 已准备好进入同一条 ingestion pipeline。带 `placeholder_pages` 的 fallback 文档必须在 RAG build 阶段进入 QA gate，并给对应 chunk/table 打：
+
+- `quality_flags` 包含 `unrecoverable_page_placeholder`
+- `requires_review=true`
+- `usable_for_ranking=false`
+
+`fallback_ready`、`needs_review`、`searchable` 的区别：
+
+- `fallback_ready`：仅表示 OCR/raster PDF 已生成且页数保真，可以排队进入 MinerU；此时还不能被 RAG 检索。
+- `needs_review`：已完成 Qdrant 入库并能检索到上下文，但 evidence 为空或存在质量风险；可以作为人工复核线索，不能直接作为高置信 ranking 事实。
+- `searchable`：registry、artifact、Qdrant 三方一致，document filter 能查到 context points，source_pdf 匹配，并通过 retrieval sanity check。
 
 状态推进规则：
 
@@ -120,6 +158,61 @@ needs_review
 - 每一步完成后写 registry，再进入下一步。
 - 失败后保留上游产物和错误上下文，允许从失败阶段重试。
 - `searchable` 只能由 retrieval sanity check 置位，不能由 Qdrant upsert 成功直接置位。
+- `pipeline.py` 必须通过 `assert_transition()` 推进状态；恢复脚本只能使用显式 `allow_recovery=True` 的阶段级恢复转移。
+- Qdrant 不可用时，审计脚本必须输出 `qdrant_points=unknown`，不能把 unknown 误判为 `0`。
+
+## 缺口审计与阶段级恢复
+
+新增两个工程入口：
+
+```text
+PYTHONPATH=src python scripts/audit_pdf_ingestion_status.py --skip-qdrant --json
+PYTHONPATH=src python scripts/recover_pdf_ingestion_gaps.py --document-id A34
+```
+
+`scripts/audit_pdf_ingestion_status.py` 是只读诊断脚本，默认检查当前 21 篇缺口文档：
+
+```text
+A27,A34,A35,A39,A41,A47,A49,A51,A53,A57,A65,A66,A68,A70,A72,A73,A74,A75,A76,A77,A78
+```
+
+审计字段固定为：
+
+```text
+document_id
+source_pdf
+registry_status
+fallback_manifest_exists
+fallback_status
+placeholder_pages
+queued_job
+latest_job_stage
+latest_job_status
+mineru_artifact_exists
+rag_inputs_exists
+evidence_exists
+qdrant_points
+searchable
+next_action
+blocking_reason
+```
+
+`next_action` 的恢复语义：
+
+| `next_action` | 执行含义 |
+| --- | --- |
+| `register_source_pdf` | registry 中缺文档，先注册原始 PDF |
+| `run_queued_job` | 已有 queued ingestion job，优先消费现有队列，避免重复排队 |
+| `wait_for_running_job` | 已有 running job，等待当前任务结束后再审计 |
+| `queue_fallback_ingestion` | fallback PDF 已 ready，只排队进入同一 ingestion pipeline |
+| `run_mineru_original_pdf` | A47/A75 这类 MinerU runtime/model 问题，重试原 PDF，不走 raster fallback |
+| `build_rag_from_artifact` | 已有 MinerU artifact，从 RAG build 恢复 |
+| `extract_evidence` | 已有 `rag_inputs`，从 evidence 抽取恢复 |
+| `index_only` | 已有 evidence，只做 Qdrant indexing 和 retrieval verify |
+| `verify_only` | Qdrant 有 points 但 registry 未进入终态，只做 retrieval sanity check |
+| `blocked` | 缺少可复用上游产物，或 fallback manifest 未 ready |
+
+`scripts/recover_pdf_ingestion_gaps.py` 默认 dry-run，只报告计划动作；必须显式加 `--execute` 才会创建 fallback job、消费已有 queued job 或运行阶段级恢复 pipeline。恢复时每篇独立失败，不阻塞整批。
 
 ## 自动化流程
 

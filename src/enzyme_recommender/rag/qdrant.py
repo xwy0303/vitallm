@@ -206,6 +206,59 @@ class QdrantRestClient:
             raise RuntimeError(f"unexpected Qdrant scroll response: {response.text}")
         return [dict(point.get("payload") or {}) for point in points]
 
+    def scroll_points(
+        self,
+        query_filter: Dict[str, Any],
+        limit: int = 256,
+        with_vector: bool = False,
+    ) -> List[Dict[str, Any]]:
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        points: List[Dict[str, Any]] = []
+        offset: Optional[Any] = None
+        while True:
+            payload: Dict[str, Any] = {
+                "filter": query_filter,
+                "limit": limit,
+                "with_payload": True,
+                "with_vector": with_vector,
+            }
+            if offset is not None:
+                payload["offset"] = offset
+            response = self._request(
+                "POST",
+                f"/collections/{self.config.collection}/points/scroll",
+                json=payload,
+            )
+            if response.status_code != 200:
+                raise RuntimeError(f"Qdrant scroll failed: {response.status_code} {response.text}")
+            result = response.json().get("result")
+            if not isinstance(result, dict):
+                raise RuntimeError(f"unexpected Qdrant scroll response: {response.text}")
+            batch = result.get("points")
+            if not isinstance(batch, list):
+                raise RuntimeError(f"unexpected Qdrant scroll response: {response.text}")
+            points.extend(dict(point) for point in batch)
+            offset = result.get("next_page_offset")
+            if offset is None:
+                return points
+
+    def count_points(self, query_filter: Dict[str, Any], exact: bool = True) -> int:
+        response = self._request(
+            "POST",
+            f"/collections/{self.config.collection}/points/count",
+            json={
+                "filter": query_filter,
+                "exact": exact,
+            },
+        )
+        if response.status_code != 200:
+            raise RuntimeError(f"Qdrant count failed: {response.status_code} {response.text}")
+        count = response.json().get("result", {}).get("count")
+        if not isinstance(count, int):
+            raise RuntimeError(f"unexpected Qdrant count response: {response.text}")
+        return count
+
     def scroll_all_payloads(
         self,
         limit: int = 256,
