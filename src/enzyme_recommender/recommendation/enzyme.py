@@ -17,6 +17,8 @@ from enzyme_recommender.rag.documents import (
     resolve_document_reference,
 )
 from enzyme_recommender.rag.retrieval import RetrievalHit, RetrievalResponse
+from enzyme_recommender.rag.query_guard import should_return_no_evidence
+from enzyme_recommender.recommendation.grounding import build_grounded_answer, build_no_answer_text
 from enzyme_recommender.runtime import RuntimeServices
 
 
@@ -87,6 +89,15 @@ class RecommendationService:
 
     def retrieve_evidence(self, request: EnzymeRecommendationRequest) -> RetrievalResponse:
         retrieval_query = build_retrieval_query(request)
+        if request.objective == EVIDENCE_QA_OBJECTIVE and should_return_no_evidence(
+            request.application_context or request.enzyme_name
+        ):
+            return empty_retrieval_response(
+                query=retrieval_query,
+                collection=self.runtime.qdrant_config().collection,
+                embedding_model=self.runtime.embedding_model().name,
+                top_k=request.top_k or self.runtime.config.retrieval.top_k,
+            )
         if request.objective == PAPER_PROCESS_OBJECTIVE or is_paper_process_question(retrieval_query):
             request.objective = PAPER_PROCESS_OBJECTIVE
             resolution = resolve_request_document(self.runtime, request, retrieval_query)
@@ -166,6 +177,7 @@ class RecommendationService:
         generation: GenerationResponse,
     ) -> EnzymeRecommendationResponse:
         generation_json = parse_json_object(generation.content)
+        generation_content = grounded_generation_content(request, retrieval, generation, generation_json)
         candidates = [] if request.objective in QA_OBJECTIVES else build_candidates_from_generation_or_evidence(generation_json, retrieval)
         return EnzymeRecommendationResponse(
             recommendation_id=make_recommendation_id(request, retrieval),
@@ -177,7 +189,7 @@ class RecommendationService:
             generator_model=generation.model,
             candidates=candidates,
             evidence_hits=retrieval.hits,
-            generation_content=generation.content,
+            generation_content=generation_content,
             generation_json=generation_json,
             limitations=build_limitations(generation, retrieval, generation_json),
             next_experiment_suggestions=[]
@@ -220,6 +232,29 @@ def build_retrieval_query(request: EnzymeRecommendationRequest) -> str:
     else:
         parts.append("immobilization enzyme evidence")
     return " ".join(part for part in parts if part).strip()
+
+
+def grounded_generation_content(
+    request: EnzymeRecommendationRequest,
+    retrieval: RetrievalResponse,
+    generation: GenerationResponse,
+    generation_json: Optional[Dict[str, Any]],
+) -> str:
+    if not retrieval.hits:
+        return build_no_answer_text()
+    if request.objective in QA_OBJECTIVES:
+        return build_grounded_answer(
+            request.application_context or request.enzyme_name,
+            retrieval,
+            paper_process=request.objective == PAPER_PROCESS_OBJECTIVE,
+        ) or generation.content
+    if generation.provider == "mock" or not generation_json:
+        return build_grounded_answer(
+            request.application_context or request.enzyme_name,
+            retrieval,
+            paper_process=False,
+        ) or generation.content
+    return generation.content
 
 
 EVIDENCE_QA_OBJECTIVE = "answer_evidence_question"
@@ -279,6 +314,16 @@ def build_generation_prompt(request: EnzymeRecommendationRequest, retrieval: Ret
 
 
 def build_stream_generation_prompt(request: EnzymeRecommendationRequest, retrieval: RetrievalResponse) -> str:
+    if not retrieval.hits:
+        return "\n\n".join(
+            [
+                "任务：当前没有可用 evidence context。",
+                "输出要求：",
+                "- 只输出：证据不足：当前知识库没有检索到可用于回答该问题的可靠 evidence。",
+                "- 不复述用户原始问题。",
+                "- 不输出候选推荐、实验条件、百分比或 citation。",
+            ]
+        )
     if request.objective == PAPER_PROCESS_OBJECTIVE:
         return build_paper_process_generation_prompt(request, retrieval)
     if request.objective == EVIDENCE_QA_OBJECTIVE:
