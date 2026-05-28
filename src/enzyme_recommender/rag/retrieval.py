@@ -411,6 +411,9 @@ COMPARISON_QUERY_TERMS = {
 CHINESE_COMPARISON_QUERY_TERMS = {
     "对比",
     "比较",
+    "相比",
+    "相较",
+    "对照",
     "都给我找证据",
     "都找证据",
     "分别",
@@ -441,6 +444,15 @@ NO_RETRIEVAL_CROSS_DOMAIN_RE = re.compile(
     r"天气|股票|英伟达|红烧肉|胃疼|吃什么药|\breact(?:\.js)?\b|登录页|月亮的诗|"
     r"青霉素|发酵罐|灭菌|mRNA|疫苗|递送系统|蛋白结晶|结晶筛选|饲料淀粉酶|淀粉酶|"
     r"weather|stock|finance|recipe|medical|medicine|\breact(?:\.js)?\b|poem|crystallization|amylase|penicillin|vaccine"
+    r")",
+    re.I,
+)
+STRATEGY_SUMMARY_RE = re.compile(
+    r"("
+    r"\bwe\s+(?:developed|reported|designed|synthesized|constructed|prepared|anchored)\b|"
+    r"\bthis\s+work\b|\bherein\b|\bfirst\s+time\b|\bone[-\s](?:step|pot)\b|"
+    r"\bsuccessfully\b|\bstrategy\b|\bapproach\b|"
+    r"本文|本研究|首次|开发|构建|制备|成功"
     r")",
     re.I,
 )
@@ -878,6 +890,7 @@ def rerank_hits(query: str, hits: List[RetrievalHit], plan: Optional[QueryPlan] 
         condition_value_overlap = len(query_condition_values & text_condition_values)
         material_overlap = len(query_profile["material_tokens"] & text_profile["material_tokens"])
         rare_material_overlap = len(query_profile["rare_material_tokens"] & text_profile["rare_material_tokens"])
+        application_overlap = len(query_profile["application_tokens"] & text_profile["application_tokens"])
         construct_overlap = len(query_profile["at_constructs"] & text_profile["at_constructs"])
         rare_construct_overlap = len(query_profile["rare_at_constructs"] & text_profile["rare_at_constructs"])
         phrase_overlap = len(query_profile["phrases"] & text_profile["phrases"])
@@ -907,6 +920,8 @@ def rerank_hits(query: str, hits: List[RetrievalHit], plan: Optional[QueryPlan] 
             bonus += 0.08
             if strategy_is_primary:
                 bonus += 0.10
+            if STRATEGY_SUMMARY_RE.search(searchable):
+                bonus += 0.10
         if numeric_overlap:
             bonus += min(0.08, 0.025 * numeric_overlap)
         if condition_value_overlap:
@@ -915,6 +930,8 @@ def rerank_hits(query: str, hits: List[RetrievalHit], plan: Optional[QueryPlan] 
             bonus += min(0.12, 0.04 * material_overlap)
         if rare_material_overlap:
             bonus += min(0.18, 0.09 * rare_material_overlap)
+        if application_overlap:
+            bonus += min(0.12, 0.06 * application_overlap)
         if construct_overlap:
             bonus += min(0.18, 0.09 * construct_overlap)
         if rare_construct_overlap:
@@ -1023,7 +1040,7 @@ def select_document_scoped_hits_by_mode(
     selected: List[RetrievalHit] = []
     seen: set[str] = set()
     primary_hits = [hit for hit in hits if document_bucket_key(hit) in primary_buckets and is_usable_primary_hit(hit)]
-    for hit in select_score_first_hits(primary_hits, top_k):
+    for hit in select_page_progressive_hits(primary_hits, top_k):
         if hit.source_id in seen:
             continue
         selected.append(hit)
@@ -1039,20 +1056,6 @@ def select_document_scoped_hits_by_mode(
         if len(selected) >= top_k:
             break
     return selected
-
-
-def select_score_first_hits(hits: Sequence[RetrievalHit], limit: int) -> List[RetrievalHit]:
-    selected: List[RetrievalHit] = []
-    seen: set[str] = set()
-    for hit in hits:
-        if hit.source_id in seen:
-            continue
-        selected.append(hit)
-        seen.add(hit.source_id)
-        if len(selected) >= limit:
-            break
-    return selected
-
 
 def select_comparison_coverage_hits(hits: Sequence[RetrievalHit], top_k: int) -> List[RetrievalHit]:
     if top_k <= 0:
@@ -1127,6 +1130,23 @@ def select_page_progressive_hits(hits: Sequence[RetrievalHit], limit: int) -> Li
         seen_sources.add(hit.source_id)
         if hit.page_start is not None:
             seen_pages.add(hit.page_start)
+
+    if limit >= 6:
+        paged_hits = [hit for hit in hits if hit.source_id not in seen_sources and hit.page_start is not None]
+        if paged_hits:
+            max_page = max(int(hit.page_start or 0) for hit in paged_hits)
+            tail_hits = [hit for hit in paged_hits if int(hit.page_start or 0) >= max_page - 1]
+            tail_hit = max(
+                tail_hits,
+                key=lambda hit: (
+                    hit.page_start if hit.page_start is not None else -1,
+                    hit.rerank_score if hit.rerank_score is not None else hit.score,
+                    hit.source_id,
+                ),
+            )
+            selected.append(tail_hit)
+            seen_sources.add(tail_hit.source_id)
+            seen_pages.add(int(tail_hit.page_start or 0))
 
     page_ordered = sorted(
         [hit for hit in hits if hit.source_id not in seen_sources],
@@ -1284,6 +1304,7 @@ def normalize_lexical_text(text: str) -> str:
         "复用": " reusability reuse cycles ",
         "更稳": " stability retained activity ",
         "稳定性": " stability retained activity ",
+        "越高越好": " optimum suitable temperature decrease denaturation ",
     }
     for raw, replacement in chinese_aliases.items():
         normalized = normalized.replace(raw, replacement)
@@ -1396,6 +1417,7 @@ def lexical_profile(text: str, tokens: Optional[Sequence[str]] = None) -> Dict[s
     numeric_tokens = {token for token in expanded_tokens if is_numeric_lexical_token(token)}
     domain_tokens = {token for token in important_tokens if is_domain_lexical_token(token)}
     material_tokens = {token for token in domain_tokens if is_material_lexical_token(token)}
+    application_tokens = {token for token in domain_tokens if token in APPLICATION_QUERY_TERMS}
     rare_material_tokens = {
         token for token in material_tokens if token not in COMMON_MATERIAL_TOKENS and token not in BROAD_DOMAIN_TOKENS
     }
@@ -1412,6 +1434,7 @@ def lexical_profile(text: str, tokens: Optional[Sequence[str]] = None) -> Dict[s
         "numeric_tokens": numeric_tokens,
         "domain_tokens": domain_tokens,
         "material_tokens": material_tokens,
+        "application_tokens": application_tokens,
         "rare_material_tokens": rare_material_tokens,
         "at_constructs": constructs,
         "rare_at_constructs": rare_at_constructs,
@@ -1512,6 +1535,10 @@ def compute_lexical_score(query_profile: Dict[str, set[str]], text_profile: Dict
     numeric_ratio = overlap_ratio(query_profile["numeric_tokens"], text_profile["numeric_tokens"])
     domain_ratio = overlap_ratio(query_profile["domain_tokens"], text_profile["domain_tokens"])
     material_ratio = overlap_ratio(query_profile.get("material_tokens", set()), text_profile.get("material_tokens", set()))
+    application_ratio = overlap_ratio(
+        query_profile.get("application_tokens", set()),
+        text_profile.get("application_tokens", set()),
+    )
     rare_material_ratio = overlap_ratio(
         query_profile.get("rare_material_tokens", set()),
         text_profile.get("rare_material_tokens", set()),
@@ -1528,6 +1555,7 @@ def compute_lexical_score(query_profile: Dict[str, set[str]], text_profile: Dict
         + 0.12 * numeric_ratio
         + 0.10 * domain_ratio
         + 0.08 * material_ratio
+        + 0.08 * application_ratio
         + 0.14 * rare_material_ratio
         + 0.08 * construct_ratio
         + 0.18 * rare_construct_ratio
@@ -1643,6 +1671,7 @@ def query_mode_flags(planning_text: str, lowered_query: str, token_set: set[str]
     explicit_performance = bool(
         re.search(
             r"(复用|稳定性|活性(?:保留|回收)?|剩余活性|残余活性|产率|转化率|数据|几次|"
+            r"越高越好|"
             r"reuse|reusable|reused|reusability|cycle|cycles|stability|stable|yield|conversion|"
             r"activity recovery|retained activity|residual activity)",
             raw_text,
@@ -1663,26 +1692,19 @@ def query_mode_flags(planning_text: str, lowered_query: str, token_set: set[str]
     performance = bool(
         (token_set & PERFORMANCE_QUERY_TERMS)
         or contains_any(lowered_query, CHINESE_PERFORMANCE_QUERY_TERMS)
+        or explicit_performance
     )
     comparison = bool((token_set & COMPARISON_QUERY_TERMS) or contains_any(lowered_query, CHINESE_COMPARISON_QUERY_TERMS))
-    original_condition = condition
     if strategy and (
         comparison
-        or re.search(r"(更适合|先试|理由|主要是什么策略|优势|相比|compared|compare|versus|vs)", raw_text, re.I)
+        or re.search(r"(更适合|先试|理由|主要是什么策略|优势|相比|相较|compared|compare|versus|vs)", raw_text, re.I)
     ):
         performance = True
-    if performance and re.search(r"(复用|稳定性|数据|几次|越高越好|reusability|stability|temperature)", raw_text, re.I):
-        condition = True
-    if strategy:
-        # In this corpus, carrier/method records and preparation-condition records
-        # are often split for the same experimental setup. Keep condition as a
-        # secondary route without making it primary for strategy-seeking queries.
-        condition = True
     strategy_primary = bool(
         strategy
         and (
             explicit_strategy
-            or (not original_condition and not explicit_performance)
+            or (not condition and not explicit_performance)
         )
     )
     performance_primary = bool(
@@ -1690,7 +1712,7 @@ def query_mode_flags(planning_text: str, lowered_query: str, token_set: set[str]
         and explicit_performance
         and not strategy_primary
     )
-    condition_primary = bool(original_condition and not strategy_primary)
+    condition_primary = bool(condition and not strategy_primary)
     return {
         "strategy": strategy,
         "condition": condition,
