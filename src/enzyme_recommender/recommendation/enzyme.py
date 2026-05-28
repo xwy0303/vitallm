@@ -270,7 +270,7 @@ def build_retrieval_query(request: EnzymeRecommendationRequest) -> str:
         parts.append(request.enzyme_name)
 
     if should_expand_recommendation_query(request, user_text):
-        parts.append("immobilization carrier support method conditions activity recovery reusability stability")
+        parts.append(recommendation_expansion_terms(request, user_text))
     else:
         parts.append("immobilization enzyme evidence")
     return " ".join(part for part in parts if part).strip()
@@ -346,6 +346,37 @@ def should_expand_recommendation_query(request: EnzymeRecommendationRequest, use
         return True
     text = user_text.lower()
     return any(term in text for term in RECOMMENDATION_INTENT_TERMS)
+
+
+def recommendation_expansion_terms(request: EnzymeRecommendationRequest, user_text: str) -> str:
+    if not user_text:
+        return "immobilization carrier support method formulation conditions activity recovery reusability stability"
+    plan_text = " ".join(part for part in [user_text, request.enzyme_name] if part).strip()
+    plan = build_query_plan(plan_text, top_k=request.top_k or 8)
+    intents = set(plan.intents)
+    terms = ["immobilization", "enzyme", "evidence"]
+    if "strategy" in intents:
+        terms.extend(
+            [
+                "carrier",
+                "support",
+                "material",
+                "immobilization method",
+                "adsorption",
+                "encapsulation",
+                "covalent",
+                "crosslinking",
+            ]
+        )
+    if "condition" in intents:
+        terms.extend(["formulation", "conditions", "loading", "pH", "temperature", "time", "buffer"])
+    if "performance" in intents:
+        terms.extend(["activity", "recovery", "yield", "conversion", "reusability", "stability"])
+    if "application" in intents:
+        terms.extend(["application", "biodiesel", "transesterification", "substrate"])
+    if not (intents & {"strategy", "condition", "performance", "application"}):
+        terms.extend(["carrier", "support", "method", "conditions", "activity", "recovery"])
+    return " ".join(dedupe_strings(terms))
 
 
 def build_generation_prompt(request: EnzymeRecommendationRequest, retrieval: RetrievalResponse) -> str:

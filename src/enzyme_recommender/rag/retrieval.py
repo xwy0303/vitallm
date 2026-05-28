@@ -321,13 +321,27 @@ CHINESE_TABLE_QUERY_TERMS = {"表格", "表", "对比", "比较", "哪一行"}
 CHINESE_STRATEGY_QUERY_TERMS = {
     "固定化",
     "固定化剂",
+    "固定化方案",
+    "固定化方法",
+    "固定方案",
+    "固定方法",
+    "固定方式",
+    "怎么固定",
+    "如何固定",
     "载体",
+    "载体选择",
+    "用啥载体",
+    "用什么载体",
     "材料",
+    "材料选择",
+    "固定化材料",
+    "固定化载体",
     "包埋",
     "吸附",
     "共价",
     "交联",
     "策略",
+    "主要是什么策略",
 }
 CHINESE_CONDITION_QUERY_TERMS = {
     "条件",
@@ -341,10 +355,23 @@ CHINESE_CONDITION_QUERY_TERMS = {
     "投料",
     "加量",
     "酶量",
+    "固定化条件",
+    "优化条件",
+    "最佳条件",
+    "加多少",
+    "反应多久",
+    "吸附多久",
+    "温度多少",
+    "ph多少",
+    "ph 值",
+    "载体量",
 }
 CHINESE_PERFORMANCE_QUERY_TERMS = {
     "产率",
     "活性",
+    "活性保留",
+    "活性回收",
+    "剩余活性",
     "回收率",
     "重复使用",
     "重复用",
@@ -353,6 +380,8 @@ CHINESE_PERFORMANCE_QUERY_TERMS = {
     "稳定性",
     "稳定",
     "更稳",
+    "更适合",
+    "先试",
     "越高越好",
     "数据",
     "残余活性",
@@ -372,6 +401,22 @@ CHINESE_ENZYME_QUERY_TERMS = {
     "酶固定",
 }
 CHINESE_APPLICATION_QUERY_TERMS = {"生物柴油", "转酯", "酯化", "大豆油", "底物"}
+COMPARISON_QUERY_TERMS = {
+    "compare",
+    "comparison",
+    "versus",
+    "vs",
+    "both",
+}
+CHINESE_COMPARISON_QUERY_TERMS = {
+    "对比",
+    "比较",
+    "都给我找证据",
+    "都找证据",
+    "分别",
+    "两种",
+    "两个",
+}
 CHINESE_DOMAIN_QUERY_TERMS = (
     CHINESE_TABLE_QUERY_TERMS
     | CHINESE_STRATEGY_QUERY_TERMS
@@ -379,6 +424,7 @@ CHINESE_DOMAIN_QUERY_TERMS = (
     | CHINESE_PERFORMANCE_QUERY_TERMS
     | CHINESE_ENZYME_QUERY_TERMS
     | CHINESE_APPLICATION_QUERY_TERMS
+    | CHINESE_COMPARISON_QUERY_TERMS
     | {"论文", "文献", "固定化酶", "酶固定化"}
 )
 NO_RETRIEVAL_PROMPT_INJECTION_RE = re.compile(
@@ -614,7 +660,13 @@ class EvidenceRetriever:
                         )
         hits = merge_route_hits(hits)
         rerank_query = expanded_embedding_query or expanded_query or query
-        hits = rerank_hits(rerank_query, hits, plan)[:top_k]
+        hits = rerank_hits(rerank_query, hits, plan)
+        if plan.document_scope:
+            hits = select_document_scoped_hits_by_mode(hits, plan, top_k)
+        elif "comparison" in set(plan.intents):
+            hits = select_comparison_coverage_hits(hits, top_k)
+        else:
+            hits = hits[:top_k]
         return RetrievalResponse(
             query=query,
             collection=self.qdrant_config.collection,
@@ -813,6 +865,7 @@ def rerank_hits(query: str, hits: List[RetrievalHit], plan: Optional[QueryPlan] 
     query_has_table_intent = "table" in plan.intents
     query_has_evidence_intent = bool({"strategy", "condition", "performance", "enzyme"} & set(plan.intents))
     strategy_is_primary = bool(plan.record_type_priorities and plan.record_type_priorities[0] == "immobilization_strategy")
+    specificity = query_specificity_score(query_profile, query_enzyme_alias_keys)
     reranked: List[RetrievalHit] = []
     for hit in hits:
         searchable = hit_searchable_text(hit)
@@ -823,6 +876,11 @@ def rerank_hits(query: str, hits: List[RetrievalHit], plan: Optional[QueryPlan] 
         overlap = len(query_tokens & text_tokens) / max(len(query_tokens), 1)
         numeric_overlap = len(query_profile["numeric_tokens"] & text_profile["numeric_tokens"])
         condition_value_overlap = len(query_condition_values & text_condition_values)
+        material_overlap = len(query_profile["material_tokens"] & text_profile["material_tokens"])
+        rare_material_overlap = len(query_profile["rare_material_tokens"] & text_profile["rare_material_tokens"])
+        construct_overlap = len(query_profile["at_constructs"] & text_profile["at_constructs"])
+        rare_construct_overlap = len(query_profile["rare_at_constructs"] & text_profile["rare_at_constructs"])
+        phrase_overlap = len(query_profile["phrases"] & text_profile["phrases"])
         lexical_score = compute_lexical_score(query_profile, text_profile)
         bonus = 0.0
         if hit.route_weight > 1.0:
@@ -853,6 +911,16 @@ def rerank_hits(query: str, hits: List[RetrievalHit], plan: Optional[QueryPlan] 
             bonus += min(0.08, 0.025 * numeric_overlap)
         if condition_value_overlap:
             bonus += min(0.34, 0.28 * condition_value_overlap)
+        if material_overlap:
+            bonus += min(0.12, 0.04 * material_overlap)
+        if rare_material_overlap:
+            bonus += min(0.18, 0.09 * rare_material_overlap)
+        if construct_overlap:
+            bonus += min(0.18, 0.09 * construct_overlap)
+        if rare_construct_overlap:
+            bonus += min(0.30, 0.18 * rare_construct_overlap)
+        if phrase_overlap:
+            bonus += min(0.10, 0.035 * phrase_overlap)
         if query_enzyme_alias_keys:
             enzyme_overlap = query_enzyme_alias_keys & text_enzyme_alias_keys
             if enzyme_overlap:
@@ -881,7 +949,11 @@ def rerank_hits(query: str, hits: List[RetrievalHit], plan: Optional[QueryPlan] 
                 }
             )
         )
-    return apply_result_diversity(reranked, document_scoped=bool(plan.document_scope))
+    return apply_result_diversity(
+        reranked,
+        document_scoped=bool(plan.document_scope),
+        specificity=specificity,
+    )
 
 
 def rerank_document_hits(
@@ -930,6 +1002,159 @@ def select_document_evidence_coverage(
         selected.append(hit)
         seen.add(hit.source_id)
         if len(selected) >= top_k:
+            break
+    return selected
+
+
+def select_document_scoped_hits_by_mode(
+    hits: Sequence[RetrievalHit],
+    plan: QueryPlan,
+    top_k: int,
+) -> List[RetrievalHit]:
+    if top_k <= 0:
+        return []
+    if "process" in set(plan.intents) or "paper" in set(plan.intents):
+        return select_document_evidence_coverage(hits, plan, top_k)
+
+    primary_buckets = document_scoped_primary_buckets(plan)
+    if not primary_buckets:
+        return list(hits[:top_k])
+
+    selected: List[RetrievalHit] = []
+    seen: set[str] = set()
+    primary_hits = [hit for hit in hits if document_bucket_key(hit) in primary_buckets and is_usable_primary_hit(hit)]
+    for hit in select_score_first_hits(primary_hits, top_k):
+        if hit.source_id in seen:
+            continue
+        selected.append(hit)
+        seen.add(hit.source_id)
+        if len(selected) >= top_k:
+            return selected
+
+    for hit in hits:
+        if hit.source_id in seen:
+            continue
+        selected.append(hit)
+        seen.add(hit.source_id)
+        if len(selected) >= top_k:
+            break
+    return selected
+
+
+def select_score_first_hits(hits: Sequence[RetrievalHit], limit: int) -> List[RetrievalHit]:
+    selected: List[RetrievalHit] = []
+    seen: set[str] = set()
+    for hit in hits:
+        if hit.source_id in seen:
+            continue
+        selected.append(hit)
+        seen.add(hit.source_id)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
+def select_comparison_coverage_hits(hits: Sequence[RetrievalHit], top_k: int) -> List[RetrievalHit]:
+    if top_k <= 0:
+        return []
+    selected: List[RetrievalHit] = []
+    seen_sources: set[str] = set()
+    seen_documents: set[str] = set()
+
+    for hit in hits[:1]:
+        selected.append(hit)
+        seen_sources.add(hit.source_id)
+        doc_key = comparison_document_key(hit)
+        if doc_key:
+            seen_documents.add(doc_key)
+
+    for hit in hits:
+        if hit.source_id in seen_sources:
+            continue
+        doc_key = comparison_document_key(hit)
+        if doc_key and doc_key in seen_documents:
+            continue
+        selected.append(hit)
+        seen_sources.add(hit.source_id)
+        if doc_key:
+            seen_documents.add(doc_key)
+        if len(selected) >= top_k:
+            return selected
+
+    for hit in hits:
+        if hit.source_id in seen_sources:
+            continue
+        selected.append(hit)
+        seen_sources.add(hit.source_id)
+        if len(selected) >= top_k:
+            break
+    return selected
+
+
+def comparison_document_key(hit: RetrievalHit) -> str:
+    return hit.document_id or hit.source_pdf or ""
+
+
+def document_scoped_primary_buckets(plan: QueryPlan) -> List[str]:
+    primary = plan.record_type_priorities[0] if plan.record_type_priorities else None
+    if primary == "immobilization_strategy":
+        return ["immobilization_strategy"]
+    if primary == "formulation_condition":
+        return ["formulation_condition", "table_comparison_row"]
+    if primary == "performance_metric":
+        return ["performance_metric", "table_comparison_row"]
+    if primary == "table_comparison_row":
+        return ["table_comparison_row", "performance_metric"]
+    return [str(primary)] if primary else []
+
+
+def is_usable_primary_hit(hit: RetrievalHit) -> bool:
+    flags = set(hit.quality_flags) | set(hit.qa_flags)
+    return hit.usable_for_ranking and not hit.requires_review and hit.qa_status != "fail" and not bool(flags & BAD_QUALITY_FLAGS)
+
+
+def select_page_progressive_hits(hits: Sequence[RetrievalHit], limit: int) -> List[RetrievalHit]:
+    if limit <= 0:
+        return []
+    if len(hits) <= limit:
+        return list(hits)
+
+    selected: List[RetrievalHit] = []
+    seen_sources: set[str] = set()
+    seen_pages: set[int] = set()
+    for hit in hits[:1]:
+        selected.append(hit)
+        seen_sources.add(hit.source_id)
+        if hit.page_start is not None:
+            seen_pages.add(hit.page_start)
+
+    page_ordered = sorted(
+        [hit for hit in hits if hit.source_id not in seen_sources],
+        key=lambda hit: (
+            hit.page_start is None,
+            hit.page_start if hit.page_start is not None else 9999,
+            -(hit.rerank_score if hit.rerank_score is not None else hit.score),
+            hit.source_id,
+        ),
+    )
+    for hit in page_ordered:
+        if hit.source_id in seen_sources:
+            continue
+        if hit.page_start is not None and hit.page_start in seen_pages:
+            continue
+        selected.append(hit)
+        seen_sources.add(hit.source_id)
+        if hit.page_start is not None:
+            seen_pages.add(hit.page_start)
+        if len(selected) >= limit:
+            return selected
+
+    for hit in hits:
+        if hit.source_id in seen_sources:
+            continue
+        selected.append(hit)
+        seen_sources.add(hit.source_id)
+        if len(selected) >= limit:
             break
     return selected
 
@@ -1065,7 +1290,11 @@ def normalize_lexical_text(text: str) -> str:
     return normalized
 
 
-def apply_result_diversity(hits: Sequence[RetrievalHit], document_scoped: bool = False) -> List[RetrievalHit]:
+def apply_result_diversity(
+    hits: Sequence[RetrievalHit],
+    document_scoped: bool = False,
+    specificity: int = 0,
+) -> List[RetrievalHit]:
     sorted_hits = sorted(
         hits,
         key=lambda item: item.rerank_score if item.rerank_score is not None else item.score,
@@ -1088,20 +1317,26 @@ def apply_result_diversity(hits: Sequence[RetrievalHit], document_scoped: bool =
         if parent_key:
             seen = parent_counts.get(parent_key, 0)
             if seen:
-                duplicate_penalty += min(0.70, 0.35 * seen)
+                parent_step = 0.16 if specificity >= 2 else 0.35
+                parent_cap = 0.32 if specificity >= 2 else 0.70
+                duplicate_penalty += min(parent_cap, parent_step * seen)
             parent_counts[parent_key] = seen + 1
 
         document_key = hit.document_id or hit.source_pdf or ""
         if document_key and not document_scoped:
             seen = document_counts.get(document_key, 0)
             if seen:
-                duplicate_penalty += min(0.28, 0.08 * seen)
+                document_step = 0.03 if specificity >= 2 else 0.08
+                document_cap = 0.10 if specificity >= 2 else 0.28
+                duplicate_penalty += min(document_cap, document_step * seen)
             document_counts[document_key] = seen + 1
 
         if document_key and hit.record_type == "table_comparison_row":
             table_seen = document_table_counts.get(document_key, 0)
             if table_seen:
-                duplicate_penalty += min(0.54, 0.18 * table_seen)
+                table_step = 0.08 if specificity >= 2 else 0.18
+                table_cap = 0.24 if specificity >= 2 else 0.54
+                duplicate_penalty += min(table_cap, table_step * table_seen)
             document_table_counts[document_key] = table_seen + 1
 
         if duplicate_penalty <= 0:
@@ -1307,12 +1542,28 @@ def overlap_ratio(expected: set[str], actual: set[str]) -> float:
     return len(expected & actual) / len(expected)
 
 
+def query_specificity_score(query_profile: Dict[str, set[str]], enzyme_alias_keys: set[str]) -> int:
+    score = 0
+    if query_profile.get("numeric_tokens"):
+        score += 1
+    if query_profile.get("material_tokens"):
+        score += 1
+    if query_profile.get("rare_material_tokens"):
+        score += 1
+    if query_profile.get("at_constructs"):
+        score += 1
+    if enzyme_alias_keys:
+        score += 1
+    return score
+
+
 def build_query_plan(query: str, top_k: int = 8, point_type: Optional[PointType] = None) -> QueryPlan:
     document_id, source_pdf = extract_document_scope(query)
     planning_query = strip_document_scope_terms(query) if document_id else query
     tokens = normalize_tokens(planning_query or query)
     token_set = set(tokens)
     lowered_query = normalize_lexical_text(planning_query or query).lower()
+    mode_flags = query_mode_flags(planning_query or query, lowered_query, token_set)
     intents: List[str] = []
     record_types: List[RecordType] = []
     point_types: List[PointType] = []
@@ -1324,27 +1575,20 @@ def build_query_plan(query: str, top_k: int = 8, point_type: Optional[PointType]
         intents.append("table")
         record_types.append("table_comparison_row")
         point_types.extend(["evidence_record", "table_record"])
-    if (token_set & PERFORMANCE_QUERY_TERMS) or contains_any(lowered_query, CHINESE_PERFORMANCE_QUERY_TERMS):
+    if mode_flags["performance"]:
         intents.append("performance")
         record_types.extend(["performance_metric", "table_comparison_row"])
         point_types.extend(["evidence_record", "table_record"])
-    if (
-        (token_set & CONDITION_QUERY_TERMS)
-        or CONDITION_VALUE_RE.search(planning_query or query)
-        or contains_any(lowered_query, CHINESE_CONDITION_QUERY_TERMS)
-    ):
+    if mode_flags["condition"]:
         intents.append("condition")
         record_types.append("formulation_condition")
         point_types.append("evidence_record")
-    if (
-        (token_set & STRATEGY_QUERY_TERMS)
-        or MATERIAL_RE.search(planning_query or query)
-        or contains_any(lowered_query, CHINESE_STRATEGY_QUERY_TERMS)
-        or re.search(r"\b(?:zif8|zif-?8|uio66|uio-?66|mof)\b", lowered_query)
-    ):
+    if mode_flags["strategy"]:
         intents.append("strategy")
         record_types.append("immobilization_strategy")
         point_types.extend(["evidence_record", "rag_chunk"])
+    if mode_flags.get("comparison"):
+        intents.append("comparison")
     if (token_set & ENZYME_QUERY_TERMS) or contains_any(lowered_query, CHINESE_ENZYME_QUERY_TERMS):
         intents.append("enzyme")
         record_types.append("enzyme_identity")
@@ -1366,7 +1610,7 @@ def build_query_plan(query: str, top_k: int = 8, point_type: Optional[PointType]
     if not point_types:
         point_types.extend(["evidence_record", "rag_chunk"])
 
-    record_types = prioritize_record_types(dedupe_ordered(record_types), lowered_query)
+    record_types = prioritize_record_types(dedupe_ordered(record_types), lowered_query, mode_flags=mode_flags)
     point_types = dedupe_ordered(point_types)
     numeric_tokens = [token for token in tokens if re.search(r"\d", token)]
     routes = build_search_routes(
@@ -1388,6 +1632,74 @@ def build_query_plan(query: str, top_k: int = 8, point_type: Optional[PointType]
         query_tokens=tokens,
         numeric_tokens=numeric_tokens,
     )
+
+
+def query_mode_flags(planning_text: str, lowered_query: str, token_set: set[str]) -> Dict[str, bool]:
+    raw_text = planning_text or ""
+    condition_specific_terms = set(CHINESE_CONDITION_QUERY_TERMS) - {"优化", "制备"}
+    explicit_strategy = bool(
+        re.search(r"(用(?:啥|什么).{0,8}载体|推荐.{0,8}(?:载体|材料|方法)|主要是什么策略|固定化(?:方案|方法|策略))", raw_text)
+    )
+    explicit_performance = bool(
+        re.search(
+            r"(复用|稳定性|活性(?:保留|回收)?|剩余活性|残余活性|产率|转化率|数据|几次|"
+            r"reuse|reusable|reused|reusability|cycle|cycles|stability|stable|yield|conversion|"
+            r"activity recovery|retained activity|residual activity)",
+            raw_text,
+            re.I,
+        )
+    )
+    strategy = bool(
+        (token_set & STRATEGY_QUERY_TERMS)
+        or MATERIAL_RE.search(raw_text)
+        or contains_any(lowered_query, CHINESE_STRATEGY_QUERY_TERMS)
+        or re.search(r"\b(?:zif8|zif-?8|uio66|uio-?66|mof)\b", lowered_query)
+    )
+    condition = bool(
+        (token_set & CONDITION_QUERY_TERMS)
+        or CONDITION_VALUE_RE.search(raw_text)
+        or contains_any(lowered_query, condition_specific_terms)
+    )
+    performance = bool(
+        (token_set & PERFORMANCE_QUERY_TERMS)
+        or contains_any(lowered_query, CHINESE_PERFORMANCE_QUERY_TERMS)
+    )
+    comparison = bool((token_set & COMPARISON_QUERY_TERMS) or contains_any(lowered_query, CHINESE_COMPARISON_QUERY_TERMS))
+    original_condition = condition
+    if strategy and (
+        comparison
+        or re.search(r"(更适合|先试|理由|主要是什么策略|优势|相比|compared|compare|versus|vs)", raw_text, re.I)
+    ):
+        performance = True
+    if performance and re.search(r"(复用|稳定性|数据|几次|越高越好|reusability|stability|temperature)", raw_text, re.I):
+        condition = True
+    if strategy:
+        # In this corpus, carrier/method records and preparation-condition records
+        # are often split for the same experimental setup. Keep condition as a
+        # secondary route without making it primary for strategy-seeking queries.
+        condition = True
+    strategy_primary = bool(
+        strategy
+        and (
+            explicit_strategy
+            or (not original_condition and not explicit_performance)
+        )
+    )
+    performance_primary = bool(
+        performance
+        and explicit_performance
+        and not strategy_primary
+    )
+    condition_primary = bool(original_condition and not strategy_primary)
+    return {
+        "strategy": strategy,
+        "condition": condition,
+        "performance": performance,
+        "comparison": comparison,
+        "strategy_primary": strategy_primary,
+        "condition_primary": condition_primary,
+        "performance_primary": performance_primary,
+    }
 
 
 def build_document_query_plan(query: str, top_k: int = 12) -> QueryPlan:
@@ -1487,9 +1799,21 @@ def build_search_routes(
     return routes
 
 
-def prioritize_record_types(record_types: List[RecordType], lowered_query: str) -> List[RecordType]:
+def prioritize_record_types(
+    record_types: List[RecordType],
+    lowered_query: str,
+    mode_flags: Optional[Dict[str, bool]] = None,
+) -> List[RecordType]:
     if not record_types:
         return record_types
+    mode_flags = mode_flags or {}
+    if mode_flags.get("strategy_primary") and "immobilization_strategy" in record_types:
+        return ["immobilization_strategy", *[item for item in record_types if item != "immobilization_strategy"]]
+    if mode_flags.get("condition_primary") and "formulation_condition" in record_types:
+        return ["formulation_condition", *[item for item in record_types if item != "formulation_condition"]]
+    if mode_flags.get("performance_primary") and "performance_metric" in record_types:
+        ordered = ["performance_metric", "table_comparison_row"]
+        return [*ordered, *[item for item in record_types if item not in ordered]]
     if "immobilization_strategy" in record_types and contains_any(lowered_query, MECHANISTIC_STRATEGY_MARKERS):
         return ["immobilization_strategy", *[item for item in record_types if item != "immobilization_strategy"]]
     formulation_markers = {

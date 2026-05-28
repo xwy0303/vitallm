@@ -1760,6 +1760,13 @@ class RetrievalPlanningTests(unittest.TestCase):
         self.assertIn("immobilization_strategy", plan.record_type_priorities)
         self.assertIn("table_comparison_row", plan.record_type_priorities)
 
+    def test_reusability_query_keeps_performance_primary_with_material_support(self) -> None:
+        plan = build_query_plan("MOF immobilized lipase reusability after ten cycles high retained activity")
+
+        self.assertIn("performance", plan.intents)
+        self.assertIn("strategy", plan.intents)
+        self.assertEqual(plan.record_type_priorities[:2], ["performance_metric", "table_comparison_row"])
+
     def test_paper_process_user_like_plan_keeps_condition_priority(self) -> None:
         plan = build_query_plan("这个 B10 里面 BCL-ZIF8 到底是怎么优化固定化条件的？")
 
@@ -1820,7 +1827,7 @@ class RetrievalPlanningTests(unittest.TestCase):
         self.assertIn("immobilization enzyme evidence", query)
         self.assertNotIn("activity recovery reusability stability", query)
 
-    def test_retrieval_query_for_explicit_recommendation_keeps_recommendation_terms(self) -> None:
+    def test_retrieval_query_for_strategy_recommendation_keeps_strategy_terms(self) -> None:
         query = build_retrieval_query(
             EnzymeRecommendationRequest(
                 enzyme_name="BCL",
@@ -1828,7 +1835,19 @@ class RetrievalPlanningTests(unittest.TestCase):
             )
         )
 
-        self.assertIn("activity recovery reusability stability", query)
+        self.assertIn("carrier support material", query)
+        self.assertIn("biodiesel transesterification", query)
+        self.assertNotIn("activity recovery reusability stability", query)
+
+    def test_retrieval_query_for_performance_recommendation_keeps_performance_terms(self) -> None:
+        query = build_retrieval_query(
+            EnzymeRecommendationRequest(
+                enzyme_name="BCL",
+                application_context="请推荐 BCL 用于 biodiesel 的固定化载体，关注复用稳定性",
+            )
+        )
+
+        self.assertIn("activity recovery yield conversion reusability stability", query)
 
     def test_retrieval_query_for_paper_process_does_not_inject_recommendation_terms(self) -> None:
         query = build_retrieval_query(
