@@ -1,4 +1,9 @@
-const API_BASE_URL = window.ENZYME_API_BASE_URL || "http://127.0.0.1:8001";
+const API_BASE_URL =
+  window.ENZYME_API_BASE_URL ||
+  (window.location.protocol === "file:" || ["127.0.0.1", "localhost"].includes(window.location.hostname)
+    ? "http://127.0.0.1:8001"
+    : "");
+const STREAM_API_BASE_URL = window.ENZYME_STREAM_API_BASE_URL || API_BASE_URL;
 const DEFAULT_COLLECTION = window.ENZYME_COLLECTION || null;
 
 const textarea = document.querySelector("[data-query-input]");
@@ -270,15 +275,10 @@ async function runQuery() {
 
 function buildRecommendPayload(rawInput) {
   const paperIntent = activeMode === "paper" || hasPaperQuestionIntent(rawInput);
-  const recommendationIntent = !paperIntent && hasRecommendationIntent(rawInput);
   const constraints = paperIntent && selectedPaper ? [paperConstraint(selectedPaper)] : [];
   return {
     enzyme_name: extractEnzymeName(rawInput),
-    objective: paperIntent
-      ? "answer_paper_process_question"
-      : recommendationIntent
-        ? "recommend_best_immobilization_agent"
-        : "answer_evidence_question",
+    objective: paperIntent ? "answer_paper_process_question" : "recommend_best_immobilization_agent",
     application_context: rawInput,
     constraints,
     ...(DEFAULT_COLLECTION ? { collection: DEFAULT_COLLECTION } : {}),
@@ -495,7 +495,7 @@ async function requestNdjsonStream(path, payload, handlers = {}) {
   let streamIdleTimedOut = false;
 
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    const response = await fetch(`${STREAM_API_BASE_URL}${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

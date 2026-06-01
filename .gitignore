@@ -12,6 +12,7 @@ __pycache__/
 .env.*
 deploy/local/env.local
 .local/
+.deploy/
 .qdrant-initialized
 artifacts/
 output/

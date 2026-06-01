@@ -51,7 +51,7 @@ from enzyme_recommender.rag.retrieval import (
     rerank_document_hits,
 )
 from enzyme_recommender.rag.query_guard import expand_query_for_retrieval, should_return_no_evidence
-from enzyme_recommender.generators import ChatMessage, GenerationRequest, MockGeneratorClient
+from enzyme_recommender.generators import ChatMessage, GenerationRequest, GenerationResponse, MockGeneratorClient
 from enzyme_recommender.generators.openai_compatible import OpenAICompatibleGeneratorClient
 from enzyme_recommender.api.models import DashboardSummaryResponse
 from enzyme_recommender.api.app import (
@@ -1209,7 +1209,7 @@ class QASystemBenchmarkTests(unittest.TestCase):
         self.assertIn("case", schema["$defs"])
         self.assertIn("endpoint", schema["$defs"])
 
-    def test_manifest_validation_summary_tracks_seed_coverage(self) -> None:
+    def test_manifest_validation_summary_tracks_full_v1_coverage(self) -> None:
         manifests = [
             load_manifest(Path("benchmarks/retrieval_quality_v1.json")),
             load_manifest(Path("benchmarks/answer_quality_v1.json")),
@@ -2125,6 +2125,27 @@ class LiveStreamPromptTests(unittest.TestCase):
 
         self.assertEqual(response.candidates, [])
         self.assertEqual(response.next_experiment_suggestions, [])
+
+    def test_recommendation_stream_text_is_preserved_without_json(self) -> None:
+        service = RecommendationService(runtime=runtime_with_config())
+        request = EnzymeRecommendationRequest(
+            enzyme_name="BCL",
+            objective="recommend_best_immobilization_agent",
+            application_context="BCL",
+        )
+        generation = GenerationResponse(
+            provider="siliconflow",
+            model="deepseek-ai/DeepSeek-V4-Flash",
+            content="推荐结论：优先选择 hierarchical ZIF-8 吸附固定化 BCL [1]。",
+            finish_reason="stop",
+            usage={},
+        )
+
+        response = service.build_response(request, sample_retrieval_response(), generation)
+
+        self.assertEqual(response.generation_json, None)
+        self.assertEqual(response.generation_content, generation.content)
+        self.assertNotIn("基于当前 evidence", response.generation_content)
 
     def test_formulation_live_stream_uses_text_response_format(self) -> None:
         service = FormulationOptimizationService(runtime=runtime_with_config())

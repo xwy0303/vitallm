@@ -10,6 +10,7 @@ labels=(
   com.shengji.qdrant
   com.shengji.mineru
   com.shengji.api
+  com.shengji.ingestion-worker
   com.shengji.web
   com.shengji.logrotate
 )

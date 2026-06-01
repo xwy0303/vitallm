@@ -8,12 +8,12 @@
 
 ## Benchmark Manifests
 
-v1 目标总量为 220 条 curated case，当前先落 seed set，不伪装成完整统计 benchmark：
+v1 目标总量为 220 条 curated case，当前 manifests 已扩展到完整 v1：
 
-- `benchmarks/retrieval_quality_v1.json`：目标 120 条，当前 10 条。
-- `benchmarks/answer_quality_v1.json`：目标 50 条，当前 5 条。
-- `benchmarks/no_answer_intent_v1.json`：目标 30 条，当前 10 条。
-- `benchmarks/formulation_optimizer_v1.json`：目标 20 条，当前 4 条。
+- `benchmarks/retrieval_quality_v1.json`：120 条。
+- `benchmarks/answer_quality_v1.json`：50 条。
+- `benchmarks/no_answer_intent_v1.json`：30 条。
+- `benchmarks/formulation_optimizer_v1.json`：20 条。
 
 manifest schema artifact：
 
@@ -34,25 +34,25 @@ runner 还会做 JSON Schema 之外的语义校验：no-answer 必须断言 no c
   --markdown reports/qa_manifest_validation_20260526.md
 ```
 
-跑完整 seed suite，默认 mock generation，不依赖 paid LLM judge：
+跑完整 v1 suite，默认 mock generation，不依赖 paid LLM judge：
 
 ```bash
 .venv/bin/python scripts/benchmark_qa_system.py \
   --generation-mode mock \
   --allow-failures \
-  --output artifacts/benchmarks/qa_system_seed_20260526.json \
-  --markdown reports/qa_system_seed_20260526.md
+  --output artifacts/benchmarks/qa_system_220_20260527.json \
+  --markdown reports/qa_system_220_20260527.md
 ```
 
-跑 retrieval-only seed：
+跑 retrieval-only v1：
 
 ```bash
 .venv/bin/python scripts/benchmark_qa_system.py \
   --benchmark benchmarks/retrieval_quality_v1.json \
   --generation-mode skip \
   --allow-failures \
-  --output artifacts/benchmarks/qa_retrieval_quality_seed_20260526.json \
-  --markdown reports/qa_retrieval_quality_seed_20260526.md
+  --output artifacts/benchmarks/qa_retrieval_quality_220_20260527.json \
+  --markdown reports/qa_retrieval_quality_220_20260527.md
 ```
 
 注意：在 Codex sandbox 中，Python/httpx 访问本机 Qdrant `127.0.0.1:6333` 可能需要权限提升；这不是 Qdrant collection 本身不可用。
@@ -89,9 +89,33 @@ reports/qa_system_seed_20260526.md
 - `recommend_stream` 可见文本与 final structured candidates 存在污染风险。
 - formulation optimizer 对 BCL-ZIF-8 条件字段级建议不稳定，table row 容易压过 formulation_condition。
 
+## Full v1 Baseline 260527
+
+完整 v1 suite：
+
+```text
+artifacts/benchmarks/qa_system_220_20260527.json
+reports/qa_system_220_20260527.md
+```
+
+结果：
+
+- Passed：86/220，pass rate 0.391。
+- Retrieval：188 cases，Recall@5 0.319，MRR@5 0.301，nDCG@5 0.303，plan_accuracy 0.936。
+- No-answer：30 cases，NoAnswer Accuracy 0.833，False Retrieval Rate 0.167，Unexpected Candidate Rate 0.000，Unexpected Citation Rate 0.000。
+- Answer quality：50 cases，Citation Accuracy 1.000，Answer Relevancy 0.480，Unsupported Claim Count 0.000 / answer。
+- Formulation：20 cases，Field Recommendation Precision 1.000，Evidence-backed Change Rate 1.000。
+
+主要失败模式：
+
+- 文档编号信号没有进入 `search_evidence` hard filter；例如 `A11 lipase immobilized on ZIF-8` 仍会被其他 ZIF-8 文献抢占 Top-5。
+- 大量文献派生条件/性能 query 使用 `document_id + 条件字段` 时，retriever 更偏向全库高相似通用 MOF/condition evidence，导致 target source_id 丢出 Top-8。
+- 新增 prompt injection 表达如“伪造三篇论文引用”“即使没有证据也输出 candidates JSON”未被 no-answer guard 全拦截。
+- formulation 的字段级生成本身有 evidence backing，但非 B10 文档的 expected evidence 召回不稳，说明 optimizer retrieval 仍偏向 B10 及高频条件模板。
+
 ## 扩展原则
 
-- v1 扩到 220 条后再将完整 suite 作为稳定统计 benchmark；当前 seed 只作为工程回归与失败模式暴露工具。
+- v1 220 条是当前完整 benchmark；历史 29 条 seed 只作为工程回归与失败模式对照。
 - 至少 40% case 应来自 `manual_user_like`、模糊、口语化、非原文表达。
 - 跨文档比较 case 至少绑定 2 条 expected evidence。
 - LLM judge 只能作为 P1 增强；deterministic checks 与人工 gold facts 优先。

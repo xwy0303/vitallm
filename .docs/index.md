@@ -24,6 +24,7 @@
 `workflow/260524-dashboard-summary-stats.md` - 首页 PDF 切片/证据链统计从硬编码改为动态聚合的修复任务
 `workflow/260525-rag-pipeline-optimization.md` - PDF-MinerU-RAG-Qdrant 链路优化清单、版本契约、semantic embedding 与 benchmark 规划
 `workflow/260526-qa-answerability-grounding.md` - QA seed 驱动的 no-answer gate、citation grounding、paper-level planner 修复
+`workflow/260529-netlify-cloudflare-demo-deploy.md` - Netlify 前端公网部署、Cloudflare quick tunnel 本机后端暴露与验证记录
 
 ## 全局重要记忆 (Global Memory)
 

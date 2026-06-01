@@ -301,7 +301,7 @@ def grounded_generation_content(
             retrieval,
             paper_process=request.objective == PAPER_PROCESS_OBJECTIVE,
         ) or generation.content
-    if generation.provider == "mock" or not generation_json:
+    if generation.provider == "mock" or not generation.content.strip():
         return build_grounded_answer(
             request.application_context or request.enzyme_name,
             retrieval,

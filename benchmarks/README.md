@@ -7,14 +7,12 @@ This directory contains benchmark manifests for the enzyme immobilization RAG sy
 | Manifest | Purpose | Target size | Current role |
 | --- | --- | ---: | --- |
 | `retrieval_smoke.json` | Legacy retrieval regression gate | 62 | Keep for collection/rerank/schema regression only |
-| `retrieval_quality_v1.json` | Layered retrieval quality with Recall@3/5/8, MRR@3/5/8, nDCG@5 | 120 | Seed manifest |
-| `answer_quality_v1.json` | Recommendation / evidence-QA answer quality, citation grounding, unsupported claims | 50 | Seed manifest |
-| `no_answer_intent_v1.json` | Social, gibberish, out-of-domain, and prompt-injection no-answer behavior | 30 | Seed manifest |
-| `formulation_optimizer_v1.json` | Field-level formulation optimization checks | 20 | Seed manifest |
+| `retrieval_quality_v1.json` | Layered retrieval quality with Recall@3/5/8, MRR@3/5/8, nDCG@5 | 120 | Full v1 manifest |
+| `answer_quality_v1.json` | Recommendation / evidence-QA answer quality, citation grounding, unsupported claims | 50 | Full v1 manifest |
+| `no_answer_intent_v1.json` | Social, gibberish, out-of-domain, and prompt-injection no-answer behavior | 30 | Full v1 manifest |
+| `formulation_optimizer_v1.json` | Field-level formulation optimization checks | 20 | Full v1 manifest |
 
-The v1 target is 220 curated cases. The current `*_v1.json` files are seed manifests: they define the schema, runner semantics, and high-value regression cases, but they intentionally do not pretend to be a statistically complete 220-case set yet.
-
-Current seed coverage is 29/220 cases. Use `--validate-only` to make that explicit in CI and reports instead of silently treating the seed set as complete.
+The v1 target is 220 curated cases. The current `*_v1.json` files now meet that target and should be treated as the full v1 benchmark, while `retrieval_smoke.json` remains a smaller regression gate.
 
 The formal manifest schema is tracked at `schemas/generated/qa_benchmark_manifest.schema.json`. The runner also performs stricter semantic validation that JSON Schema cannot express cleanly, such as no-answer assertions and literature-derived query provenance.
 
@@ -26,8 +24,8 @@ Use the unified QA runner:
 .venv/bin/python scripts/benchmark_qa_system.py \
   --generation-mode mock \
   --allow-failures \
-  --output artifacts/benchmarks/qa_system_seed.json \
-  --markdown reports/qa_system_seed.md
+  --output artifacts/benchmarks/qa_system_220.json \
+  --markdown reports/qa_system_220.md
 ```
 
 Validate manifests without loading embedding, Qdrant, or an LLM provider:
