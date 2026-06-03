@@ -28,6 +28,7 @@ from enzyme_recommender.api.models import (
     IngestionSummaryResponse,
     IngestionUploadRequest,
     IngestionUploadResponse,
+    GeneralQAApiRequest,
     OptimizeFormulationApiRequest,
     RecommendByEnzymeApiRequest,
     SearchEvidenceApiRequest,
@@ -44,6 +45,8 @@ from enzyme_recommender.recommendation import (
     EnzymeRecommendationRequest,
     FormulationOptimizationRequest,
     FormulationOptimizationService,
+    GeneralQARequest,
+    GeneralQAService,
     RecommendationService,
 )
 from enzyme_recommender.recommendation.enzyme import deterministic_no_answer_generation, retrieval_guard_reason
@@ -163,6 +166,21 @@ def register_routes(app: FastAPI) -> None:
         request = make_formulation_optimization_request(payload)
         return StreamingResponse(
             stream_optimization_events(service, request),
+            media_type="application/x-ndjson",
+        )
+
+    @app.post("/api/qa/general")
+    def general_qa(payload: GeneralQAApiRequest) -> dict[str, Any]:
+        response = general_qa_response(get_runtime(app), payload)
+        return response.model_dump(mode="json")
+
+    @app.post("/api/qa/general/stream")
+    def general_qa_stream(payload: GeneralQAApiRequest) -> StreamingResponse:
+        runtime = runtime_with_collection(get_runtime(app), payload.collection)
+        service = GeneralQAService(runtime)
+        request = make_general_qa_request(payload)
+        return StreamingResponse(
+            stream_general_qa_events(service, request),
             media_type="application/x-ndjson",
         )
 
@@ -471,6 +489,17 @@ def make_formulation_optimization_request(payload: OptimizeFormulationApiRequest
     )
 
 
+def make_general_qa_request(payload: GeneralQAApiRequest) -> GeneralQARequest:
+    return GeneralQARequest(
+        question=payload.question,
+        application_context=payload.application_context,
+        constraints=payload.constraints,
+        answer_mode=payload.answer_mode,
+        allow_model_prior=payload.allow_model_prior,
+        top_k=payload.top_k,
+    )
+
+
 def recommend_by_enzyme_response(runtime: RuntimeServices, payload: RecommendByEnzymeApiRequest):
     runtime = runtime_with_collection(runtime, payload.collection)
     service = RecommendationService(runtime)
@@ -494,6 +523,20 @@ def optimize_formulation_response(runtime: RuntimeServices, payload: OptimizeFor
     retrieval.hits = enrich_retrieval_hits(runtime, retrieval.hits)
     generation = service.runtime.generator().generate(service.build_generation_request(request, retrieval))
     response = service.build_response(request, retrieval, generation)
+    return response
+
+
+def general_qa_response(runtime: RuntimeServices, payload: GeneralQAApiRequest):
+    runtime = runtime_with_collection(runtime, payload.collection)
+    service = GeneralQAService(runtime)
+    request = make_general_qa_request(payload)
+    retrieval = service.retrieve_evidence(request)
+    retrieval.hits = enrich_retrieval_hits(runtime, retrieval.hits)
+    external_literature = service.retrieve_external_literature(request, retrieval)
+    generation = service.deterministic_generation_if_required(request, retrieval, external_literature)
+    if generation is None:
+        generation = service.runtime.generator().generate(service.build_generation_request(request, retrieval, external_literature))
+    response = service.build_response(request, retrieval, generation, external_literature)
     return response
 
 
@@ -1184,6 +1227,139 @@ def stream_optimization_events(
         )
         retrieval.hits = enrich_retrieval_hits(service.runtime, retrieval.hits)
         response = service.build_response(request, retrieval, generation)
+        yield ndjson_event(
+            {
+                "event": "final",
+                "elapsed_ms": elapsed_ms(started_at),
+                "data": response.model_dump(mode="json"),
+            }
+        )
+    except Exception as exc:
+        yield ndjson_event({"event": "error", "message": str(exc)})
+
+
+def stream_general_qa_events(
+    service: GeneralQAService,
+    request: GeneralQARequest,
+) -> Iterator[str]:
+    try:
+        started_at = time.perf_counter()
+        yield ndjson_event({"event": "status", "stage": "retrieval_start", "message": "retrieving evidence"})
+        retrieval = service.retrieve_evidence(request)
+        retrieval.hits = enrich_retrieval_hits(service.runtime, retrieval.hits)
+        retrieval_ms = elapsed_ms(started_at)
+        yield ndjson_event(
+            {
+                "event": "retrieval",
+                "stage": "retrieval_done",
+                "hits_count": len(retrieval.hits),
+                "collection": retrieval.collection,
+                "embedding_model": retrieval.embedding_model,
+                "elapsed_ms": retrieval_ms,
+            }
+        )
+        yield ndjson_event(
+            {
+                "event": "preview",
+                "stage": "evidence_preview",
+                "delta": build_evidence_preview(retrieval, title="通用问答证据预览"),
+                "elapsed_ms": elapsed_ms(started_at),
+            }
+        )
+        external_literature = service.retrieve_external_literature(request, retrieval)
+        if external_literature is not None:
+            yield ndjson_event(
+                {
+                    "event": "status",
+                    "stage": "external_literature_done",
+                    "message": f"AMiner MCP 外部文献检索：{external_literature.status}",
+                    "elapsed_ms": elapsed_ms(started_at),
+                }
+            )
+        deterministic = service.deterministic_generation_if_required(request, retrieval, external_literature)
+        if deterministic is not None:
+            response = service.build_response(request, retrieval, deterministic, external_literature)
+            yield ndjson_event(
+                {
+                    "event": "status",
+                    "stage": "generation_skipped",
+                    "message": "general QA guard returned deterministic answer",
+                    "elapsed_ms": elapsed_ms(started_at),
+                }
+            )
+            yield ndjson_event({"event": "delta", "delta": deterministic.content})
+            yield ndjson_event(
+                {
+                    "event": "final",
+                    "elapsed_ms": elapsed_ms(started_at),
+                    "data": response.model_dump(mode="json"),
+                }
+            )
+            return
+
+        yield ndjson_event({"event": "status", "stage": "generation_start", "message": "generating general QA answer"})
+        generation_request = service.build_stream_generation_request(request, retrieval, external_literature)
+        generator = service.runtime.generator()
+        content = ""
+        finish_reason = None
+        usage: dict[str, Any] = {}
+        first_delta_ms: Optional[float] = None
+        reasoning_seen = False
+        stream_method = getattr(generator, "stream_generate", None)
+        if callable(stream_method):
+            for chunk in stream_method(generation_request):
+                if chunk.reasoning_delta and not reasoning_seen:
+                    reasoning_seen = True
+                    yield ndjson_event(
+                        {
+                            "event": "status",
+                            "stage": "model_reasoning",
+                            "message": "model reasoning started",
+                            "elapsed_ms": elapsed_ms(started_at),
+                        }
+                    )
+                if chunk.delta:
+                    if first_delta_ms is None:
+                        first_delta_ms = elapsed_ms(started_at)
+                        yield ndjson_event(
+                            {
+                                "event": "status",
+                                "stage": "first_delta",
+                                "message": "first visible token received",
+                                "elapsed_ms": first_delta_ms,
+                            }
+                        )
+                    content += chunk.delta
+                    yield ndjson_event({"event": "delta", "delta": chunk.delta})
+                if chunk.finish_reason:
+                    finish_reason = chunk.finish_reason
+                if chunk.usage:
+                    usage.update(chunk.usage)
+        else:
+            generated = generator.generate(generation_request)
+            content = generated.content
+            finish_reason = generated.finish_reason
+            usage = dict(generated.usage)
+            first_delta_ms = elapsed_ms(started_at)
+            yield ndjson_event(
+                {
+                    "event": "status",
+                    "stage": "first_delta",
+                    "message": "first visible token received",
+                    "elapsed_ms": first_delta_ms,
+                }
+            )
+            for delta in chunk_text(content):
+                yield ndjson_event({"event": "delta", "delta": delta})
+
+        generation = GenerationResponse(
+            provider=getattr(generator, "provider", "unknown"),
+            model=generation_request.model,
+            content=content,
+            finish_reason=finish_reason,
+            usage=usage,
+        )
+        response = service.build_response(request, retrieval, generation, external_literature)
         yield ndjson_event(
             {
                 "event": "final",

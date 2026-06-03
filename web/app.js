@@ -9,6 +9,9 @@ const DEFAULT_COLLECTION = window.ENZYME_COLLECTION || null;
 const textarea = document.querySelector("[data-query-input]");
 const sendButton = document.querySelector("[data-send-button]");
 const modeButtons = Array.from(document.querySelectorAll("[data-mode]"));
+const modeToggle = document.querySelector("[data-mode-toggle]");
+const modeMenu = document.querySelector("[data-mode-menu]");
+const modeLabel = document.querySelector("[data-mode-label]");
 const resultPanel = document.querySelector("[data-result-panel]");
 const resultTitle = document.querySelector("[data-result-title]");
 const resultBody = document.querySelector("[data-result-body]");
@@ -19,10 +22,10 @@ const referenceModalTitle = document.querySelector("[data-reference-modal-title]
 const referenceModalMeta = document.querySelector("[data-reference-modal-meta]");
 const referenceModalText = document.querySelector("[data-reference-modal-text]");
 const referenceModalFooter = document.querySelector("[data-reference-modal-footer]");
-const pdfDocsMetric = document.querySelector("[data-pdf-docs]");
-const pdfPagesMetric = document.querySelector("[data-pdf-pages]");
-const qdrantPointsMetric = document.querySelector("[data-qdrant-points]");
-const reviewItemsMetric = document.querySelector("[data-review-items]");
+const pdfDocsMetrics = Array.from(document.querySelectorAll("[data-pdf-docs]"));
+const pdfPagesMetrics = Array.from(document.querySelectorAll("[data-pdf-pages]"));
+const qdrantPointsMetrics = Array.from(document.querySelectorAll("[data-qdrant-points]"));
+const reviewItemsMetrics = Array.from(document.querySelectorAll("[data-review-items]"));
 const paperSelector = document.querySelector("[data-paper-selector]");
 const paperSearch = document.querySelector("[data-paper-search]");
 const paperOptions = document.querySelector("[data-paper-options]");
@@ -36,7 +39,7 @@ const STREAM_IDLE_TIMEOUT_MS = 45000;
 const STREAM_TOP_K = 6;
 const SEARCH_TOP_K = 8;
 
-let activeMode = "recommend";
+let activeMode = "general";
 let loadingTimer = null;
 let loadingStartedAt = 0;
 let streamBuffer = "";
@@ -45,14 +48,27 @@ let activeReferenceLookup = new Map();
 let activeReferenceHit = null;
 let activeReferenceExpanded = false;
 let documentCatalog = [];
-let selectedPaper = null;
+let selectedPapers = [];
 
 const CHUNK_PREVIEW_LIMIT = 900;
+const MODE_LABELS = {
+  general: "通用问答",
+  recommend: "酶名推荐",
+  paper: "论文问答",
+  optimize: "配方优化",
+  search: "证据检索",
+};
 
 modeButtons.forEach((button) => {
   button.addEventListener("click", () => {
     setActiveMode(button.dataset.mode || "recommend");
+    closeModeMenu();
   });
+});
+
+modeToggle?.addEventListener("click", (event) => {
+  event.preventDefault();
+  setModeMenuOpen(modeMenu?.hidden !== false);
 });
 
 promptButtons.forEach((button) => {
@@ -61,6 +77,7 @@ promptButtons.forEach((button) => {
       setActiveMode(button.dataset.modePrompt);
     }
     textarea.value = button.dataset.prompt || button.textContent.trim();
+    updateSendButtonState();
     textarea.focus();
   });
 });
@@ -76,19 +93,23 @@ paperOptions?.addEventListener("click", (event) => {
   const documentId = button.dataset.paperId || "";
   const item = documentCatalog.find((document) => document.document_id === documentId);
   if (item) {
-    selectPaper(item);
+    togglePaperSelection(item);
   }
 });
 
 sendButton.addEventListener("click", () => {
+  if (sendButton.disabled) return;
   runQuery().catch((error) => {
     renderError(error.message || String(error));
   });
 });
 
+textarea.addEventListener("input", updateSendButtonState);
+
 textarea.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
     event.preventDefault();
+    if (sendButton.disabled) return;
     runQuery().catch((error) => renderError(error.message || String(error)));
   }
 });
@@ -114,32 +135,52 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && referenceModal && !referenceModal.hidden) {
     closeReferenceModal();
   }
+  if (event.key === "Escape" && modeMenu && !modeMenu.hidden) {
+    closeModeMenu();
+    modeToggle?.focus();
+  }
+});
+
+document.addEventListener("click", (event) => {
+  if (modeMenu?.hidden !== false) return;
+  if (event.target.closest("[data-mode-picker]")) return;
+  closeModeMenu();
 });
 
 checkHealth();
 loadDashboardSummary();
 loadDocumentCatalog();
+updateSendButtonState();
 
 function setActiveMode(mode) {
-  activeMode = mode || "recommend";
-  modeButtons.forEach((item) => item.classList.toggle("active", item.dataset.mode === activeMode));
+  activeMode = mode || "general";
+  modeButtons.forEach((item) => {
+    const selected = item.dataset.mode === activeMode;
+    item.classList.toggle("active", selected);
+    item.setAttribute("aria-checked", selected ? "true" : "false");
+  });
+  if (modeLabel) {
+    modeLabel.textContent = MODE_LABELS[activeMode] || MODE_LABELS.general;
+  }
   if (paperSelector) {
     paperSelector.hidden = activeMode !== "paper";
   }
-  if (activeMode === "optimize") {
-    textarea.placeholder =
-      '输入配方 JSON，例如：{"enzyme_loading":{"value":500,"unit":"mg"},"buffer":{"pH":7},"immobilization_conditions":{"time":{"value":60,"unit":"min"}}}';
-  } else if (activeMode === "search") {
-    textarea.placeholder = "输入证据检索 query，例如：soybean oil ethanol yield 93.4 8 cycles last yield";
-  } else if (activeMode === "paper") {
-    textarea.placeholder = "例如：B10论文对酶固定化剂的优化过程是怎么样的？";
+  textarea.placeholder = "发消息（最多400字）";
+  if (activeMode === "paper") {
     if (!documentCatalog.length) {
       loadDocumentCatalog();
     }
-  } else {
-    textarea.placeholder =
-      "例如：Burkholderia cepacia lipase，用于大豆油乙醇酯交换制备 biodiesel，推荐固定化载体和条件。";
   }
+}
+
+function setModeMenuOpen(open) {
+  if (!modeMenu || !modeToggle) return;
+  modeMenu.hidden = !open;
+  modeToggle.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function closeModeMenu() {
+  setModeMenuOpen(false);
 }
 
 async function checkHealth() {
@@ -186,30 +227,29 @@ function renderDashboardSummary(data) {
   const qdrantPoints = safeNumber(data.qdrant_points);
   const reviewItems = safeNumber(data.review_items);
 
-  if (pdfDocsMetric) {
-    const docLabel = processedDocs === null ? "docs 待同步" : `${formatInteger(processedDocs)} docs`;
-    pdfDocsMetric.textContent = docLabel;
-  }
-  if (pdfPagesMetric) {
-    pdfPagesMetric.textContent = processedPages === null ? "pages 待同步" : `${formatInteger(processedPages)} pages`;
-  }
-  if (qdrantPointsMetric) {
-    const pointsLabel = qdrantPoints === null ? "points 待同步" : `${formatInteger(qdrantPoints)} points`;
-    qdrantPointsMetric.textContent =
-      indexedDocs !== null && qdrantPoints !== null
-        ? `${pointsLabel} / ${formatInteger(indexedDocs)} docs`
-        : pointsLabel;
-  }
-  if (reviewItemsMetric) {
-    reviewItemsMetric.textContent = reviewItems === null ? "待同步" : formatInteger(reviewItems);
-  }
+  const docLabel = processedDocs === null ? "docs 待同步" : `${formatInteger(processedDocs)} docs`;
+  const pageLabel = processedPages === null ? "pages 待同步" : `${formatInteger(processedPages)} pages`;
+  const pointsLabel = qdrantPoints === null ? "points 待同步" : `${formatInteger(qdrantPoints)} points`;
+  const qdrantLabel =
+    indexedDocs !== null && qdrantPoints !== null ? `${pointsLabel} / ${formatInteger(indexedDocs)} docs` : pointsLabel;
+  const reviewLabel = reviewItems === null ? "待同步" : formatInteger(reviewItems);
+  setMetricText(pdfDocsMetrics, docLabel);
+  setMetricText(pdfPagesMetrics, pageLabel);
+  setMetricText(qdrantPointsMetrics, qdrantLabel);
+  setMetricText(reviewItemsMetrics, reviewLabel);
 }
 
 function renderDashboardSummaryFallback() {
-  if (pdfDocsMetric) pdfDocsMetric.textContent = "docs 待同步";
-  if (pdfPagesMetric) pdfPagesMetric.textContent = "pages 待同步";
-  if (qdrantPointsMetric) qdrantPointsMetric.textContent = "points 待同步";
-  if (reviewItemsMetric) reviewItemsMetric.textContent = "待同步";
+  setMetricText(pdfDocsMetrics, "docs 待同步");
+  setMetricText(pdfPagesMetrics, "pages 待同步");
+  setMetricText(qdrantPointsMetrics, "points 待同步");
+  setMetricText(reviewItemsMetrics, "待同步");
+}
+
+function setMetricText(nodes, value) {
+  nodes.forEach((node) => {
+    node.textContent = value;
+  });
 }
 
 async function runQuery() {
@@ -222,7 +262,23 @@ async function runQuery() {
   const streamingMode = activeMode !== "search";
   setLoading(true, { showSteps: !streamingMode });
   try {
-    if (activeMode === "optimize") {
+    if (activeMode === "general") {
+      const payload = buildGeneralQAPayload(rawInput);
+      if (streamingMode) {
+        prepareStreamView("通用问答结果");
+        const data = await requestNdjsonStream("/api/qa/general/stream", payload, {
+          onStatus: updateStreamStatus,
+          onDelta: appendStreamDelta,
+        });
+        renderGeneralQA(data);
+      } else {
+        const data = await requestJson("/api/qa/general", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        renderGeneralQA(data);
+      }
+    } else if (activeMode === "optimize") {
       const payload = buildOptimizePayload(rawInput);
       if (streamingMode) {
         prepareStreamView("配方优化建议");
@@ -252,7 +308,7 @@ async function runQuery() {
     } else {
       const payload = buildRecommendPayload(rawInput);
       if (streamingMode) {
-        prepareStreamView(activeMode === "paper" || payload.objective === "answer_paper_process_question" ? "论文问答结果" : "固定化推荐结果");
+        prepareStreamView(recommendationResultTitle(payload));
         const data = await requestNdjsonStream("/api/recommend/by-enzyme/stream", payload, {
           onStatus: updateStreamStatus,
           onDelta: appendStreamDelta,
@@ -274,16 +330,47 @@ async function runQuery() {
 }
 
 function buildRecommendPayload(rawInput) {
-  const paperIntent = activeMode === "paper" || hasPaperQuestionIntent(rawInput);
-  const constraints = paperIntent && selectedPaper ? [paperConstraint(selectedPaper)] : [];
+  const generalIntent = activeMode === "general";
+  const paperIntent = activeMode === "paper" || (!generalIntent && hasPaperQuestionIntent(rawInput));
+  const constraints = paperIntent ? selectedPapers.map(paperConstraint) : [];
   return {
     enzyme_name: extractEnzymeName(rawInput),
-    objective: paperIntent ? "answer_paper_process_question" : "recommend_best_immobilization_agent",
+    objective: paperIntent
+      ? "answer_paper_process_question"
+      : generalIntent
+        ? "answer_evidence_question"
+        : "recommend_best_immobilization_agent",
     application_context: rawInput,
     constraints,
     ...(DEFAULT_COLLECTION ? { collection: DEFAULT_COLLECTION } : {}),
-    top_k: paperIntent ? Math.max(STREAM_TOP_K, 12) : STREAM_TOP_K,
+    top_k: paperIntent ? Math.max(STREAM_TOP_K, 12) : generalIntent ? Math.max(STREAM_TOP_K, 8) : STREAM_TOP_K,
   };
+}
+
+function buildGeneralQAPayload(rawInput) {
+  return {
+    question: rawInput,
+    application_context: rawInput,
+    constraints: [],
+    answer_mode: inferGeneralQAAnswerMode(rawInput),
+    allow_model_prior: true,
+    ...(DEFAULT_COLLECTION ? { collection: DEFAULT_COLLECTION } : {}),
+    top_k: Math.max(STREAM_TOP_K, 8),
+  };
+}
+
+function inferGeneralQAAnswerMode(rawInput) {
+  const value = String(rawInput || "").toLowerCase();
+  if (/堵塞|clog|堵|压降|流速|两相|排查|troubleshoot|失败|下降/.test(value)) {
+    return "troubleshooting";
+  }
+  if (/最近|近五年|文献|综述|systematic|literature|review|paper/.test(value)) {
+    return "literature_review";
+  }
+  if (/设计|doe|实验方案|筛选|放大|scale|级联|cascade|循环|extreme|极端/.test(value)) {
+    return "experimental_design";
+  }
+  return "direct";
 }
 
 function buildOptimizePayload(rawInput) {
@@ -351,7 +438,7 @@ function extractEnzymeName(rawInput) {
   ];
   const lower = value.toLowerCase();
   const match = knownNames.find((name) => lower.includes(name.toLowerCase()));
-  return match || value.split(/[，,。.\n]/)[0].trim();
+  return match || value.split(/[，,。！？.!?\n]/)[0].trim();
 }
 
 function hasRecommendationIntent(rawInput) {
@@ -391,36 +478,147 @@ function renderPaperOptions(query = "") {
   }
   paperOptions.innerHTML = options
     .map(({ item }) => {
-      const selected = selectedPaper?.document_id === item.document_id;
+      const selected = isPaperSelected(item);
       return `
         <button class="paper-option${selected ? " selected" : ""}" type="button" data-paper-id="${escapeHtml(item.document_id)}">
-          <strong>${escapeHtml(item.document_id)} · ${escapeHtml(item.source_pdf || "-")}</strong>
-          <span>${escapeHtml(truncateDisplayText(item.title_candidate || "无标题候选", 140))}</span>
+          <strong>${escapeHtml(paperFileLabel(item))}</strong>
+          <span>${escapeHtml(paperTitleLabel(item, 160))}</span>
         </button>
       `;
     })
     .join("");
 }
 
+function togglePaperSelection(item) {
+  if (isPaperSelected(item)) {
+    selectedPapers = selectedPapers.filter((paper) => paper.document_id !== item.document_id);
+  } else {
+    selectedPapers = [...selectedPapers, item];
+  }
+  renderSelectedPapers();
+  renderPaperOptions(paperSearch?.value || "");
+}
+
+function isPaperSelected(item) {
+  return Boolean(item?.document_id && selectedPapers.some((paper) => paper.document_id === item.document_id));
+}
+
+function renderSelectedPapers() {
+  if (!selectedPaperBox) return;
+  if (!selectedPapers.length) {
+    selectedPaperBox.hidden = true;
+    selectedPaperBox.innerHTML = "";
+    return;
+  }
+  selectedPaperBox.hidden = false;
+  selectedPaperBox.innerHTML = selectedPapers
+    .map(
+      (item) => `
+        <span
+          class="selected-paper-chip"
+          data-selected-paper-id="${escapeHtml(item.document_id)}"
+          tabindex="0"
+          title="${escapeHtml(paperTitleLabel(item, 260))}"
+          aria-label="${escapeHtml(`${paperFileLabel(item)}：${paperTitleLabel(item, 260)}`)}"
+        >
+          <strong>${escapeHtml(paperFileLabel(item))}</strong>
+          <span class="selected-paper-title-popover">${escapeHtml(paperTitleLabel(item, 260))}</span>
+          <button
+            class="selected-paper-remove"
+            type="button"
+            data-remove-paper-id="${escapeHtml(item.document_id)}"
+            aria-label="${escapeHtml(`移除 ${paperFileLabel(item)}`)}"
+          >×</button>
+        </span>
+      `
+    )
+    .join("");
+}
+
+selectedPaperBox?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-remove-paper-id]");
+  if (!button) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const documentId = button.dataset.removePaperId || "";
+  selectedPapers = selectedPapers.filter((paper) => paper.document_id !== documentId);
+  renderSelectedPapers();
+  renderPaperOptions(paperSearch?.value || "");
+});
+
 function selectPaper(item) {
-  selectedPaper = item;
+  selectedPapers = [item];
   if (selectedPaperBox) {
-    selectedPaperBox.hidden = false;
-    selectedPaperBox.innerHTML = `
-      <strong>${escapeHtml(item.document_id)} · ${escapeHtml(item.source_pdf || "-")}</strong>
-      <span>${escapeHtml(truncateDisplayText(item.title_candidate || "无标题候选", 180))}</span>
-      <button type="button" data-clear-paper>清除</button>
-    `;
-    selectedPaperBox.querySelector("[data-clear-paper]")?.addEventListener("click", () => {
-      selectedPaper = null;
-      selectedPaperBox.hidden = true;
-      renderPaperOptions(paperSearch?.value || "");
-    });
+    renderSelectedPapers();
   }
   if (paperSearch) {
     paperSearch.value = item.document_id;
   }
   renderPaperOptions(paperSearch?.value || "");
+}
+
+function paperFileLabel(item) {
+  return item?.source_pdf || (item?.document_id ? `${item.document_id}.pdf` : "-");
+}
+
+function paperTitleLabel(item, limit) {
+  const title = bestPaperTitleCandidate(item);
+  if (!title) return "未识别到论文标题";
+  return truncateDisplayText(title, limit);
+}
+
+function bestPaperTitleCandidate(item) {
+  const sourceAliases = [item?.title_candidate, ...(item?.aliases || [])];
+  const sourceNames = new Set(
+    [item?.document_id, item?.source_pdf, item?.source_pdf?.replace(/\.pdf$/i, "")]
+      .filter(Boolean)
+      .map(normalizePaperText)
+  );
+  const candidates = sourceAliases
+    .map(cleanPaperTitleCandidate)
+    .filter((title) => title && !sourceNames.has(normalizePaperText(title)) && !isNoisyPaperTitle(title))
+    .map((title) => ({ title, score: paperTitleQualityScore(title) }))
+    .filter(({ score }) => score > 0)
+    .sort((left, right) => right.score - left.score || left.title.length - right.title.length);
+  return candidates[0]?.title || "";
+}
+
+function cleanPaperTitleCandidate(value) {
+  return String(value || "")
+    .replace(/^title\s*[:：]\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isNoisyPaperTitle(value) {
+  const text = cleanPaperTitleCandidate(value);
+  if (!text) return true;
+  const lower = text.toLowerCase();
+  const alphaCompact = lower.replace(/[^a-z]+/g, "");
+  if (/^(abstract|keywords?|article\s*info|article\s*history|graphical\s*abstract|cite\s+this|citation\s*:)/i.test(text)) {
+    return true;
+  }
+  if (alphaCompact.startsWith("articleinfo") || alphaCompact.startsWith("abstract") || alphaCompact.startsWith("keywords")) {
+    return true;
+  }
+  if (/\b(article history|available online|received|accepted|published|view article|view journal)\b/i.test(text)) {
+    return true;
+  }
+  if (/@|correspondence|doi\.org|^\d+(?:\.\d+)*\s+(introduction|background|methods?|results?|discussion)/i.test(text)) {
+    return true;
+  }
+  return false;
+}
+
+function paperTitleQualityScore(value) {
+  const text = cleanPaperTitleCandidate(value);
+  if (text.length < 18 || text.length > 260) return 0;
+  let score = 1;
+  if (text.length <= 180) score += 1;
+  if (/\b(enzyme|lipase|immobil|mof|metal|organic|framework|zif|biocatal|biodiesel)\b/i.test(text)) score += 2;
+  if (/[。！？.!?]$/.test(text)) score -= 1;
+  if (/\b(author|department|university|college|school|laboratory)\b/i.test(text)) score -= 1;
+  return Math.max(0, score);
 }
 
 function paperMatchScore(item, normalizedQuery) {
@@ -643,8 +841,8 @@ function formatStreamIdleTimeoutMessage() {
 
 function setLoading(isLoading, options = {}) {
   const showSteps = options.showSteps !== false;
-  sendButton.disabled = isLoading;
-  sendButton.textContent = isLoading ? "处理中" : "发送";
+  sendButton.classList.toggle("is-loading", isLoading);
+  updateSendButtonState();
   resultPanel.hidden = false;
   resultTitle.textContent = isLoading && showSteps ? "正在检索证据并生成建议" : resultTitle.textContent;
   if (isLoading) {
@@ -659,13 +857,30 @@ function setLoading(isLoading, options = {}) {
   }
 }
 
+function updateSendButtonState() {
+  const hasInput = Boolean(textarea.value.trim());
+  const isLoading = sendButton.classList.contains("is-loading");
+  sendButton.classList.toggle("is-ready", hasInput);
+  sendButton.disabled = isLoading || !hasInput;
+  sendButton.setAttribute("aria-label", isLoading ? "处理中" : hasInput ? "发送" : "请输入内容后发送");
+}
+
 function updateLoadingMessage() {
   const seconds = Math.max(0, Math.round((Date.now() - loadingStartedAt) / 1000));
   resultBody.innerHTML = `
-    <div class="loading-steps">
-      <span>1. Qdrant reference retrieval：通常 &lt; 1 秒</span>
-      <span>2. SiliconFlow generation：当前已等待 ${seconds} 秒</span>
-      <span>3. Reference rendering：返回后自动展示参考论文</span>
+    <div class="loading-shell">
+      <div class="loading-head">
+        <span class="loading-pulse" aria-hidden="true"></span>
+        <div>
+          <strong>正在编排检索与生成链路</strong>
+          <p>前端已进入流式等待态，当前累计 ${seconds} 秒。</p>
+        </div>
+      </div>
+      <div class="loading-steps">
+        <span>1. Qdrant reference retrieval：通常 &lt; 1 秒</span>
+        <span>2. SiliconFlow generation：当前已等待 ${seconds} 秒</span>
+        <span>3. Reference rendering：返回后自动展示参考论文</span>
+      </div>
     </div>
     <p class="result-muted">真实 LLM 生成不是卡死，通常需要 10-90 秒；流式生成超过 300 秒会自动报错。</p>
   `;
@@ -752,15 +967,30 @@ function appendStreamDelta(delta) {
 
 function renderRecommendation(data) {
   setReferenceHits(data.evidence_hits);
-  resultTitle.textContent =
-    data.objective === "answer_paper_process_question"
-      ? "论文问答结果"
-      : data.objective === "answer_evidence_question"
-        ? "证据问答结果"
-        : "固定化推荐结果";
+  const isPaperAnswer = data.objective === "answer_paper_process_question";
+  resultTitle.textContent = recommendationResultTitle(data);
+  resultBody.innerHTML = [
+    renderMeta(data.generator_provider, data.generator_model, data.limitations, {
+      hideLimitations: isPaperAnswer,
+    }),
+    renderLiveAnswer(data),
+    renderReferenceSection(data.evidence_hits),
+  ].join("");
+}
+
+function recommendationResultTitle(data) {
+  if (data.objective === "answer_paper_process_question") return "论文问答结果";
+  if (data.objective === "answer_evidence_question") return "通用问答结果";
+  return "固定化推荐结果";
+}
+
+function renderGeneralQA(data) {
+  setReferenceHits(data.evidence_hits);
+  resultTitle.textContent = "通用问答结果";
   resultBody.innerHTML = [
     renderMeta(data.generator_provider, data.generator_model, data.limitations),
     renderLiveAnswer(data),
+    renderGeneralQASections(data),
     renderReferenceSection(data.evidence_hits),
   ].join("");
 }
@@ -812,24 +1042,40 @@ function handleResultBodyClick(event) {
   }
 }
 
-function renderMeta(provider, model, limitations) {
+function renderMeta(provider, model, limitations, options = {}) {
+  const limitationList = options.hideLimitations ? "" : renderList("limitations", limitations || []);
   return `
-    <div class="result-meta">
-      <span>provider: ${escapeHtml(provider || "-")}</span>
-      <span>model: ${escapeHtml(model || "-")}</span>
-    </div>
-    ${renderList("limitations", limitations || [])}
+    <details class="result-meta-details">
+      <summary>运行信息</summary>
+      <div class="result-meta">
+        <span>provider: ${escapeHtml(provider || "-")}</span>
+        <span>model: ${escapeHtml(model || "-")}</span>
+      </div>
+      ${limitationList}
+    </details>
   `;
 }
 
 function renderLiveAnswer(data) {
-  if (data.generation_json || !data.generation_content) return "";
+  const content = data.answer || (!data.generation_json ? data.generation_content : "");
+  if (!content) return "";
   return `
     <section class="live-answer">
-      <strong>live answer</strong>
-      <div class="live-answer-content">${renderMarkdownLite(data.generation_content)}</div>
+      <strong>回答</strong>
+      <div class="live-answer-content">${renderMarkdownLite(content)}</div>
     </section>
   `;
+}
+
+function renderGeneralQASections(data) {
+  const sections = [
+    ["证据摘要", data.evidence_summary],
+    ["推理边界", data.reasoning_notes],
+    ["建议下一步", data.suggested_next_steps],
+  ]
+    .map(([title, items]) => renderList(title, items || []))
+    .filter(Boolean);
+  return sections.join("");
 }
 
 function renderMarkdownLite(value) {
@@ -850,11 +1096,21 @@ function renderMarkdownLite(value) {
     listItems = [];
   };
 
-  for (const rawLine of lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const rawLine = lines[index];
     const line = rawLine.trim();
     if (!line) {
       flushParagraph();
       flushList();
+      continue;
+    }
+
+    const table = parseMarkdownPipeTable(lines, index);
+    if (table) {
+      flushParagraph();
+      flushList();
+      blocks.push(renderMarkdownPipeTable(table));
+      index = table.endIndex;
       continue;
     }
 
@@ -865,6 +1121,15 @@ function renderMarkdownLite(value) {
       continue;
     }
 
+    const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+    if (headingMatch) {
+      flushParagraph();
+      flushList();
+      const level = Math.min(headingMatch[1].length + 2, 5);
+      blocks.push(`<h${level}>${renderInlineMarkdown(headingMatch[2].trim())}</h${level}>`);
+      continue;
+    }
+
     flushList();
     paragraph.push(line);
   }
@@ -872,6 +1137,59 @@ function renderMarkdownLite(value) {
   flushParagraph();
   flushList();
   return blocks.join("");
+}
+
+function parseMarkdownPipeTable(lines, startIndex) {
+  const header = parseMarkdownTableRow(lines[startIndex]);
+  const separator = parseMarkdownTableRow(lines[startIndex + 1]);
+  if (!header || !separator || header.length < 2 || separator.length < 2) return null;
+  if (!separator.every((cell) => /^:?-{3,}:?$/.test(cell.trim()))) return null;
+
+  const columns = header.map((cell) => cell.trim());
+  const rows = [];
+  let endIndex = startIndex + 1;
+  for (let index = startIndex + 2; index < lines.length; index += 1) {
+    const row = parseMarkdownTableRow(lines[index]);
+    if (!row) break;
+    rows.push(normalizeMarkdownTableRow(row, columns.length));
+    endIndex = index;
+  }
+
+  return rows.length ? { columns, rows, endIndex } : null;
+}
+
+function parseMarkdownTableRow(value) {
+  const line = String(value || "").trim();
+  if (!line || !line.includes("|")) return null;
+  if (!line.startsWith("|") && !/\s\|\s/.test(line)) return null;
+  const trimmed = line.replace(/^\|/, "").replace(/\|$/, "");
+  const cells = trimmed.split("|").map((cell) => cell.trim());
+  return cells.length >= 2 ? cells : null;
+}
+
+function normalizeMarkdownTableRow(row, columnCount) {
+  const cells = row.slice(0, columnCount);
+  while (cells.length < columnCount) {
+    cells.push("");
+  }
+  return cells;
+}
+
+function renderMarkdownPipeTable(table) {
+  return `
+    <div class="markdown-table-wrap">
+      <table class="markdown-table">
+        <thead>
+          <tr>${table.columns.map((column) => `<th>${renderInlineMarkdown(column)}</th>`).join("")}</tr>
+        </thead>
+        <tbody>
+          ${table.rows
+            .map((row) => `<tr>${row.map((cell) => `<td>${renderInlineMarkdown(cell)}</td>`).join("")}</tr>`)
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function renderInlineMarkdown(value) {

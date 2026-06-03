@@ -36,6 +36,7 @@ from enzyme_recommender.rag.qdrant import (
 from enzyme_recommender.rag.documents import (
     DocumentCatalogItem,
     build_document_catalog_from_payloads,
+    merge_local_document_metadata,
     resolve_document_reference,
     resolve_document_reference_from_hits,
 )
@@ -53,6 +54,12 @@ from enzyme_recommender.rag.retrieval import (
 from enzyme_recommender.rag.query_guard import expand_query_for_retrieval, should_return_no_evidence
 from enzyme_recommender.generators import ChatMessage, GenerationRequest, GenerationResponse, MockGeneratorClient
 from enzyme_recommender.generators.openai_compatible import OpenAICompatibleGeneratorClient
+from enzyme_recommender.literature import ExternalLiteratureResult
+from enzyme_recommender.literature.aminer_mcp import (
+    ExternalLiteratureItem,
+    detect_tool_result_error,
+    normalize_tool_result,
+)
 from enzyme_recommender.api.models import DashboardSummaryResponse
 from enzyme_recommender.api.app import (
     build_evidence_preview,
@@ -72,9 +79,20 @@ from enzyme_recommender.recommendation.enzyme import (
     build_stream_generation_prompt,
     is_paper_process_question,
     resolve_evidence_refs,
+    selected_documents_from_constraints,
 )
 from enzyme_recommender.recommendation.grounding import build_grounded_answer
 from enzyme_recommender.recommendation.formulation import FormulationOptimizationRequest, FormulationOptimizationService
+from enzyme_recommender.recommendation.general_qa import (
+    GeneralQARequest,
+    GeneralQAService,
+    build_general_qa_guard_query,
+    build_general_qa_prompt,
+    build_general_qa_retrieval_query,
+    build_stream_general_qa_prompt,
+    classify_general_qa_guard_query,
+    has_general_qa_domain_signal,
+)
 from enzyme_recommender.runtime import RuntimeServices
 from enzyme_recommender.runtime.config import RuntimeConfig
 from scripts.run_ingestion_worker import document_is_indexed_for_collection, is_transient_service_error, should_skip_indexed_document
@@ -112,6 +130,9 @@ class RuntimeConfigTests(unittest.TestCase):
         )
         self.assertEqual(config.embedding.dimensions, 768)
         self.assertTrue(config.embedding.local_files_only)
+        self.assertTrue(config.external_literature.enabled)
+        self.assertEqual(config.external_literature.provider, "aminer_mcp")
+        self.assertEqual(config.external_literature.auth_token_env, "AMINER_MCP_AUTH_TOKEN")
 
     def test_hash_rollback_config_is_available(self) -> None:
         config = RuntimeConfig.from_file(Path("configs/local.hash.yaml"))
@@ -334,6 +355,60 @@ class DocumentResolverTests(unittest.TestCase):
         self.assertIn("BCL immobilized", catalog[0].title_candidate or "")
         self.assertEqual(catalog[0].qa_summary["requires_review"], 1)
         self.assertEqual(catalog[0].qa_summary["quality_flags"]["bad_table_structure"], 1)
+
+    def test_catalog_does_not_use_abstract_or_article_info_as_title(self) -> None:
+        catalog = build_document_catalog_from_payloads(
+            [
+                {
+                    "document_id": "A70",
+                    "source_pdf": "A70.pdf",
+                    "point_type": "rag_chunk",
+                    "page_start": 0,
+                    "section": "Abstract",
+                    "text": "Abstract\nThis work studies lipase immobilization in ZIF-8.",
+                },
+                {
+                    "document_id": "A70",
+                    "source_pdf": "A70.pdf",
+                    "point_type": "rag_chunk",
+                    "page_start": 0,
+                    "section": "Article Info",
+                    "text": "Article history Received 1 January Accepted 2 March",
+                },
+            ]
+        )
+
+        self.assertEqual(len(catalog), 1)
+        self.assertIsNone(catalog[0].title_candidate)
+
+    def test_local_manifest_title_replaces_noisy_existing_title(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            document_dir = root / "A70"
+            document_dir.mkdir()
+            (document_dir / "document_manifest.json").write_text(
+                json.dumps(
+                    {
+                        "title": "High-stability lipase immobilization in zeolitic imidazolate frameworks for biodiesel production"
+                    }
+                ),
+                encoding="utf-8",
+            )
+            items = [
+                DocumentCatalogItem(
+                    document_id="A70",
+                    source_pdf="A70.pdf",
+                    title_candidate="Article Info Abstract Keywords",
+                    aliases=["A70", "A70.pdf"],
+                )
+            ]
+
+            merged = merge_local_document_metadata(items, root)
+
+        self.assertEqual(
+            merged[0].title_candidate,
+            "High-stability lipase immobilization in zeolitic imidazolate frameworks for biodiesel production",
+        )
 
 
 class IndexPointTests(unittest.TestCase):
@@ -1194,6 +1269,7 @@ class QASystemBenchmarkTests(unittest.TestCase):
             "benchmarks/answer_quality_v1.json": 54,
             "benchmarks/no_answer_intent_v1.json": 30,
             "benchmarks/formulation_optimizer_v1.json": 23,
+            "benchmarks/general_qa_v1.json": 25,
         }
 
         for manifest_path, target_count in manifests.items():
@@ -1215,15 +1291,17 @@ class QASystemBenchmarkTests(unittest.TestCase):
             load_manifest(Path("benchmarks/answer_quality_v1.json")),
             load_manifest(Path("benchmarks/no_answer_intent_v1.json")),
             load_manifest(Path("benchmarks/formulation_optimizer_v1.json")),
+            load_manifest(Path("benchmarks/general_qa_v1.json")),
         ]
 
         summary = summarize_manifest_validation(manifests)
 
         self.assertTrue(summary["ok"])
-        self.assertEqual(summary["target_case_count"], 232)
+        self.assertEqual(summary["target_case_count"], 257)
         self.assertGreater(summary["actual_case_count"], 0)
         self.assertIn("manual_user_like", summary["by_source"])
         self.assertIn("no_answer", summary["by_kind"])
+        self.assertIn("general_qa_stream", summary["by_endpoint"])
 
     def test_match_expected_evidence_returns_rank_per_gold_item(self) -> None:
         hits = [
@@ -1980,6 +2058,104 @@ class EvidenceReferenceTests(unittest.TestCase):
         self.assertIn("7.5", answer)
         self.assertIn("[1]", answer)
 
+    def test_paper_process_fallback_dedupes_strategies_and_surfaces_condition_conflicts(self) -> None:
+        retrieval = RetrievalResponse(
+            query="A48 optimization process",
+            collection="enzyme_immobilization_literature",
+            embedding_model="hash-v1-64",
+            top_k=6,
+            usable_only=False,
+            hits=[
+                RetrievalHit(
+                    score=0.9,
+                    point_type="evidence_record",
+                    source_id="ev_strategy_1",
+                    citation="A48.pdf:p4",
+                    document_id="A48",
+                    source_pdf="A48.pdf",
+                    record_type="immobilization_strategy",
+                    usable_for_ranking=True,
+                    extracted={"immobilization_method": "adsorption"},
+                    text="The enzyme was immobilized by adsorption.",
+                ),
+                RetrievalHit(
+                    score=0.89,
+                    point_type="evidence_record",
+                    source_id="ev_strategy_2",
+                    citation="A48.pdf:p5",
+                    document_id="A48",
+                    source_pdf="A48.pdf",
+                    record_type="immobilization_strategy",
+                    usable_for_ranking=True,
+                    extracted={"immobilization_method": "adsorption"},
+                    text="Adsorption was used as the immobilization method.",
+                ),
+                RetrievalHit(
+                    score=0.88,
+                    point_type="evidence_record",
+                    source_id="ev_temp_70",
+                    citation="A48.pdf:p6",
+                    document_id="A48",
+                    source_pdf="A48.pdf",
+                    record_type="formulation_condition",
+                    usable_for_ranking=True,
+                    extracted={"immobilization_temperature": {"unit": "degC", "value": 70.0}},
+                    text="Temperature value 70 degC.",
+                ),
+                RetrievalHit(
+                    score=0.87,
+                    point_type="evidence_record",
+                    source_id="ev_temp_20",
+                    citation="A48.pdf:p7",
+                    document_id="A48",
+                    source_pdf="A48.pdf",
+                    record_type="formulation_condition",
+                    usable_for_ranking=True,
+                    extracted={"immobilization_temperature": {"unit": "degC", "value": 20.0}},
+                    text="Temperature value 20 degC.",
+                ),
+                RetrievalHit(
+                    score=0.86,
+                    point_type="evidence_record",
+                    source_id="ev_reuse",
+                    citation="A48.pdf:p8",
+                    document_id="A48",
+                    source_pdf="A48.pdf",
+                    record_type="performance_metric",
+                    usable_for_ranking=True,
+                    extracted={"reuse_cycles": {"unit": "cycle", "value": 5}},
+                    text="The immobilized enzyme was evaluated for five reuse cycles.",
+                ),
+                RetrievalHit(
+                    score=0.85,
+                    point_type="evidence_record",
+                    source_id="ev_review",
+                    citation="A48.pdf:p9",
+                    document_id="A48",
+                    source_pdf="A48.pdf",
+                    record_type="immobilization_strategy",
+                    requires_review=True,
+                    usable_for_ranking=False,
+                    qa_status="fail",
+                    extracted={"immobilization_method": "covalent"},
+                    text="Potential covalent method from a bad table row.",
+                ),
+            ],
+        )
+
+        answer = build_grounded_answer("A48 论文固定化剂优化过程是什么？", retrieval, paper_process=True)
+
+        self.assertEqual(answer.count("固定化方式为 adsorption"), 1)
+        self.assertIn("70 degC", answer)
+        self.assertIn("20 degC", answer)
+        self.assertIn("需回看原文确认", answer)
+        self.assertIn("需复核线索", answer)
+        self.assertNotIn("固定化方式为 covalent", answer)
+        self.assertNotIn("immobilization_temperature=", answer)
+        self.assertNotIn('{"unit"', answer)
+        self.assertNotIn("reuse_cycles=", answer)
+        self.assertNotIn("some retrieved evidence requires review", answer)
+
     def test_build_evidence_preview_is_immediate_and_cited(self) -> None:
         preview = build_evidence_preview(sample_retrieval_response(), title="证据预览")
 
@@ -2049,7 +2225,7 @@ class LiveStreamPromptTests(unittest.TestCase):
         self.assertIn("不要默认改写成固定化推荐", prompt)
         self.assertIn("直接回答用户问题", prompt)
 
-    def test_paper_process_stream_prompt_has_required_structure_and_warnings(self) -> None:
+    def test_paper_process_stream_prompt_requires_natural_deduped_conflict_aware_answer(self) -> None:
         request = EnzymeRecommendationRequest(
             enzyme_name="B10论文",
             objective=PAPER_PROCESS_OBJECTIVE,
@@ -2082,11 +2258,39 @@ class LiveStreamPromptTests(unittest.TestCase):
 
         prompt = build_stream_generation_prompt(request, retrieval)
 
-        self.assertIn("论文定位", prompt)
-        self.assertIn("优化变量", prompt)
-        self.assertIn("证据缺口与需复核项", prompt)
+        self.assertIn("结论", prompt)
+        self.assertIn("论文内证据", prompt)
+        self.assertIn("证据缺口/冲突", prompt)
+        self.assertIn("同一字段或同一结论多次命中必须合并", prompt)
+        self.assertIn("70°C 和 20°C", prompt)
+        self.assertIn("需回看原文确认", prompt)
         self.assertIn("requires_review=true", prompt)
         self.assertIn("qa_status=fail", prompt)
+        self.assertIn("不输出内部 schema 字段", prompt)
+        self.assertIn("key=value", prompt)
+
+    def test_selected_paper_constraints_support_multi_paper_compare_prompt(self) -> None:
+        constraints = [
+            "document_id:B10 source_pdf:B10.pdf title:Hierarchical ZIF-8 toward Immobilizing Burkholderia cepacia Lipase",
+            "document_id:B11 source_pdf:B11.pdf title:Lipase Immobilized Metal-Organic Frameworks as Biocatalyst",
+        ]
+        documents = selected_documents_from_constraints(constraints)
+        request = EnzymeRecommendationRequest(
+            enzyme_name="B10 B11论文",
+            objective=PAPER_PROCESS_OBJECTIVE,
+            application_context="对比这两篇论文的固定化剂优化流程",
+            constraints=constraints,
+            paper_selected_documents=[document.model_dump(mode="json") for document in documents],
+        )
+
+        prompt = build_stream_generation_prompt(request, sample_retrieval_response())
+
+        self.assertEqual([document.document_id for document in documents], ["B10", "B11"])
+        self.assertIn("多篇论文对比联动问答", prompt)
+        self.assertIn("B10 / B10.pdf", prompt)
+        self.assertIn("B11 / B11.pdf", prompt)
+        self.assertIn("按论文对比组织", prompt)
+        self.assertIn("不要把不同论文的条件合并成同一最优方案", prompt)
 
     def test_evidence_qa_response_does_not_fallback_to_recommendation_candidates(self) -> None:
         service = RecommendationService(runtime=runtime_with_config())
@@ -2146,6 +2350,329 @@ class LiveStreamPromptTests(unittest.TestCase):
         self.assertEqual(response.generation_json, None)
         self.assertEqual(response.generation_content, generation.content)
         self.assertNotIn("基于当前 evidence", response.generation_content)
+
+    def test_paper_process_preserves_supported_natural_generation(self) -> None:
+        service = RecommendationService(runtime=runtime_with_config())
+        request = EnzymeRecommendationRequest(
+            enzyme_name="B10论文",
+            objective=PAPER_PROCESS_OBJECTIVE,
+            application_context="B10论文对酶固定化剂的优化过程是怎么样的",
+        )
+        generation = GenerationResponse(
+            provider="siliconflow",
+            model="deepseek-ai/DeepSeek-V4-Flash",
+            content="这篇论文能还原出一个清晰的主线：作者围绕 ZIF-8 固定化 BCL，并用 biodiesel yield 作为性能验证线索 [1]。未命中的优化变量仍应视为证据不足。",
+            finish_reason="stop",
+            usage={},
+        )
+
+        response = service.build_response(request, sample_retrieval_response(), generation)
+
+        self.assertEqual(response.generation_content, generation.content)
+        self.assertNotIn("基于当前可用 evidence", response.generation_content)
+
+    def test_paper_process_empty_generation_falls_back_to_grounded_answer(self) -> None:
+        service = RecommendationService(runtime=runtime_with_config())
+        request = EnzymeRecommendationRequest(
+            enzyme_name="B10论文",
+            objective=PAPER_PROCESS_OBJECTIVE,
+            application_context="B10论文对酶固定化剂的优化过程是怎么样的",
+        )
+        generation = GenerationResponse(
+            provider="siliconflow",
+            model="deepseek-ai/DeepSeek-V4-Flash",
+            content="",
+            finish_reason="stop",
+            usage={},
+        )
+
+        response = service.build_response(request, sample_retrieval_response(), generation)
+
+        self.assertNotEqual(response.generation_content, generation.content)
+        self.assertIn("论文内证据", response.generation_content)
+
+    def test_paper_process_generation_without_valid_citation_falls_back(self) -> None:
+        service = RecommendationService(runtime=runtime_with_config())
+        request = EnzymeRecommendationRequest(
+            enzyme_name="B10论文",
+            objective=PAPER_PROCESS_OBJECTIVE,
+            application_context="B10论文对酶固定化剂的优化过程是怎么样的",
+        )
+        retrieval = sample_retrieval_response()
+        for content in [
+            "这篇论文使用 ZIF-8 固定化 BCL，但这句话没有引用。",
+            "这篇论文使用 ZIF-8 固定化 BCL [99]。",
+        ]:
+            generation = GenerationResponse(
+                provider="siliconflow",
+                model="deepseek-ai/DeepSeek-V4-Flash",
+                content=content,
+                finish_reason="stop",
+                usage={},
+            )
+
+            response = service.build_response(request, retrieval, generation)
+
+            self.assertNotEqual(response.generation_content, content)
+            self.assertIn("论文内证据", response.generation_content)
+
+    def test_paper_process_review_evidence_assertion_falls_back(self) -> None:
+        service = RecommendationService(runtime=runtime_with_config())
+        request = EnzymeRecommendationRequest(
+            enzyme_name="A48论文",
+            objective=PAPER_PROCESS_OBJECTIVE,
+            application_context="A48论文固定化剂优化过程是什么？",
+        )
+        retrieval = RetrievalResponse(
+            query="A48 optimization process",
+            collection="enzyme_immobilization_literature",
+            embedding_model="hash-v1-64",
+            top_k=1,
+            usable_only=False,
+            hits=[
+                RetrievalHit(
+                    score=0.8,
+                    point_type="evidence_record",
+                    source_id="ev_review",
+                    citation="A48.pdf:p9",
+                    document_id="A48",
+                    source_pdf="A48.pdf",
+                    record_type="immobilization_strategy",
+                    requires_review=True,
+                    usable_for_ranking=False,
+                    qa_status="fail",
+                    extracted={"immobilization_method": "covalent"},
+                    text="Potential covalent method from a bad table row.",
+                )
+            ],
+        )
+        generation = GenerationResponse(
+            provider="siliconflow",
+            model="deepseek-ai/DeepSeek-V4-Flash",
+            content="A48 论文可以确定采用 covalent 固定化作为优化方法 [1]。",
+            finish_reason="stop",
+            usage={},
+        )
+
+        response = service.build_response(request, retrieval, generation)
+
+        self.assertNotEqual(response.generation_content, generation.content)
+        self.assertIn("需复核线索", response.generation_content)
+
+    def test_general_qa_stream_uses_text_response_format_and_boundary_prompt(self) -> None:
+        service = GeneralQAService(runtime=runtime_with_config())
+        request = GeneralQARequest(
+            question="我在用微液滴技术连续合成多酶@ZIF-90 微球，但是很容易堵塞微通道，怎么排查？",
+            answer_mode="troubleshooting",
+        )
+        retrieval = sample_retrieval_response()
+
+        generation_request = service.build_stream_generation_request(request, retrieval)
+
+        self.assertEqual(generation_request.response_format, "text")
+        self.assertEqual(generation_request.max_retries, 0)
+        self.assertIn("不输出 JSON", generation_request.messages[-1].content)
+        self.assertIn("模型推理，非知识库直接证据", generation_request.messages[-1].content)
+        self.assertIn("可能原因 -> 优化动作 -> 验证方式", generation_request.messages[-1].content)
+
+    def test_general_qa_prompt_keeps_recent_literature_and_model_prior_boundaries(self) -> None:
+        request = GeneralQARequest(
+            question="最近五年有没有将液滴微流控技术用于酶固定化的高质量文献？",
+            answer_mode="literature_review",
+        )
+        retrieval = RetrievalResponse(
+            query="microfluidic enzyme immobilization",
+            collection="test",
+            embedding_model="hash-v1-64",
+            top_k=0,
+            usable_only=True,
+            hits=[],
+        )
+
+        prompt = build_general_qa_prompt(request, retrieval)
+
+        self.assertIn("模型推理，非知识库直接证据", prompt)
+        self.assertIn("AMiner MCP", prompt)
+        self.assertIn("人工复核", prompt)
+        self.assertIn('"answer"', prompt)
+
+    def test_general_qa_prompt_includes_aminer_context_without_local_citation_numbering(self) -> None:
+        request = GeneralQARequest(
+            question="最近五年有没有将液滴微流控技术用于酶固定化的高质量文献？",
+            answer_mode="literature_review",
+        )
+        retrieval = RetrievalResponse(
+            query="microfluidic enzyme immobilization",
+            collection="test",
+            embedding_model="hash-v1-64",
+            top_k=0,
+            usable_only=True,
+            hits=[],
+        )
+        external = ExternalLiteratureResult(
+            status="success",
+            query="droplet microfluidics enzyme immobilization",
+            tool_name="search_papers_by_keyword",
+            items=[
+                ExternalLiteratureItem(
+                    title="Droplet microfluidics for enzyme immobilization",
+                    year=2024,
+                    venue="Lab on a Chip",
+                )
+            ],
+        )
+
+        prompt = build_general_qa_prompt(request, retrieval, external)
+        response = GeneralQAService(runtime=runtime_with_config()).build_response(
+            request,
+            retrieval,
+            GenerationResponse(
+                provider="siliconflow",
+                model="deepseek-ai/DeepSeek-V4-Flash",
+                content='{"answer":"可先参考 AMiner-1，但需人工复核。","evidence_summary":[],"reasoning_notes":[],"limitations":[],"suggested_next_steps":[]}',
+                finish_reason="stop",
+            ),
+            external,
+        )
+
+        self.assertIn("AMiner-1", prompt)
+        self.assertIn("External literature context", prompt)
+        self.assertTrue(any("AMiner MCP" in item for item in response.evidence_summary))
+        self.assertFalse(any(item.startswith("[1]") for item in response.evidence_summary))
+        self.assertIn("人工复核", " ".join(response.limitations))
+
+    def test_general_qa_response_uses_deterministic_evidence_summary_not_model_json(self) -> None:
+        request = GeneralQARequest(
+            question="ZIF-8 原位包埋脂肪酶的最佳反应温度一般控制在多少度？",
+            answer_mode="direct",
+        )
+        generation = GenerationResponse(
+            provider="siliconflow",
+            model="deepseek-ai/DeepSeek-V4-Flash",
+            content=json.dumps(
+                {
+                    "answer": "ZIF-8 原位包埋脂肪酶的温度需要绑定具体酶和体系 [1]。",
+                    "evidence_summary": [
+                        {"evidence_id": "fake", "content": "模型伪造证据", "relevance": "不相关"},
+                        "AMiner MCP: [AMiner-1] {",
+                    ],
+                    "reasoning_notes": [],
+                    "limitations": [],
+                    "suggested_next_steps": [],
+                },
+                ensure_ascii=False,
+            ),
+            finish_reason="stop",
+        )
+
+        response = GeneralQAService(runtime=runtime_with_config()).build_response(
+            request,
+            sample_retrieval_response(),
+            generation,
+        )
+
+        joined = "\n".join(response.evidence_summary)
+        self.assertIn("B10.pdf:p8", joined)
+        self.assertNotIn("模型伪造证据", joined)
+        self.assertNotIn("{'evidence_id'", joined)
+        self.assertNotIn("AMiner MCP: [AMiner-1] {", joined)
+
+    def test_aminer_normalizer_rejects_balance_error_payload_as_evidence(self) -> None:
+        result = {
+            "content": [
+                {
+                    "type": "text",
+                    "text": '{"message":"余额不足，请充值","code":402}',
+                }
+            ]
+        }
+
+        self.assertIn("余额不足", detect_tool_result_error(result) or "")
+        self.assertEqual(normalize_tool_result(result, limit=3), [])
+
+    def test_aminer_normalizer_ignores_structural_json_fragments(self) -> None:
+        result = {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "{",
+                }
+            ]
+        }
+
+        self.assertEqual(normalize_tool_result(result, limit=3), [])
+
+    def test_aminer_normalizer_keeps_valid_paper_items(self) -> None:
+        result = {
+            "papers": [
+                {
+                    "title": "Droplet microfluidics for enzyme immobilization",
+                    "authors": [{"name": "A. Researcher"}],
+                    "year": "2024",
+                    "journal": "Lab on a Chip",
+                    "n_citation": "12",
+                }
+            ]
+        }
+
+        items = normalize_tool_result(result, limit=3)
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].title, "Droplet microfluidics for enzyme immobilization")
+        self.assertEqual(items[0].year, 2024)
+        self.assertEqual(items[0].citation_count, 12)
+
+    def test_general_qa_retrieval_query_expands_broader_domain_terms(self) -> None:
+        request = GeneralQARequest(question="酶被固定在多孔材料里之后，米氏常数 Km 一般怎么变化？")
+
+        query = build_general_qa_retrieval_query(request)
+
+        self.assertIn("米氏常数 Km", query)
+        self.assertIn("Michaelis constant", query)
+        self.assertIn("mass transfer", query)
+
+    def test_general_qa_guard_rejects_low_information_before_domain_expansion(self) -> None:
+        request = GeneralQARequest(question="你好")
+        guard_query = build_general_qa_guard_query(request)
+        plan = build_query_plan(guard_query, top_k=8)
+
+        self.assertEqual(classify_general_qa_guard_query(guard_query, plan), "low_information")
+
+    def test_general_qa_guard_allows_broader_km_domain_question(self) -> None:
+        query = "酶被固定在多孔材料里之后，米氏常数 Km 一般是变大还是变小？"
+        plan = build_query_plan(query, top_k=8)
+
+        self.assertTrue(has_general_qa_domain_signal(query))
+        self.assertIsNone(classify_general_qa_guard_query(query, plan))
+
+    def test_general_qa_model_prior_answer_is_explicitly_labeled_without_evidence(self) -> None:
+        service = GeneralQAService(runtime=runtime_with_config())
+        request = GeneralQARequest(
+            question="ZIF-90 微流控堵塞怎么排查？",
+            answer_mode="troubleshooting",
+            allow_model_prior=True,
+        )
+        retrieval = RetrievalResponse(
+            query="ZIF-90 microfluidic clogging",
+            collection="test",
+            embedding_model="hash-v1-64",
+            top_k=0,
+            usable_only=True,
+            hits=[],
+        )
+        generation = GenerationResponse(
+            provider="mock",
+            model="mock-generator-v1",
+            content="Mock response",
+            finish_reason="stop",
+        )
+
+        response = service.build_response(request, retrieval, generation)
+
+        self.assertIn("模型推理，非知识库直接证据", response.answer)
+        self.assertEqual(response.evidence_summary, [])
+        self.assertTrue(response.suggested_next_steps)
+        self.assertIn("不能替代文献证据或实验验证", " ".join(response.limitations))
 
     def test_formulation_live_stream_uses_text_response_format(self) -> None:
         service = FormulationOptimizationService(runtime=runtime_with_config())

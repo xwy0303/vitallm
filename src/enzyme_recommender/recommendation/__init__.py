@@ -11,6 +11,11 @@ from enzyme_recommender.recommendation.formulation import (
     FormulationOptimizationResponse,
     FormulationOptimizationService,
 )
+from enzyme_recommender.recommendation.general_qa import (
+    GeneralQARequest,
+    GeneralQAResponse,
+    GeneralQAService,
+)
 
 __all__ = [
     "EnzymeRecommendationRequest",
@@ -19,5 +24,8 @@ __all__ = [
     "FormulationOptimizationRequest",
     "FormulationOptimizationResponse",
     "FormulationOptimizationService",
+    "GeneralQARequest",
+    "GeneralQAResponse",
+    "GeneralQAService",
     "RecommendationService",
 ]

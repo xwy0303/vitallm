@@ -24,6 +24,7 @@ from enzyme_recommender.rag.retrieval import (
     build_query_plan,
     classify_no_retrieval_query,
     extract_document_ids,
+    rerank_document_hits,
 )
 from enzyme_recommender.recommendation.grounding import build_grounded_answer, build_no_answer_text
 from enzyme_recommender.runtime import RuntimeServices
@@ -43,6 +44,7 @@ class EnzymeRecommendationRequest(BaseModel):
     paper_resolution_status: Optional[str] = None
     paper_resolution_reason: Optional[str] = None
     paper_resolution_candidates: List[Dict[str, Any]] = Field(default_factory=list)
+    paper_selected_documents: List[Dict[str, Any]] = Field(default_factory=list)
 
     @field_validator("enzyme_name")
     @classmethod
@@ -129,6 +131,15 @@ class RecommendationService:
         retrieval_query = build_retrieval_query(request)
         if request.objective == PAPER_PROCESS_OBJECTIVE or is_paper_process_question(retrieval_query):
             request.objective = PAPER_PROCESS_OBJECTIVE
+            selected_documents = selected_documents_from_constraints(request.constraints)
+            if selected_documents:
+                return retrieve_selected_document_scope(
+                    self.runtime,
+                    request,
+                    retrieval_query,
+                    selected_documents,
+                    top_k=request.top_k or max(self.runtime.config.retrieval.top_k, 12),
+                )
             resolution = resolve_request_document(self.runtime, request, retrieval_query)
             apply_document_resolution(request, resolution)
             if resolution.status == "resolved" and resolution.document is not None:
@@ -295,11 +306,19 @@ def grounded_generation_content(
         return generation.content
     if not retrieval.hits:
         return build_no_answer_text()
-    if request.objective in QA_OBJECTIVES:
+    if request.objective == PAPER_PROCESS_OBJECTIVE:
+        if paper_generation_content_is_supported(generation.content, retrieval):
+            return generation.content
         return build_grounded_answer(
             request.application_context or request.enzyme_name,
             retrieval,
-            paper_process=request.objective == PAPER_PROCESS_OBJECTIVE,
+            paper_process=True,
+        ) or generation.content
+    if request.objective == EVIDENCE_QA_OBJECTIVE:
+        return build_grounded_answer(
+            request.application_context or request.enzyme_name,
+            retrieval,
+            paper_process=False,
         ) or generation.content
     if generation.provider == "mock" or not generation.content.strip():
         return build_grounded_answer(
@@ -313,6 +332,58 @@ def grounded_generation_content(
 EVIDENCE_QA_OBJECTIVE = "answer_evidence_question"
 PAPER_PROCESS_OBJECTIVE = "answer_paper_process_question"
 QA_OBJECTIVES = {EVIDENCE_QA_OBJECTIVE, PAPER_PROCESS_OBJECTIVE}
+
+REFERENCE_INDEX_RE = re.compile(r"\[(\d+)\]")
+UNSUPPORTED_PAPER_ASSERTION_RE = re.compile(
+    r"(唯一最佳|全局最优|确定最优条件|最优条件确定|guaranteed|global optimum|only best)",
+    re.I,
+)
+DETERMINISTIC_REVIEW_LINE_RE = re.compile(
+    r"(需复核|需要复核|回看原文|证据不足|不能写成确定结论|requires review|review line|review-only|uncertain)",
+    re.I,
+)
+BAD_TABLE_FLAG_RE = re.compile(r"(bad[-_ ]?table|placeholder)", re.I)
+
+
+def paper_generation_content_is_supported(content: str, retrieval: RetrievalResponse) -> bool:
+    text = (content or "").strip()
+    if not text:
+        return False
+    refs = paper_answer_reference_indices(text)
+    if not refs or any(index < 1 or index > len(retrieval.hits) for index in refs):
+        return False
+    if UNSUPPORTED_PAPER_ASSERTION_RE.search(text):
+        return False
+    return not paper_answer_misuses_review_evidence(text, refs, retrieval)
+
+
+def paper_answer_reference_indices(content: str) -> List[int]:
+    return [int(match) for match in REFERENCE_INDEX_RE.findall(content or "")]
+
+
+def paper_answer_misuses_review_evidence(content: str, refs: List[int], retrieval: RetrievalResponse) -> bool:
+    for index in sorted(set(refs)):
+        hit = retrieval.hits[index - 1]
+        if not hit_is_review_only_for_paper_answer(hit):
+            continue
+        for line in paper_answer_lines_with_reference(content, index):
+            if not DETERMINISTIC_REVIEW_LINE_RE.search(line):
+                return True
+    return False
+
+
+def hit_is_review_only_for_paper_answer(hit: RetrievalHit) -> bool:
+    flags = " ".join([*list(hit.quality_flags or []), *list(hit.qa_flags or [])])
+    return hit.requires_review or hit.qa_status == "fail" or bool(BAD_TABLE_FLAG_RE.search(flags))
+
+
+def paper_answer_lines_with_reference(content: str, index: int) -> List[str]:
+    pattern = re.compile(rf"\[{index}\]")
+    lines = []
+    for line in re.split(r"[\n。；;]", content or ""):
+        if pattern.search(line):
+            lines.append(line.strip())
+    return lines or [content]
 
 RECOMMENDATION_INTENT_TERMS = {
     "recommend",
@@ -464,28 +535,30 @@ def build_paper_process_generation_prompt(
         ]
         if part
     )
+    selected_papers = selected_paper_label(request)
+    task_label = "多篇论文对比联动问答" if len(request.paper_selected_documents) > 1 else "单篇论文中的酶固定化剂优化过程"
     return "\n\n".join(
         [
-            "任务：基于 evidence context 回答“单篇论文中的酶固定化剂优化过程”。",
-            f"目标论文：{paper_label or '已从问题中解析，但缺少标题'}",
+            f"任务：基于 evidence context 回答“{task_label}”。",
+            f"目标论文：{selected_papers or paper_label or '已从问题中解析，但缺少标题'}",
             f"用户问题：{request.application_context or request.enzyme_name}",
             f"用户约束：{request.constraints or '未提供'}",
             "Evidence context:",
             retrieval.context_text(max_chars_per_hit=750),
-            "输出结构必须包含以下小标题：",
-            "1. 论文定位",
-            "2. 研究目标",
-            "3. 固定化剂/载体筛选",
-            "4. 优化变量",
-            "5. 最优条件",
-            "6. 性能验证",
-            "7. 证据缺口与需复核项",
+            "输出结构：用自然中文回答，包含且只需动态组织以下 3 个区块：",
+            "结论：先用 1-2 句话回答当前 evidence 能还原到什么程度。",
+            "论文内证据：用少量 bullet 合并说明固定化剂/载体筛选、固定化条件、性能验证等已命中事实；多篇论文时按论文对比组织。",
+            "证据缺口/冲突：列出缺失流程、需复核线索和互相冲突或语义不明的条件值。",
             "输出要求：",
             "- 每个关键事实必须带 [1]、[2] 这类 reference index。",
-            "- 如果某一步 evidence context 不足，明确写“不足”，不要补全。",
+            "- 多篇论文对比时必须标明每条结论来自哪篇论文，不要把不同论文的条件合并成同一最优方案。",
+            "- 如果某一步 evidence context 不足，写“当前证据不足”，不要补全。",
+            "- 同一字段或同一结论多次命中必须合并，例如多个 adsorption 只能合并为“当前证据均指向 adsorption”，不要重复罗列。",
+            "- 如果同一条件类型出现冲突值，例如 70°C 和 20°C，不得并列写成最优条件；必须标为“需回看原文确认”。",
             "- `requires_review=true`、`qa_status=fail` 或包含 bad-table/placeholder flag 的证据只能作为需复核线索，不得写成确定结论。",
             "- 区分 immobilization conditions、assay conditions、reaction/application conditions 和 stability/reuse conditions。",
-            "- 不输出 JSON。",
+            "- 不输出 JSON，不输出内部 schema 字段，不输出 backend flag 原文。",
+            "- 不要直接写 `immobilization_temperature={...}`、`reuse_cycles=5cycle`、`key=value` 这类字段 dump。",
         ]
     )
 
@@ -558,6 +631,89 @@ def resolve_request_document(
     if fallback.status == "ambiguous":
         return fallback
     return resolution if resolution.candidates else fallback
+
+
+SELECTED_DOCUMENT_ID_RE = re.compile(r"\bdocument_id\s*:\s*([A-Za-z]\d{1,3})\b", re.I)
+SELECTED_SOURCE_PDF_RE = re.compile(r"\bsource_pdf\s*:\s*([^;\n]+?\.pdf)\b", re.I)
+SELECTED_TITLE_RE = re.compile(r"\btitle\s*:\s*([^;\n]+)", re.I)
+
+
+def selected_documents_from_constraints(constraints: List[str]) -> List[DocumentCatalogItem]:
+    documents: List[DocumentCatalogItem] = []
+    seen = set()
+    for constraint in constraints or []:
+        document_id_match = SELECTED_DOCUMENT_ID_RE.search(constraint)
+        source_pdf_match = SELECTED_SOURCE_PDF_RE.search(constraint)
+        if not document_id_match and not source_pdf_match:
+            continue
+        document_id = document_id_match.group(1).upper() if document_id_match else ""
+        source_pdf = source_pdf_match.group(1).strip() if source_pdf_match else f"{document_id}.pdf"
+        if not document_id:
+            document_id = source_pdf.rsplit(".", 1)[0].strip()
+        key = document_id.upper()
+        if not key or key in seen:
+            continue
+        title_match = SELECTED_TITLE_RE.search(constraint)
+        documents.append(
+            DocumentCatalogItem(
+                document_id=document_id,
+                source_pdf=source_pdf,
+                title_candidate=title_match.group(1).strip() if title_match else None,
+                aliases=[document_id, source_pdf],
+            )
+        )
+        seen.add(key)
+    return documents
+
+
+def retrieve_selected_document_scope(
+    runtime: RuntimeServices,
+    request: EnzymeRecommendationRequest,
+    retrieval_query: str,
+    selected_documents: List[DocumentCatalogItem],
+    top_k: int,
+) -> RetrievalResponse:
+    per_document_top_k = max(4, min(top_k, 8))
+    hits: List[RetrievalHit] = []
+    for document in selected_documents:
+        response = runtime.retriever().retrieve_document_scope(
+            query=retrieval_query,
+            document_id=document.document_id,
+            source_pdf=document.source_pdf,
+            top_k=per_document_top_k,
+            include_review=True,
+        )
+        hits.extend(response.hits)
+    plan = build_query_plan(retrieval_query, top_k=top_k)
+    hits = rerank_document_hits(retrieval_query, hits, plan, top_k=top_k)
+    request.paper_resolution_status = "resolved"
+    request.paper_resolution_reason = "selected_documents"
+    request.paper_resolution_candidates = [document.model_dump(mode="json") for document in selected_documents[:5]]
+    request.paper_selected_documents = [document.model_dump(mode="json") for document in selected_documents]
+    first = selected_documents[0]
+    request.paper_document_id = first.document_id
+    request.paper_source_pdf = first.source_pdf
+    request.paper_title_candidate = first.title_candidate
+    return RetrievalResponse(
+        query=retrieval_query,
+        collection=runtime.qdrant_config().collection,
+        embedding_model=runtime.embedding_model().name,
+        top_k=top_k,
+        usable_only=False,
+        point_type=None,
+        query_plan=plan.model_copy(update={"document_scope": True, "intents": ["document_scope", *plan.intents]}),
+        hits=hits,
+    )
+
+
+def selected_paper_label(request: EnzymeRecommendationRequest) -> str:
+    labels = []
+    for item in request.paper_selected_documents:
+        parts = [item.get("document_id"), item.get("source_pdf"), item.get("title_candidate")]
+        label = " / ".join(str(part) for part in parts if part)
+        if label:
+            labels.append(label)
+    return "; ".join(labels)
 
 
 def apply_document_resolution(request: EnzymeRecommendationRequest, resolution: DocumentResolveResult) -> None:

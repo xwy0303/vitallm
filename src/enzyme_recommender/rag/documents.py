@@ -30,7 +30,24 @@ DOCUMENT_CATALOG_PAYLOAD_FIELDS = [
     "quality_flags",
     "requires_review",
 ]
-TITLE_SECTION_TERMS = {"title", "abstract"}
+TITLE_SECTION_TERMS = {"title"}
+GENERIC_SECTION_RE = re.compile(
+    r"^(?:"
+    r"abstract|keywords?|introduction|background|results?|discussion|conclusions?|"
+    r"materials?|methods?|experimental|references?|acknowledg|funding|"
+    r"author contributions?|conflicts? of interest|supplementary|figure|table|scheme|"
+    r"received|accepted|published"
+    r")\b",
+    re.I,
+)
+NUMBERED_SECTION_RE = re.compile(r"^\d+(?:\.\d+)*[.\s]")
+TITLE_METADATA_NOISE_RE = re.compile(
+    r"^(?:"
+    r"abstract|keywords?|article\s*info|article\s*history|graphical\s*abstract|"
+    r"cite\s+this|citation\s*:|paper\s+view|view\s+article|check\s+for\s+updates"
+    r")\b",
+    re.I,
+)
 TITLE_STOPWORDS = {
     "and",
     "article",
@@ -156,20 +173,109 @@ def build_document_catalog_from_payloads(payloads: Sequence[dict[str, Any]]) -> 
 
 
 def maybe_add_title_row(rows: list[tuple[int, int, str]], payload: dict[str, Any]) -> None:
-    text = compact_text(str(payload.get("text") or ""))
-    if len(text) < 20:
+    candidate, source = title_candidate_from_payload(payload)
+    if not candidate:
         return
     page = int_or_large(payload.get("page_start"))
-    section = str(payload.get("section") or "").lower()
     point_type = str(payload.get("point_type") or "")
-    priority = 20
+    priority = {"section_title": 0, "first_line_title": 6, "first_page_title": 12}.get(source, 30)
     if page == 0:
-        priority -= 8
-    if any(term in section for term in TITLE_SECTION_TERMS):
-        priority -= 6
-    if point_type == "rag_chunk":
         priority -= 2
-    rows.append((priority, page, text[:260]))
+    if point_type == "rag_chunk":
+        priority -= 1
+    rows.append((priority, page, candidate[:260]))
+
+
+def title_candidate_from_payload(payload: dict[str, Any]) -> tuple[Optional[str], str]:
+    page = int_or_large(payload.get("page_start"))
+    section = clean_title_candidate_text(str(payload.get("section") or ""))
+    if is_title_like_text(section):
+        return section, "section_title"
+    if is_generic_section_heading(section):
+        return None, ""
+
+    raw_text = str(payload.get("text") or "")
+    for line in title_candidate_lines(raw_text):
+        candidate = clean_title_candidate_text(line)
+        if not candidate:
+            continue
+        if is_title_like_text(candidate):
+            return candidate, "first_line_title" if page == 0 else "first_page_title"
+        if is_abstract_like_text(candidate):
+            break
+    return None, ""
+
+
+def title_candidate_lines(value: str) -> List[str]:
+    lines = [line.strip() for line in str(value or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    lines = [line for line in lines if line]
+    if lines:
+        return lines[:6]
+    text = compact_text(value)
+    return [text] if text else []
+
+
+def clean_title_candidate_text(value: str) -> str:
+    text = compact_text(value)
+    text = re.sub(r"^#+\s*", "", text)
+    text = re.sub(r"^title\s*[:：]\s*", "", text, flags=re.I)
+    return text.strip(" -–—:：")
+
+
+def is_title_like_text(value: str) -> bool:
+    text = clean_title_candidate_text(value)
+    if len(text) < 20 or len(text) > 260:
+        return False
+    lowered = text.lower()
+    if is_generic_section_heading(lowered) or is_noisy_title_candidate(text):
+        return False
+    if "@" in text or "correspondence" in lowered:
+        return False
+    alpha_count = len(re.findall(r"[A-Za-z\u4e00-\u9fff]", text))
+    if alpha_count < 12:
+        return False
+    return True
+
+
+def is_abstract_like_text(value: str) -> bool:
+    return bool(re.match(r"^\s*abstract\b\s*[:：]?", str(value or ""), re.I))
+
+
+def is_generic_section_heading(value: str) -> bool:
+    text = clean_title_candidate_text(value)
+    if not text:
+        return False
+    lowered = text.lower()
+    return bool(
+        is_abstract_like_text(text)
+        or is_metadata_heading(text)
+        or GENERIC_SECTION_RE.search(lowered)
+        or NUMBERED_SECTION_RE.search(lowered)
+    )
+
+
+def is_metadata_heading(value: str) -> bool:
+    text = clean_title_candidate_text(value)
+    lowered = text.lower()
+    alpha_compact = re.sub(r"[^a-z]+", "", lowered)
+    return bool(
+        TITLE_METADATA_NOISE_RE.search(lowered)
+        or alpha_compact.startswith(("articleinfo", "abstract", "keywords", "articlehistory", "graphicalabstract"))
+    )
+
+
+def is_noisy_title_candidate(value: str) -> bool:
+    text = clean_title_candidate_text(value)
+    if not text:
+        return True
+    lowered = text.lower()
+    if is_metadata_heading(text):
+        return True
+    if re.search(r"\b(?:article history|available online|received|accepted|published|keywords?)\b", lowered):
+        return True
+    if re.match(r"^\d+(?:\.\d+)*\.\s+(?:introduction|background|results?|discussion|methods?)\b", lowered):
+        return True
+    return False
 
 
 def catalog_item_from_state(state: dict[str, Any]) -> DocumentCatalogItem:
@@ -227,7 +333,9 @@ def merge_local_document_metadata(items: Sequence[DocumentCatalogItem], rag_inpu
                 qa_summary={},
             )
             continue
-        title = existing.title_candidate or local_title
+        title = existing.title_candidate
+        if local_title and (not title or is_noisy_title_candidate(title)):
+            title = local_title
         aliases = dedupe_strings([*existing.aliases, local_title or ""])
         by_document_id[document_id] = existing.model_copy(update={"title_candidate": title, "aliases": aliases})
     return list(by_document_id.values())

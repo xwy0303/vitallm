@@ -160,6 +160,17 @@
         "objective": {
           "type": "string"
         },
+        "answer_mode": {
+          "enum": [
+            "direct",
+            "troubleshooting",
+            "literature_review",
+            "experimental_design"
+          ]
+        },
+        "allow_model_prior": {
+          "type": "boolean"
+        },
         "application_context": {
           "type": "string"
         },
@@ -186,7 +197,9 @@
         "search_evidence",
         "recommend",
         "recommend_stream",
-        "optimize"
+        "optimize",
+        "general_qa",
+        "general_qa_stream"
       ]
     },
     "expectedBehavior": {

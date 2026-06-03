@@ -16,6 +16,7 @@
 `engineering/manual_evidence_review.md` - 人工 evidence/table 复核包导出、学生复核 SOP、curated evidence overlay 回灌边界
 `engineering/project_development_retrospective_260526.md` - 从项目启动到当前的完整问题、修复、优化、效果与剩余风险复盘
 `engineering/qa_benchmark_strategy.md` - 脂肪酶固定化问答系统分层 benchmark、case schema、验收门槛和 seed baseline
+`engineering/project_learning_guide.md` - 面向 0 基础接手者的一周系统学习指南，覆盖前端、后端、数据库、知识库、PDF 识别、切片、表格识别、图片识别与运维路径
 
 ## 当前活跃任务池 (Active Workflows)
 
@@ -25,6 +26,7 @@
 `workflow/260525-rag-pipeline-optimization.md` - PDF-MinerU-RAG-Qdrant 链路优化清单、版本契约、semantic embedding 与 benchmark 规划
 `workflow/260526-qa-answerability-grounding.md` - QA seed 驱动的 no-answer gate、citation grounding、paper-level planner 修复
 `workflow/260529-netlify-cloudflare-demo-deploy.md` - Netlify 前端公网部署、Cloudflare quick tunnel 本机后端暴露与验证记录
+`workflow/260603-general-qa-module.md` - 通用问答独立 service/API/frontend/benchmark 开发与验证
 
 ## 全局重要记忆 (Global Memory)
 

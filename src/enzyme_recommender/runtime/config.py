@@ -76,6 +76,25 @@ class GeneratorConfig(StrictBaseModel):
     max_retries: int = Field(default=2, ge=0, le=10)
 
 
+class ExternalLiteratureConfig(StrictBaseModel):
+    provider: Literal["none", "aminer_mcp"] = "none"
+    enabled: bool = False
+    sse_url: str = "https://mcp.aminer.cn/sse"
+    auth_token_env: str = "AMINER_MCP_AUTH_TOKEN"
+    timeout_seconds: float = Field(default=20.0, gt=0)
+    max_results: int = Field(default=5, ge=1, le=20)
+
+    @model_validator(mode="after")
+    def validate_provider_settings(self) -> "ExternalLiteratureConfig":
+        if self.enabled and self.provider == "none":
+            raise ValueError("external literature provider cannot be none when enabled")
+        if self.enabled and not self.auth_token_env.strip():
+            raise ValueError("auth_token_env is required when external literature is enabled")
+        if self.enabled and not self.sse_url.startswith(("http://", "https://")):
+            raise ValueError("external literature sse_url must be http(s)")
+        return self
+
+
 class RuntimeConfig(StrictBaseModel):
     document_parser: DocumentParserConfig = Field(default_factory=DocumentParserConfig)
     vector_store: VectorStoreConfig = Field(default_factory=VectorStoreConfig)
@@ -83,6 +102,7 @@ class RuntimeConfig(StrictBaseModel):
     retrieval: RetrievalConfig = Field(default_factory=RetrievalConfig)
     generator: GeneratorConfig = Field(default_factory=GeneratorConfig)
     generator_providers: Dict[str, GeneratorProviderConfig] = Field(default_factory=dict)
+    external_literature: ExternalLiteratureConfig = Field(default_factory=ExternalLiteratureConfig)
 
     @model_validator(mode="after")
     def validate_generator_provider(self) -> "RuntimeConfig":
@@ -118,6 +138,14 @@ class RuntimeConfig(StrictBaseModel):
                 f"missing API key env var for generator provider {provider}: {provider_config.api_key_env}"
             )
         return value
+
+    def external_literature_auth_token(self) -> Optional[str]:
+        config = self.external_literature
+        if not config.enabled or config.provider == "none":
+            return None
+        load_local_env_files()
+        value = os.environ.get(config.auth_token_env)
+        return value.strip() if value else None
 
 
 _LOCAL_ENV_LOADED = False

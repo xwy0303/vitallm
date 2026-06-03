@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>生机大模型 - 生物酶固定化推荐</title>
-    <link rel="stylesheet" href="./styles.css?v=260526-rag-routing-fix" />
+    <link rel="stylesheet" href="./styles.css?v=260603-send-icon-v2" />
     <script>
       window.ENZYME_STREAM_API_BASE_URL = "https://measurements-ban-lesser-sent.trycloudflare.com";
     </script>
@@ -13,7 +13,9 @@
     <div class="app-shell">
       <aside class="sidebar" aria-label="主导航">
         <a class="brand" href="#">
-          <span class="brand-mark" aria-hidden="true">S</span>
+          <span class="brand-mark" aria-hidden="true">
+            <img src="./assets/icons/brand-enzyme-mof-edge-fit.png" alt="" />
+          </span>
           <span>
             <strong>生机大模型</strong>
             <small>Enzyme RAG Lab</small>
@@ -23,23 +25,33 @@
         <nav class="nav-section">
           <p class="nav-title">核心能力</p>
           <a class="nav-item active" href="#home">
-            <span class="nav-icon" aria-hidden="true">01</span>
+            <span class="nav-icon" aria-hidden="true">
+              <img src="./assets/icons/nav-enzyme-home-edge-fit.png" alt="" />
+            </span>
             首页问答
           </a>
           <a class="nav-item" href="#models">
-            <span class="nav-icon" aria-hidden="true">02</span>
+            <span class="nav-icon" aria-hidden="true">
+              <img src="./assets/icons/nav-ai-model-edge-fit.png" alt="" />
+            </span>
             大模型
           </a>
           <a class="nav-item" href="#knowledge">
-            <span class="nav-icon" aria-hidden="true">03</span>
+            <span class="nav-icon" aria-hidden="true">
+              <img src="./assets/icons/nav-knowledge-db-edge-fit.png" alt="" />
+            </span>
             知识库
           </a>
           <a class="nav-item" href="#pipeline">
-            <span class="nav-icon" aria-hidden="true">04</span>
+            <span class="nav-icon" aria-hidden="true">
+              <img src="./assets/icons/nav-pdf-slice-edge-fit.png" alt="" />
+            </span>
             PDF 切片
           </a>
           <a class="nav-item" href="#evidence">
-            <span class="nav-icon" aria-hidden="true">05</span>
+            <span class="nav-icon" aria-hidden="true">
+              <img src="./assets/icons/nav-evidence-chain-edge-fit.png" alt="" />
+            </span>
             证据抽取
           </a>
         </nav>
@@ -47,15 +59,21 @@
         <nav class="nav-section">
           <p class="nav-title">实验工作台</p>
           <a class="nav-item" href="#formula">
-            <span class="nav-icon" aria-hidden="true">06</span>
+            <span class="nav-icon" aria-hidden="true">
+              <img src="./assets/icons/nav-formulation-flask-edge-fit.png" alt="" />
+            </span>
             配方优化
           </a>
           <a class="nav-item" href="#review">
-            <span class="nav-icon" aria-hidden="true">07</span>
+            <span class="nav-icon" aria-hidden="true">
+              <img src="./assets/icons/nav-human-review-edge-fit.png" alt="" />
+            </span>
             人工审核
           </a>
           <a class="nav-item" href="#history">
-            <span class="nav-icon" aria-hidden="true">08</span>
+            <span class="nav-icon" aria-hidden="true">
+              <img src="./assets/icons/nav-task-history-edge-fit.png" alt="" />
+            </span>
             任务历史
           </a>
         </nav>
@@ -73,7 +91,6 @@
             <h1>生物酶固定化推荐工作台</h1>
           </div>
           <div class="topbar-actions">
-            <button class="ghost-button" type="button">查看证据链</button>
             <button class="primary-button" type="button">登录</button>
           </div>
         </header>
@@ -81,7 +98,7 @@
         <section class="hero" id="home">
           <div class="hero-copy">
             <p class="eyebrow">Evidence-first Recommendation</p>
-            <h2>输入酶名或配方，让系统基于论文证据给出可追溯建议</h2>
+            <h2>论文证据驱动的酶固定化方案设计</h2>
             <p>
               面向脂肪酶固定化场景，整合 MinerU PDF 切片、Qdrant 知识库检索、
               evidence records 与生成式 LLM，输出推荐固化剂、实验条件和优化方向。
@@ -92,14 +109,42 @@
             <textarea
               data-query-input
               aria-label="输入酶名或配方"
-              placeholder="例如：Burkholderia cepacia lipase，用于大豆油乙醇酯交换制备 biodiesel，推荐固定化载体和条件。"
+              maxlength="400"
+              placeholder="发消息（最多400字）"
             ></textarea>
             <div class="query-tools">
-              <button class="tool-chip active" type="button" data-mode="recommend">酶名推荐</button>
-              <button class="tool-chip" type="button" data-mode="paper">论文问答</button>
-              <button class="tool-chip" type="button" data-mode="optimize">配方优化</button>
-              <button class="tool-chip" type="button" data-mode="search">证据检索</button>
-              <button class="send-button" type="button" aria-label="发送" data-send-button>发送</button>
+              <div class="mode-picker" data-mode-picker>
+                <button
+                  class="mode-select-button"
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                  data-mode-toggle
+                >
+                  <span data-mode-label>通用问答</span>
+                  <span class="mode-select-caret" aria-hidden="true">
+                    <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                      <path d="M4 6.5 8 10.5 12 6.5" />
+                    </svg>
+                  </span>
+                </button>
+                <div class="mode-menu" role="menu" data-mode-menu hidden>
+                  <button class="mode-menu-item active" type="button" role="menuitemradio" aria-checked="true" data-mode="general">通用问答</button>
+                  <button class="mode-menu-item" type="button" role="menuitemradio" aria-checked="false" data-mode="recommend">酶名推荐</button>
+                  <button class="mode-menu-item" type="button" role="menuitemradio" aria-checked="false" data-mode="paper">论文问答</button>
+                  <button class="mode-menu-item" type="button" role="menuitemradio" aria-checked="false" data-mode="optimize">配方优化</button>
+                  <button class="mode-menu-item" type="button" role="menuitemradio" aria-checked="false" data-mode="search">证据检索</button>
+                </div>
+              </div>
+              <button class="send-button" type="button" aria-label="请输入内容后发送" data-send-button disabled>
+                <span class="send-button-face">
+                  <span class="send-button-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                      <path d="M21.08 3.02 3.72 10.32c-.91.38-.88 1.68.04 2.02l6.55 2.42 2.42 6.55c.34.92 1.64.95 2.02.04l7.3-17.36c.25-.59-.39-1.23-.97-.97Z" />
+                    </svg>
+                  </span>
+                </span>
+              </button>
             </div>
           </form>
 
@@ -121,10 +166,12 @@
 
           <div class="quick-prompts" aria-label="示例问题">
             <span>猜你想问：</span>
-            <button type="button" data-prompt="Burkholderia cepacia lipase，用于大豆油乙醇酯交换制备 biodiesel，推荐固定化载体和条件。">BCL 最适合什么 MOF 固定化？</button>
+            <button type="button" data-mode-prompt="general" data-prompt="ZIF-8 原位包埋脂肪酶的最佳反应温度一般控制在多少度？">ZIF-8 包埋温度</button>
+            <button type="button" data-mode-prompt="general" data-prompt="如果我要把实验室里 2ml 体系的 ZIF 材料原位包埋酶放大到 30ml，发现混合效率下降、产率变低，该怎么解决这种放大效应？">放大效应怎么处理？</button>
+            <button type="button" data-mode-prompt="recommend" data-prompt="Burkholderia cepacia lipase，用于大豆油乙醇酯交换制备 biodiesel，推荐固定化载体和条件。">BCL 最适合什么 MOF 固定化？</button>
             <button type="button" data-mode-prompt="paper" data-prompt="B10论文对酶固定化剂的优化过程是怎么样的？">B10 论文优化流程</button>
-            <button type="button" data-prompt='{"carrier":"ZIF-8","enzyme_loading":{"value":500,"unit":"mg"},"immobilization_conditions":{"time":{"value":60,"unit":"min"},"temperature":{"value":30,"unit":"degC"}},"buffer":{"pH":7},"application":{"substrate":"soybean oil","acyl_acceptor":"ethanol","reaction_medium":"solvent-free"}}'>如何优化 pH、温度和 enzyme loading？</button>
-            <button type="button" data-prompt="soybean oil ethanol yield 93.4 8 cycles last yield">哪些证据不能直接进入 ranking？</button>
+            <button type="button" data-mode-prompt="optimize" data-prompt='{"carrier":"ZIF-8","enzyme_loading":{"value":500,"unit":"mg"},"immobilization_conditions":{"time":{"value":60,"unit":"min"},"temperature":{"value":30,"unit":"degC"}},"buffer":{"pH":7},"application":{"substrate":"soybean oil","acyl_acceptor":"ethanol","reaction_medium":"solvent-free"}}'>如何优化 pH、温度和 enzyme loading？</button>
+            <button type="button" data-mode-prompt="search" data-prompt="soybean oil ethanol yield 93.4 8 cycles last yield">哪些证据不能直接进入 ranking？</button>
           </div>
 
           <section class="result-panel" data-result-panel hidden>
@@ -140,111 +187,96 @@
         </section>
 
         <section class="dashboard-grid">
-          <article class="panel knowledge-panel" id="knowledge">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Knowledge Base</p>
-                <h3>知识库专区</h3>
-              </div>
-              <span class="badge">RAG-ready</span>
-            </div>
-            <div class="stack-list">
-              <div class="stack-card">
-                <span class="stack-icon">KB</span>
+          <article class="panel model-zone" id="models">
+            <h3>模型专区</h3>
+            <p>汇聚行业模型，赋能生物酶固定化实验设计</p>
+            <div class="module-list">
+              <div class="module-row" id="knowledge">
+                <span class="module-icon" aria-hidden="true">
+                  <img src="./assets/icons/nav-ai-model-bare.png" alt="" />
+                </span>
                 <div>
-                  <strong>论文知识库</strong>
-                  <p>MinerU artifact、RAG chunks、table records 与 citation 溯源。</p>
+                  <strong>模型集</strong>
+                  <p>通用问答、论文问答、酶名推荐与配方优化</p>
                 </div>
               </div>
-              <div class="stack-card">
-                <span class="stack-icon">EV</span>
+              <div class="module-row" id="pipeline">
+                <span class="module-icon" aria-hidden="true">
+                  <img src="./assets/icons/nav-knowledge-db-bare-v3.png" alt="" />
+                </span>
                 <div>
-                  <strong>证据记录</strong>
-                  <p>enzyme、carrier、method、conditions、metrics、review flags。</p>
+                  <strong>数据集</strong>
+                  <p><span data-pdf-docs>同步中</span>，<span data-pdf-pages>同步中</span></p>
                 </div>
               </div>
-              <div class="stack-card">
-                <span class="stack-icon">DB</span>
+              <div class="module-row">
+                <span class="module-icon" aria-hidden="true">
+                  <img src="./assets/icons/nav-evidence-chain-bare.png" alt="" />
+                </span>
                 <div>
-                  <strong>向量数据库</strong>
-                  <p>Qdrant collection 已支持 metadata filter 与 usable-only 检索。</p>
+                  <strong>算法集</strong>
+                  <p>Qdrant 检索、evidence grounding 与 no-answer gate</p>
                 </div>
               </div>
             </div>
           </article>
 
-          <article class="panel feature-panel" id="models">
-            <p class="eyebrow">Model Gateway</p>
-            <h3>大模型中枢</h3>
-            <p>统一管理 SiliconFlow、DeepSeek、embedding、reranker 和 mock generator。</p>
+          <article class="panel feature-panel">
+            <div class="feature-title">
+              <span class="feature-icon" aria-hidden="true">
+                <img src="./assets/icons/nav-formulation-flask-bare.png" alt="" />
+              </span>
+              <h3>酶固定化推荐大模型</h3>
+            </div>
             <div class="pill-row">
-              <span>SiliconFlow</span>
-              <span>DeepSeek</span>
-              <span>BGE-M3</span>
+              <span>酶名推荐</span>
+              <span>配方优化</span>
+              <span>条件建议</span>
             </div>
-            <a href="#runtime">查看 runtime 配置</a>
+            <a href="#home">立即体验 →</a>
           </article>
 
-          <article class="panel feature-panel" id="pipeline">
-            <p class="eyebrow">Document Parser</p>
-            <h3>PDF 切片引擎</h3>
-            <p>只使用本地/自托管 MinerU，支持 PDF 到 Markdown、content list、表格与图片 artifact。</p>
-            <div class="metric-line">
-              <span data-pdf-docs>同步中</span>
-              <strong data-pdf-pages>同步中</strong>
+          <article class="panel feature-panel" id="formula">
+            <div class="feature-title">
+              <span class="feature-icon" aria-hidden="true">
+                <img src="./assets/icons/nav-pdf-slice-bare.png" alt="" />
+              </span>
+              <h3>论文问答与证据检索大模型</h3>
             </div>
+            <div class="pill-row">
+              <span>论文标题定位</span>
+              <span>证据链引用</span>
+              <span>人工复核</span>
+            </div>
+            <a href="#home">立即体验 →</a>
           </article>
 
-          <article class="panel wide-panel" id="evidence">
+          <article class="panel status-panel wide-panel" id="evidence">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">Evidence Pipeline</p>
-                <h3>从论文到推荐的证据链</h3>
-              </div>
-              <span class="badge green" data-qdrant-points>同步中</span>
-            </div>
-            <div class="pipeline">
-              <div>
-                <span>01</span>
-                <strong>PDF 切片</strong>
-                <p>MinerU content list + tables</p>
-              </div>
-              <div>
-                <span>02</span>
-                <strong>证据抽取</strong>
-                <p>conditions / metrics / table rows</p>
-              </div>
-              <div>
-                <span>03</span>
-                <strong>向量检索</strong>
-                <p>Qdrant + metadata filter</p>
-              </div>
-              <div>
-                <span>04</span>
-                <strong>LLM 推荐</strong>
-                <p>answer with citations</p>
+                <p class="eyebrow">Runtime Status</p>
+                <h3>最新状态</h3>
               </div>
             </div>
-          </article>
-
-          <article class="panel formula-panel" id="formula">
-            <p class="eyebrow">Formula Optimizer</p>
-            <h3>配方优化</h3>
-            <p>输入配体/酶比例、添加剂浓度、反应条件和外部环境，输出优化建议与实验验证路径。</p>
-            <ul>
-              <li>enzyme loading / carrier ratio</li>
-              <li>pH / temperature / time</li>
-              <li>reuse cycles / last yield</li>
-            </ul>
-          </article>
-
-          <article class="panel review-panel" id="review">
-            <p class="eyebrow">Human Review</p>
-            <h3>人工审核队列</h3>
-            <p>对 OCR 异常、百分比异常、疑似错列的证据进行人工确认，进入 curated evidence。</p>
-            <div class="review-count">
-              <strong data-review-items>同步中</strong>
-              <span>review items</span>
+            <div class="status-list">
+              <div class="status-row">
+                <span>文献</span>
+                <strong>PDF 文献库与 RAG chunks 已接入</strong>
+                <em>MinerU</em>
+                <b data-pdf-pages>同步中</b>
+              </div>
+              <div class="status-row">
+                <span>向量</span>
+                <strong>Qdrant evidence retrieval 索引</strong>
+                <em>Qdrant</em>
+                <b data-qdrant-points>同步中</b>
+              </div>
+              <div class="status-row" id="review">
+                <span>复核</span>
+                <strong>人工审核队列与 curated evidence</strong>
+                <em>Review</em>
+                <b data-review-items>同步中</b>
+              </div>
             </div>
           </article>
         </section>
@@ -270,6 +302,6 @@
         <footer class="reference-modal-footer" data-reference-modal-footer></footer>
       </section>
     </div>
-    <script src="./app.js?v=260526-rag-routing-fix"></script>
+    <script src="./app.js?v=260603-send-icon-v2"></script>
   </body>
 </html>

@@ -1,0 +1,290 @@
+{
+  "name": "enzyme_immobilization_general_qa_v1",
+  "version": "v1-general-qa-20260603",
+  "description": "General QA benchmark for enzyme immobilization, MOF/ZIF carriers, microfluidics, mechanism explanation, troubleshooting, literature-style questions, and model-prior boundaries.",
+  "target_case_count": 25,
+  "defaults": {
+    "endpoint": "general_qa_stream",
+    "top_k": 8,
+    "usable_only": true,
+    "literature_rewrite": false,
+    "expected_evidence": [],
+    "forbidden_evidence": [],
+    "expected_answer_facts": [],
+    "forbidden_claims": [
+      "全局最优",
+      "唯一最佳",
+      "保证 100%"
+    ],
+    "expected_behavior": {
+      "requires_citations": false,
+      "min_expected_evidence": 0,
+      "min_expected_facts": 0,
+      "forbid_global_optimum": true
+    }
+  },
+  "cases": [
+    {
+      "id": "gqa_simple_zif8_temperature",
+      "kind": "answer_quality",
+      "query": "ZIF-8 原位包埋脂肪酶的最佳反应温度一般控制在多少度？",
+      "answer_mode": "direct",
+      "difficulty": "easy",
+      "source": "manual_user_like",
+      "construction_note": "Simple condition question; answer must avoid universal optimum wording."
+    },
+    {
+      "id": "gqa_simple_microfluidic_carrier",
+      "kind": "answer_quality",
+      "query": "什么载体材料适合用微流控技术（Microfluidics）来连续合成酶@MOF复合物？",
+      "answer_mode": "direct",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Carrier/material question that may require model-prior boundary if no direct local evidence exists."
+    },
+    {
+      "id": "gqa_simple_ph_shift",
+      "kind": "answer_quality",
+      "query": "游离酶被固定化之后，它的最适 pH 通常会发生怎样的偏移？",
+      "answer_mode": "direct",
+      "expected_behavior": {
+        "requires_citations": false,
+        "min_expected_evidence": 0,
+        "min_expected_facts": 0,
+        "condition_type_terms": [
+          "pH"
+        ],
+        "forbid_global_optimum": true
+      },
+      "difficulty": "easy",
+      "source": "manual_user_like",
+      "construction_note": "General mechanism/condition question; should preserve system-dependent boundary."
+    },
+    {
+      "id": "gqa_simple_zif90_advantage",
+      "kind": "answer_quality",
+      "query": "ZIF-90 相比于 ZIF-8，在作为酶载体方面有什么特殊的结构优势？",
+      "answer_mode": "direct",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "ZIF-90 vs ZIF-8 structure question; direct evidence preferred, model-prior allowed with label."
+    },
+    {
+      "id": "gqa_simple_tll_strategy",
+      "kind": "answer_quality",
+      "query": "Thermomyces lanuginosus lipase (TLL) 的最佳固定化策略是什么？",
+      "answer_mode": "direct",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Best-strategy wording must be bounded by objective/context."
+    },
+    {
+      "id": "gqa_simple_km_change",
+      "kind": "answer_quality",
+      "query": "酶被固定在多孔材料里之后，米氏常数（Km）一般是变大还是变小？",
+      "answer_mode": "direct",
+      "expected_answer_facts": [
+        "Km"
+      ],
+      "difficulty": "easy",
+      "source": "manual_user_like",
+      "construction_note": "Michaelis constant question should not be rejected as out of domain."
+    },
+    {
+      "id": "gqa_simple_crl_strategy",
+      "kind": "answer_quality",
+      "query": "Candida rugosa lipase (CRL)的最佳固定化策略？",
+      "answer_mode": "direct",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Chinese/English alias strategy question; avoid global-best claim."
+    },
+    {
+      "id": "gqa_simple_surfactant_role",
+      "kind": "answer_quality",
+      "query": "脂肪酶固定化过程中添加的表面活性剂起到什么作用？",
+      "answer_mode": "direct",
+      "difficulty": "easy",
+      "source": "manual_user_like",
+      "construction_note": "Simple mechanism question; model-prior allowed when local evidence is sparse."
+    },
+    {
+      "id": "gqa_troubleshoot_microchannel_clogging",
+      "kind": "answer_quality",
+      "query": "我在用微液滴技术连续合成多酶@ZIF-90 微球，但是很容易堵塞微通道，有什么优化流速或者两相配比的建议吗？",
+      "answer_mode": "troubleshooting",
+      "expected_answer_facts": [
+        "模型推理"
+      ],
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Troubleshooting case; should offer diagnosis and validation, with model-prior label if no direct evidence."
+    },
+    {
+      "id": "gqa_troubleshoot_zif8_zif67_zif90_mass_transfer",
+      "kind": "answer_quality",
+      "query": "有没有文献系统评估或对比过 ZIF-8、ZIF-67 和 ZIF-90 这三种载体包埋同一种酶时，传质阻力的差异？",
+      "answer_mode": "literature_review",
+      "expected_answer_facts": [
+        "本地知识库"
+      ],
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Literature-style comparison question; must state local knowledge base limitation."
+    },
+    {
+      "id": "gqa_troubleshoot_scaleup_2ml_to_30ml",
+      "kind": "answer_quality",
+      "query": "如果我要把实验室里 2ml 体系的 ZIF 材料原位包埋酶放大到 30ml，发现混合效率下降、产率变低，该怎么解决这种放大效应？",
+      "answer_mode": "experimental_design",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Scale-up troubleshooting should recommend screening/DOE rather than one-point optimum."
+    },
+    {
+      "id": "gqa_troubleshoot_protease_activity_loss",
+      "kind": "answer_quality",
+      "query": "为什么用共沉淀法把蛋白酶包埋进 MOF 里之后，虽然热稳定性提高了，但比活却下降得很厉害？能不能从酶的空间构象角度解释一下？",
+      "answer_mode": "troubleshooting",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Mechanistic troubleshooting around conformational constraints and diffusion."
+    },
+    {
+      "id": "gqa_troubleshoot_extreme_acid_reuse",
+      "kind": "answer_quality",
+      "query": "如果我想让某种工业酶在极端酸性环境下保持高活性，并且能循环使用 10 次以上不明显衰减，选用哪种复合固化载体最靠谱？",
+      "answer_mode": "experimental_design",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "High-risk best-carrier question; should provide bounded screening strategy."
+    },
+    {
+      "id": "gqa_troubleshoot_multienzyme_cascade_mismatch",
+      "kind": "answer_quality",
+      "query": "我打算把多酶共固定化在 ZIF-90 微球里，然后在连续流微反应器里做级联催化。如果这几种酶的最适 pH 和温度不匹配，有什么好的体系调控策略吗？",
+      "answer_mode": "experimental_design",
+      "expected_behavior": {
+        "requires_citations": false,
+        "min_expected_evidence": 0,
+        "min_expected_facts": 0,
+        "condition_type_terms": [
+          "pH",
+          "温度"
+        ],
+        "forbid_global_optimum": true
+      },
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Cascade pH/temperature mismatch should distinguish enzyme optima and reactor/system control."
+    },
+    {
+      "id": "gqa_troubleshoot_low_activity_high_loading",
+      "kind": "answer_quality",
+      "query": "ZIF-8 里 enzyme loading 提高以后总蛋白量上去了，但单位酶活下降，应该优先排查哪些变量？",
+      "answer_mode": "troubleshooting",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Troubleshooting loading/activity trade-off."
+    },
+    {
+      "id": "gqa_troubleshoot_reuse_decay",
+      "kind": "answer_quality",
+      "query": "固定化脂肪酶前三次循环很稳定，第五次以后活性快速衰减，这更像载体崩解、酶泄漏还是底物污染？",
+      "answer_mode": "troubleshooting",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Reuse-cycle decay diagnosis should propose discriminating experiments."
+    },
+    {
+      "id": "gqa_mechanism_zif90_aldhyde",
+      "kind": "answer_quality",
+      "query": "ZIF-90 的醛基位点为什么可能有利于酶固定化？",
+      "answer_mode": "direct",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Mechanism explanation for functional groups; avoid unverified universal superiority."
+    },
+    {
+      "id": "gqa_mechanism_mass_transfer_km",
+      "kind": "answer_quality",
+      "query": "为什么多孔载体固定化以后 Km 变大通常可以从传质阻力解释？",
+      "answer_mode": "direct",
+      "expected_answer_facts": [
+        "Km"
+      ],
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Mechanistic Km/mass-transfer explanation should be in-domain."
+    },
+    {
+      "id": "gqa_mechanism_surfactant_lipase_interface",
+      "kind": "answer_quality",
+      "query": "表面活性剂为什么会影响脂肪酶固定化？是不是和 lipase interfacial activation 有关？",
+      "answer_mode": "direct",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Interfacial activation mechanism question."
+    },
+    {
+      "id": "gqa_mechanism_mof_thermal_stability",
+      "kind": "answer_quality",
+      "query": "为什么 MOF 包埋通常能提高酶的热稳定性？",
+      "answer_mode": "direct",
+      "difficulty": "easy",
+      "source": "manual_user_like",
+      "construction_note": "Mechanism explanation for thermal stability."
+    },
+    {
+      "id": "gqa_mechanism_cascade_microenvironment",
+      "kind": "answer_quality",
+      "query": "多酶共固定化时，局部微环境为什么会影响级联反应效率？",
+      "answer_mode": "direct",
+      "difficulty": "medium",
+      "source": "manual_user_like",
+      "construction_note": "Mechanism question around cascade microenvironment and intermediate transfer."
+    },
+    {
+      "id": "gqa_literature_recent_microfluidics",
+      "kind": "answer_quality",
+      "query": "帮我找找看，最近五年有没有将液滴微流控技术用于酶固定化的高质量文献，并总结一下他们的核心创新点？",
+      "answer_mode": "literature_review",
+      "expected_answer_facts": [
+        "v1 不默认联网"
+      ],
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Recent-literature query must disclose no realtime external retrieval in v1."
+    },
+    {
+      "id": "gqa_literature_zif90_multienzyme",
+      "kind": "answer_quality",
+      "query": "本地知识库里有没有多酶共固定化到 ZIF-90 微球并用于连续流级联催化的证据？",
+      "answer_mode": "literature_review",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Local evidence availability question."
+    },
+    {
+      "id": "gqa_literature_compare_carrier_review",
+      "kind": "answer_quality",
+      "query": "请按载体类型帮我整理酶@MOF 固定化文献：ZIF、UiO、MIL 这几类分别适合什么问题？",
+      "answer_mode": "literature_review",
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Literature-style carrier taxonomy; should keep evidence and inference separated."
+    },
+    {
+      "id": "gqa_literature_no_realtime_boundary",
+      "kind": "answer_quality",
+      "query": "最近有没有比 ZIF-8 更适合脂肪酶固定化的新 MOF 载体？",
+      "answer_mode": "literature_review",
+      "expected_answer_facts": [
+        "本地知识库"
+      ],
+      "difficulty": "hard",
+      "source": "manual_user_like",
+      "construction_note": "Recent-new-carrier query must state local knowledge and no global-best boundary."
+    }
+  ]
+}

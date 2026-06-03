@@ -50,6 +50,23 @@ class OptimizeFormulationApiRequest(ApiBaseModel):
         return value
 
 
+class GeneralQAApiRequest(ApiBaseModel):
+    question: str
+    application_context: Optional[str] = None
+    constraints: List[str] = Field(default_factory=list)
+    answer_mode: Literal["direct", "troubleshooting", "literature_review", "experimental_design"] = "direct"
+    allow_model_prior: bool = True
+    collection: Optional[str] = None
+    top_k: Optional[int] = Field(default=None, ge=1, le=100)
+
+    @field_validator("question")
+    @classmethod
+    def question_must_not_be_empty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("question must not be empty")
+        return value.strip()
+
+
 class SearchEvidenceApiRequest(ApiBaseModel):
     query: str
     collection: Optional[str] = None

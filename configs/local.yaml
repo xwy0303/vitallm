@@ -28,6 +28,14 @@ retrieval:
   formulation_candidate_multiplier: 16
   formulation_candidate_min: 80
 
+external_literature:
+  provider: aminer_mcp
+  enabled: true
+  sse_url: https://mcp.aminer.cn/sse
+  auth_token_env: AMINER_MCP_AUTH_TOKEN
+  timeout_seconds: 20
+  max_results: 5
+
 generator:
   provider: siliconflow
   temperature: 0.1

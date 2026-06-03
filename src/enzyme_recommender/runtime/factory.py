@@ -7,6 +7,7 @@ from pathlib import Path
 from enzyme_recommender.generators.openai_compatible import OpenAICompatibleGeneratorClient
 from enzyme_recommender.generators.protocol import GeneratorClient, MockGeneratorClient
 from enzyme_recommender.ingestion import MinerUClient
+from enzyme_recommender.literature import AminerMCPClient
 from enzyme_recommender.rag.embedding import (
     HashEmbeddingConfig,
     HashEmbeddingModel,
@@ -81,4 +82,18 @@ class RuntimeServices:
             base_url=provider_config.base_url or "",
             api_key=self.config.require_generator_api_key(),
             timeout_seconds=self.config.generator.timeout_seconds,
+        )
+
+    def external_literature(self) -> AminerMCPClient | None:
+        config = self.config.external_literature
+        if not config.enabled or config.provider != "aminer_mcp":
+            return None
+        token = self.config.external_literature_auth_token()
+        if not token:
+            return None
+        return AminerMCPClient(
+            sse_url=config.sse_url,
+            auth_token=token,
+            timeout_seconds=config.timeout_seconds,
+            max_results=config.max_results,
         )

@@ -23,6 +23,8 @@ from enzyme_recommender.recommendation import (
     EnzymeRecommendationRequest,
     FormulationOptimizationRequest,
     FormulationOptimizationService,
+    GeneralQARequest,
+    GeneralQAService,
     RecommendationService,
 )
 from enzyme_recommender.recommendation.enzyme import deterministic_no_answer_generation, retrieval_guard_reason
@@ -74,7 +76,7 @@ CASE_KINDS = {
     "answer_quality",
     "formulation",
 }
-CASE_ENDPOINTS = {"search_evidence", "recommend", "recommend_stream", "optimize"}
+CASE_ENDPOINTS = {"search_evidence", "recommend", "recommend_stream", "optimize", "general_qa", "general_qa_stream"}
 CASE_DIFFICULTIES = {"easy", "medium", "hard", "adversarial"}
 CASE_SOURCES = {"manual_user_like", "literature_derived", "adversarial", "regression_bug"}
 ACCEPTANCE_TARGETS = [
@@ -162,6 +164,7 @@ def main() -> None:
         Path("benchmarks/answer_quality_v1.json"),
         Path("benchmarks/no_answer_intent_v1.json"),
         Path("benchmarks/formulation_optimizer_v1.json"),
+        Path("benchmarks/general_qa_v1.json"),
     ]
     manifests = [load_manifest(path) for path in benchmark_paths]
     if args.validate_only:
@@ -414,6 +417,49 @@ def execute_endpoint(runtime: RuntimeServices, case: Dict[str, Any], generation_
             raw_response=payload,
         )
 
+    if endpoint in {"general_qa", "general_qa_stream"}:
+        service = GeneralQAService(runtime)
+        request = GeneralQARequest(
+            question=query,
+            application_context=case.get("application_context", query),
+            constraints=list(case.get("constraints") or []),
+            answer_mode=str(case.get("answer_mode") or "direct"),  # type: ignore[arg-type]
+            allow_model_prior=bool(case.get("allow_model_prior", True)),
+            top_k=top_k,
+        )
+        retrieval = service.retrieve_evidence(request)
+        if generation_mode == "skip":
+            return EndpointResult(
+                endpoint=endpoint,
+                evidence_hits=retrieval.hits,
+                query_plan=retrieval.query_plan,
+                generation_skipped=True,
+            )
+        deterministic = service.deterministic_generation_if_required(request, retrieval)
+        if deterministic is not None:
+            generation = deterministic
+            stream_text = generation.content if endpoint == "general_qa_stream" else ""
+        elif endpoint == "general_qa_stream":
+            generation = run_service_stream_generation(service, request, retrieval)
+            stream_text = generation.content
+        else:
+            generation = runtime.generator().generate(service.build_generation_request(request, retrieval))
+            stream_text = ""
+        response = service.build_response(request, retrieval, generation)
+        payload = response.model_dump(mode="json")
+        return EndpointResult(
+            endpoint=endpoint,
+            evidence_hits=retrieval.hits,
+            query_plan=retrieval.query_plan,
+            generated_text=response.generation_content,
+            stream_text=stream_text,
+            citations=[],
+            next_experiment_suggestions=[
+                {"step": item} for item in payload.get("suggested_next_steps", []) if item
+            ],
+            raw_response=payload,
+        )
+
     raise ValueError(f"unsupported benchmark endpoint: {endpoint}")
 
 
@@ -422,6 +468,10 @@ def run_stream_generation(
     request: EnzymeRecommendationRequest,
     retrieval: RetrievalResponse,
 ) -> GenerationResponse:
+    return run_service_stream_generation(service, request, retrieval)
+
+
+def run_service_stream_generation(service: Any, request: Any, retrieval: RetrievalResponse) -> GenerationResponse:
     generation_request = service.build_stream_generation_request(request, retrieval)
     generator = service.runtime.generator()
     content = ""
@@ -612,7 +662,7 @@ def evaluate_condition_type_check(text: str, behavior: Dict[str, Any]) -> bool:
 
 
 def evaluate_stream_final_consistency(endpoint_result: EndpointResult, behavior: Dict[str, Any]) -> bool:
-    if endpoint_result.endpoint != "recommend_stream":
+    if endpoint_result.endpoint not in {"recommend_stream", "general_qa_stream"}:
         return True
     text = endpoint_result.stream_text or endpoint_result.generated_text
     stream_says_no_answer = has_no_answer_text(text)
@@ -816,7 +866,7 @@ def aggregate_metrics(case_results: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
         item
         for item in case_results
         if item.get("kind") in {"answer_quality", "positive", "ambiguous"}
-        and item.get("endpoint") in {"recommend", "recommend_stream"}
+        and item.get("endpoint") in {"recommend", "recommend_stream", "general_qa", "general_qa_stream"}
     ]
     formulation_cases = [item for item in case_results if item.get("kind") == "formulation"]
     return {

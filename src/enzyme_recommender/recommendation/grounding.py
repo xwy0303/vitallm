@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import json
 import re
-from typing import Any, Dict, List, Optional
+import json
+from typing import Any, Dict, List, Optional, Tuple
 
 from enzyme_recommender.rag.retrieval import RetrievalHit, RetrievalResponse
 
@@ -38,33 +38,52 @@ def build_general_evidence_answer(question: str, retrieval: RetrievalResponse) -
 
 
 def build_paper_process_answer(question: str, retrieval: RetrievalResponse) -> str:
-    selected = select_answer_hits(question, retrieval, limit=7)
+    selected = select_answer_hits(question, retrieval, limit=9)
     usable = [hit for hit in selected if is_primary_fact_hit(hit)]
     review = [hit for hit in selected if not is_primary_fact_hit(hit)]
     by_type: Dict[str, List[RetrievalHit]] = {}
     for hit in usable:
         by_type.setdefault(hit.record_type or hit.point_type, []).append(hit)
     label = paper_label(selected)
-    lines = [
-        "1. 论文定位",
-        f"- {label}。",
-        "2. 研究目标",
-        f"- 该问题需要从单篇论文内还原固定化剂/载体筛选、固定化条件和性能验证；当前答案只基于检索到的 evidence。",
-        "3. 固定化剂/载体筛选",
-    ]
-    lines.extend(section_lines(by_type.get("immobilization_strategy", []), retrieval, fallback="不足"))
-    lines.append("4. 优化变量")
-    lines.extend(section_lines(by_type.get("formulation_condition", []), retrieval, fallback="不足"))
-    lines.append("5. 最优条件")
-    lines.extend(condition_lines(by_type.get("formulation_condition", []), retrieval))
-    lines.append("6. 性能验证")
-    lines.extend(section_lines(by_type.get("performance_metric", []) + by_type.get("table_comparison_row", []), retrieval, fallback="不足"))
-    lines.append("7. 证据缺口与需复核项")
+    strategy_hits = by_type.get("immobilization_strategy", [])
+    condition_hits = by_type.get("formulation_condition", [])
+    performance_hits = by_type.get("performance_metric", []) + by_type.get("table_comparison_row", [])
+
+    evidence_lines: List[str] = []
+    evidence_lines.extend(strategy_lines(strategy_hits, retrieval))
+    evidence_lines.extend(condition_lines(condition_hits, retrieval))
+    evidence_lines.extend(section_lines(performance_hits, retrieval, fallback=""))
+    if not evidence_lines:
+        evidence_lines.append("- 当前检索结果没有可直接写入流程结论的可靠 evidence。")
+
+    gap_lines = evidence_gap_lines(strategy_hits, condition_hits, performance_hits)
+    gap_lines.extend(condition_conflict_lines(condition_hits, retrieval))
     if review:
-        for hit in review[:3]:
-            lines.append(f"- {hit_summary(hit)} [{reference_index(hit, retrieval)}] 存在 review/QA 风险，只能作为复核线索。")
+        gap_lines.append("- 需复核线索：" + "；".join(review_summaries(review[:3], retrieval)) + "。")
+    if not gap_lines:
+        gap_lines.append("- 当前未见额外冲突；未命中的流程细节仍不能补写。")
+
+    covered = []
+    if strategy_hits:
+        covered.append("固定化方式/载体")
+    if condition_hits:
+        covered.append("固定化条件")
+    if performance_hits:
+        covered.append("性能验证")
+    if covered:
+        conclusion = f"{label}。基于当前可用 evidence，可以确认论文中命中了{'、'.join(covered)}相关信息；缺失环节仍按证据不足处理。"
     else:
-        lines.append("- 未命中的流程环节应视为证据不足，不能补写。")
+        conclusion = f"{label}。当前没有命中可直接用于流程结论的可靠 evidence，不能还原完整固定化剂优化流程。"
+    lines = [
+        "**结论**",
+        conclusion,
+        "",
+        "**论文内证据**",
+        *evidence_lines,
+        "",
+        "**证据缺口/冲突**",
+        *gap_lines,
+    ]
     return "\n".join(lines)
 
 
@@ -118,25 +137,10 @@ def facts_from_hits(hits: List[RetrievalHit], retrieval: Optional[RetrievalRespo
 
 
 def condition_facts(hit: RetrievalHit, ref: str) -> List[Dict[str, str]]:
-    extracted = hit.extracted or {}
     facts = []
-    condition_values = []
-    for key in [
-        "enzyme_loading",
-        "carrier_amount",
-        "enzyme_to_carrier_ratio",
-        "adsorption_time",
-        "immobilization_time",
-        "pH",
-        "ph",
-        "immobilization_temperature",
-        "temperature",
-    ]:
-        value = extracted.get(key)
-        if value not in (None, "", []):
-            condition_values.append(f"{key}={value_label(value)}")
+    condition_values = [f"{label} {display_value(value)}" for _, label, value in condition_value_pairs(hit)]
     if condition_values:
-        facts.append({"text": "固定化条件包括 " + "；".join(condition_values), "ref": ref})
+        facts.append({"text": "固定化条件包括 " + "、".join(condition_values), "ref": ref})
     else:
         facts.append({"text": hit_summary(hit), "ref": ref})
     return facts
@@ -145,11 +149,11 @@ def condition_facts(hit: RetrievalHit, ref: str) -> List[Dict[str, str]]:
 def metric_facts(hit: RetrievalHit, ref: str) -> List[Dict[str, str]]:
     facts = []
     for metric in hit.metrics[:3]:
-        name = metric.get("name") or "metric"
+        name = humanize_key(str(metric.get("name") or "metric"))
         value = metric.get("value")
         unit = metric.get("unit") or ""
         if value not in (None, "", []):
-            facts.append({"text": f"{name}: {value}{unit}", "ref": ref})
+            facts.append({"text": f"性能指标命中 {name} {join_value_unit(value, unit)}", "ref": ref})
     if not facts:
         text = hit_summary(hit)
         facts.append({"text": text, "ref": ref})
@@ -158,45 +162,185 @@ def metric_facts(hit: RetrievalHit, ref: str) -> List[Dict[str, str]]:
 
 def section_lines(hits: List[RetrievalHit], retrieval: RetrievalResponse, fallback: str) -> List[str]:
     if not hits:
-        return [f"- {fallback}。"]
+        return [f"- {fallback}。"] if fallback else []
     lines = []
+    seen = set()
     for hit in hits[:3]:
-        lines.append(f"- {hit_summary(hit)} [{reference_index(hit, retrieval)}]")
+        line = f"- {hit_summary(hit)} [{reference_index(hit, retrieval)}]"
+        if line in seen:
+            continue
+        seen.add(line)
+        lines.append(line)
     return lines
 
 
 def condition_lines(hits: List[RetrievalHit], retrieval: RetrievalResponse) -> List[str]:
     if not hits:
-        return ["- 不足。"]
+        return []
     lines = []
+    seen = set()
     for hit in hits[:3]:
         for fact in condition_facts(hit, reference_index(hit, retrieval)):
+            key = fact["text"].lower()
+            if key in seen:
+                continue
+            seen.add(key)
             lines.append(f"- {fact['text']} [{fact['ref']}]")
     return lines
 
 
 def hit_summary(hit: RetrievalHit) -> str:
-    extracted_bits = []
-    for key, value in (hit.extracted or {}).items():
-        if value in (None, "", []):
-            continue
-        if key in {"table_id", "source_table_id"}:
-            continue
-        extracted_bits.append(f"{key}={value_label(value)}")
-        if len(extracted_bits) >= 5:
-            break
+    extracted_bits = humanized_extracted_bits(hit)
     if extracted_bits:
         return "；".join(extracted_bits)
     metric_bits = []
     for metric in hit.metrics[:3]:
-        name = metric.get("name")
+        name = humanize_key(str(metric.get("name") or "metric"))
         value = metric.get("value")
         unit = metric.get("unit") or ""
-        if name and value not in (None, "", []):
-            metric_bits.append(f"{name}={value}{unit}")
+        if value not in (None, "", []):
+            metric_bits.append(f"{name} {join_value_unit(value, unit)}")
     if metric_bits:
-        return "；".join(metric_bits)
+        return "性能指标命中 " + "；".join(metric_bits)
     return re.sub(r"\s+", " ", (hit.source_chunk_text or hit.text or "").strip())[:220]
+
+
+FIELD_LABELS = {
+    "immobilization_method": "固定化方式",
+    "carrier": "载体/材料",
+    "carrier_variant": "载体/材料",
+    "material_class": "材料类型",
+    "enzyme_name": "酶",
+    "enzyme_loading": "enzyme loading",
+    "carrier_amount": "carrier amount",
+    "enzyme_to_carrier_ratio": "enzyme/carrier ratio",
+    "adsorption_time": "adsorption time",
+    "immobilization_time": "固定化时间",
+    "pH": "pH",
+    "ph": "pH",
+    "immobilization_temperature": "固定化温度",
+    "temperature": "温度",
+    "reuse_cycles": "reuse cycles",
+    "residual_activity": "residual activity",
+    "activity_recovery": "activity recovery",
+    "immobilization_yield": "immobilization yield",
+    "biodiesel_yield": "biodiesel yield",
+    "yield": "yield",
+}
+
+CONDITION_FIELDS = [
+    "enzyme_loading",
+    "carrier_amount",
+    "enzyme_to_carrier_ratio",
+    "adsorption_time",
+    "immobilization_time",
+    "pH",
+    "ph",
+    "immobilization_temperature",
+    "temperature",
+]
+
+CONDITION_GROUPS = {
+    "enzyme_loading": "enzyme loading",
+    "carrier_amount": "carrier amount",
+    "enzyme_to_carrier_ratio": "enzyme/carrier ratio",
+    "adsorption_time": "固定化时间",
+    "immobilization_time": "固定化时间",
+    "pH": "pH",
+    "ph": "pH",
+    "immobilization_temperature": "温度",
+    "temperature": "温度",
+}
+
+
+def strategy_lines(hits: List[RetrievalHit], retrieval: RetrievalResponse) -> List[str]:
+    grouped: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    for hit in hits:
+        method = display_value(hit.extracted.get("immobilization_method")).strip()
+        carrier = display_value(hit.extracted.get("carrier") or hit.extracted.get("carrier_variant")).strip()
+        if not method and not carrier:
+            summary = hit_summary(hit)
+            key = (summary.lower(), "")
+            grouped.setdefault(key, {"text": summary, "refs": []})["refs"].append(reference_index(hit, retrieval))
+            continue
+        key = (method.lower(), carrier.lower())
+        if method and carrier:
+            text = f"固定化方式为 {method}，载体/材料为 {carrier}"
+        elif method:
+            text = f"固定化方式为 {method}"
+        else:
+            text = f"载体/材料为 {carrier}"
+        grouped.setdefault(key, {"text": text, "refs": []})["refs"].append(reference_index(hit, retrieval))
+    lines = []
+    for item in grouped.values():
+        refs = format_refs(item["refs"])
+        if len(item["refs"]) > 1:
+            lines.append(f"- 多条证据均指向{item['text']} {refs}")
+        else:
+            lines.append(f"- {item['text']} {refs}")
+    return lines
+
+
+def evidence_gap_lines(
+    strategy_hits: List[RetrievalHit],
+    condition_hits: List[RetrievalHit],
+    performance_hits: List[RetrievalHit],
+) -> List[str]:
+    lines = []
+    if not strategy_hits:
+        lines.append("- 固定化剂/载体筛选：当前证据不足。")
+    if not condition_hits:
+        lines.append("- 固定化条件或优化变量：当前证据不足。")
+    if not performance_hits:
+        lines.append("- 性能验证：当前证据不足。")
+    return lines
+
+
+def condition_conflict_lines(hits: List[RetrievalHit], retrieval: RetrievalResponse) -> List[str]:
+    grouped: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for hit in hits:
+        ref = reference_index(hit, retrieval)
+        for raw_key, _, value in condition_value_pairs(hit):
+            group = CONDITION_GROUPS.get(raw_key, humanize_key(raw_key))
+            display = display_value(value)
+            normalized = normalize_fact_value(value)
+            item = grouped.setdefault(group, {}).setdefault(normalized, {"display": display, "refs": []})
+            item["refs"].append(ref)
+    lines = []
+    for group, values in grouped.items():
+        if len(values) <= 1:
+            continue
+        value_text = "、".join(f"{item['display']} {format_refs(item['refs'])}" for item in values.values())
+        lines.append(
+            f"- {group} 同时命中 {value_text}，需回看原文确认其对应 immobilization conditions、assay conditions、reaction/application conditions 还是 stability/reuse conditions。"
+        )
+    return lines
+
+
+def review_summaries(hits: List[RetrievalHit], retrieval: RetrievalResponse) -> List[str]:
+    return [f"{hit_summary(hit)} [{reference_index(hit, retrieval)}]" for hit in hits]
+
+
+def condition_value_pairs(hit: RetrievalHit) -> List[Tuple[str, str, Any]]:
+    extracted = hit.extracted or {}
+    pairs = []
+    for key in CONDITION_FIELDS:
+        value = extracted.get(key)
+        if value in (None, "", []):
+            continue
+        pairs.append((key, humanize_key(key), value))
+    return pairs
+
+
+def humanized_extracted_bits(hit: RetrievalHit) -> List[str]:
+    bits = []
+    for key, value in (hit.extracted or {}).items():
+        if value in (None, "", []) or key in {"table_id", "source_table_id"}:
+            continue
+        bits.append(f"{humanize_key(str(key))} {display_value(value)}")
+        if len(bits) >= 5:
+            break
+    return bits
 
 
 def reference_index(hit: RetrievalHit, retrieval: Optional[RetrievalResponse] = None) -> str:
@@ -225,9 +369,54 @@ def paper_label(hits: List[RetrievalHit]) -> str:
 
 
 def value_label(value: Any) -> str:
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return display_value(value)
+
+
+def humanize_key(key: str) -> str:
+    return FIELD_LABELS.get(key, key.replace("_", " "))
+
+
+def display_value(value: Any) -> str:
+    if value in (None, "", []):
+        return ""
+    if isinstance(value, dict):
+        if "value" in value:
+            base = display_value(value.get("value"))
+            unit = str(value.get("unit") or "").strip()
+            return " ".join(part for part in [base, unit] if part)
+        parts = []
+        for key, item in value.items():
+            if item in (None, "", []):
+                continue
+            parts.append(f"{humanize_key(str(key))} {display_value(item)}")
+            if len(parts) >= 4:
+                break
+        return "；".join(parts)
+    if isinstance(value, list):
+        return "、".join(display_value(item) for item in value if item not in (None, "", []))
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
     return str(value)
+
+
+def join_value_unit(value: Any, unit: Any) -> str:
+    base = display_value(value)
+    unit_text = str(unit or "").strip()
+    if not unit_text:
+        return base
+    return f"{base} {unit_text}"
+
+
+def normalize_fact_value(value: Any) -> str:
+    return re.sub(r"\s+", " ", display_value(value).strip().lower())
+
+
+def format_refs(refs: List[str]) -> str:
+    deduped = []
+    for ref in refs:
+        if ref not in deduped:
+            deduped.append(ref)
+    return "、".join(f"[{ref}]" for ref in deduped)
 
 
 def hit_search_text(hit: RetrievalHit) -> str:
