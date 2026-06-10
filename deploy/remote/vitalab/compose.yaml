@@ -1,0 +1,107 @@
+name: ${COMPOSE_PROJECT_NAME:-vitalab}
+
+services:
+  qdrant:
+    image: ${QDRANT_IMAGE:-qdrant/qdrant:v1.14.1}
+    restart: unless-stopped
+    ports:
+      - "${REMOTE_BIND_HOST:-127.0.0.1}:${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${REMOTE_BIND_HOST:-127.0.0.1}:${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - ../data/qdrant:/qdrant/storage
+      - ../data/snapshots:/qdrant/snapshots
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: "6333"
+      QDRANT__SERVICE__GRPC_PORT: "6334"
+
+  api:
+    image: ${ENZYME_API_IMAGE:-vitalab-api:local}
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      - qdrant
+    ports:
+      - "${REMOTE_BIND_HOST:-127.0.0.1}:${ENZYME_API_PORT:-8001}:8001"
+    env_file:
+      - ../config/runtime.env
+      - ../secrets/api.env
+    environment:
+      PYTHONPATH: /app/src
+      ENZYME_RUNTIME_CONFIG: ${ENZYME_RUNTIME_CONFIG:-/app/config/remote.yaml}
+      HF_HOME: ${HF_HOME:-/app/model_cache}
+      SENTENCE_TRANSFORMERS_HOME: ${SENTENCE_TRANSFORMERS_HOME:-/app/model_cache/sentence-transformers}
+    volumes:
+      - ../config/remote.yaml:/app/config/remote.yaml:ro
+      - ../artifacts:/app/artifacts
+      - ../data/model_cache:/app/model_cache
+      - ../data/pdfs:/app/MOF固定化脂肪酶文献调研:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${REMOTE_BIND_HOST:-127.0.0.1}:${SHENGJI_WEB_PORT:-5173}:80"
+    volumes:
+      - ../app/web:/usr/share/nginx/html:ro
+    depends_on:
+      - api
+
+  cloudflared-quick:
+    image: cloudflare/cloudflared:2025.6.1
+    restart: unless-stopped
+    profiles: ["quick-tunnel"]
+    command: tunnel --url http://api:8001 --no-autoupdate
+    depends_on:
+      - api
+
+  cloudflared-named:
+    image: cloudflare/cloudflared:2025.6.1
+    restart: unless-stopped
+    profiles: ["named-tunnel"]
+    command: tunnel --config /etc/cloudflared/config.yaml run
+    volumes:
+      - ../config/cloudflared:/etc/cloudflared:ro
+    depends_on:
+      - api
+
+  ingestion-worker:
+    image: ${ENZYME_API_IMAGE:-vitalab-api:local}
+    restart: unless-stopped
+    profiles: ["worker"]
+    depends_on:
+      - qdrant
+      - api
+    env_file:
+      - ../config/runtime.env
+      - ../secrets/api.env
+    environment:
+      PYTHONPATH: /app/src
+      ENZYME_RUNTIME_CONFIG: ${ENZYME_RUNTIME_CONFIG:-/app/config/remote.yaml}
+    volumes:
+      - ../config/remote.yaml:/app/config/remote.yaml:ro
+      - ../artifacts:/app/artifacts
+      - ../data/model_cache:/app/model_cache
+      - ../data/pdfs:/app/MOF固定化脂肪酶文献调研:ro
+    command:
+      - python
+      - scripts/run_ingestion_worker.py
+      - --config
+      - /app/config/remote.yaml
+      - --artifact-root
+      - artifacts
+      - --poll-seconds
+      - "${INGESTION_POLL_SECONDS:-10}"
+      - --mineru-timeout-seconds
+      - "${INGESTION_MINERU_TIMEOUT_SECONDS:-1800}"
+      - --mineru-interval-seconds
+      - "${INGESTION_MINERU_INTERVAL_SECONDS:-10}"
+      - --qdrant-batch-size
+      - "${INGESTION_QDRANT_BATCH_SIZE:-64}"

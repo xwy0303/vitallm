@@ -91,7 +91,9 @@ from enzyme_recommender.recommendation.general_qa import (
     build_general_qa_retrieval_query,
     build_stream_general_qa_prompt,
     classify_general_qa_guard_query,
+    ensure_knowledge_source_prefix,
     has_general_qa_domain_signal,
+    normalize_model_reasoning_markers,
 )
 from enzyme_recommender.runtime import RuntimeServices
 from enzyme_recommender.runtime.config import RuntimeConfig
@@ -2474,6 +2476,72 @@ class LiveStreamPromptTests(unittest.TestCase):
         self.assertIn("不输出 JSON", generation_request.messages[-1].content)
         self.assertIn("模型推理，非知识库直接证据", generation_request.messages[-1].content)
         self.assertIn("可能原因 -> 优化动作 -> 验证方式", generation_request.messages[-1].content)
+        self.assertIn("禁止在每一句、每一条 bullet 或每一小段后重复", generation_request.messages[-1].content)
+
+    def test_general_qa_direct_prompt_uses_stable_minimum_structure(self) -> None:
+        prompt = build_stream_general_qa_prompt(
+            GeneralQARequest(
+                question="ZIF-8 原位包埋脂肪酶的最佳反应温度一般控制在多少度？",
+                answer_mode="direct",
+            ),
+            sample_retrieval_response(),
+        )
+
+        self.assertIn("结论 -> ### 证据边界 -> ### 建议下一步", prompt)
+        self.assertIn("不要只输出单段短答", prompt)
+
+    def test_general_qa_normalizes_repeated_model_reasoning_markers_per_section(self) -> None:
+        answer = "\n".join(
+            [
+                "### 可能原因",
+                "1. 混合效率下降。模型推理，非知识库直接证据",
+                "2. 温度范围推断属于模型推理，非知识库直接证据，需通过同体系实验验证。",
+                "**证据边界：** 本模块中未带 citation 的机制解释、温度范围建议属于模型推理，非知识库直接证据，需用同体系实验验证。",
+                "### 优化动作",
+                "- 改用高剪切搅拌。模型推理，非知识库直接证据",
+                "- 分步加料。",
+            ]
+        )
+
+        normalized = normalize_model_reasoning_markers(answer)
+
+        self.assertEqual(normalized.count("模型推理，非知识库直接证据"), 2)
+        self.assertIn("### 可能原因\n1. 混合效率下降。\n2. 温度范围推断需通过同体系实验验证。", normalized)
+        self.assertIn("需用同体系实验验证。\n\n### 优化动作", normalized)
+        self.assertIn("### 优化动作\n- 改用高剪切搅拌。\n- 分步加料。", normalized)
+        self.assertNotIn("温度范围建议需用同体系实验验证", normalized)
+
+    def test_general_qa_source_prefix_is_inserted_under_first_heading(self) -> None:
+        answer = "### 结论\nZIF-8 原位包埋脂肪酶的温度需要绑定具体酶和体系 [1]。"
+
+        normalized = ensure_knowledge_source_prefix(answer, sample_retrieval_response())
+
+        self.assertTrue(normalized.startswith("### 结论\n根据知识库命中的切片，"))
+        self.assertNotIn("根据知识库命中的切片，### 结论", normalized)
+
+    def test_general_qa_source_prefix_is_not_duplicated_under_heading(self) -> None:
+        answer = "### 结论\n根据知识库命中的切片，没有直接给出全局最佳温度 [1]。"
+
+        normalized = ensure_knowledge_source_prefix(answer, sample_retrieval_response())
+
+        self.assertEqual(normalized.count("根据知识库命中的切片，"), 1)
+        self.assertTrue(normalized.startswith("### 结论\n根据知识库命中的切片，"))
+
+    def test_general_qa_no_hit_source_prefix_is_inserted_under_first_heading(self) -> None:
+        retrieval = RetrievalResponse(
+            query="ZIF-90 microfluidic clogging",
+            collection="test",
+            embedding_model="hash-v1-64",
+            top_k=0,
+            usable_only=True,
+            hits=[],
+        )
+        answer = "### 结论\n可以先从成核速率和通道润湿性排查。"
+
+        normalized = ensure_knowledge_source_prefix(answer, retrieval)
+
+        self.assertTrue(normalized.startswith("### 结论\n知识库没有命中直接相关切片"))
+        self.assertIn("可以先从成核速率和通道润湿性排查。", normalized)
 
     def test_general_qa_prompt_keeps_recent_literature_and_model_prior_boundaries(self) -> None:
         request = GeneralQARequest(
@@ -2572,6 +2640,7 @@ class LiveStreamPromptTests(unittest.TestCase):
         )
 
         joined = "\n".join(response.evidence_summary)
+        self.assertTrue(response.answer.startswith("根据知识库命中的切片，"))
         self.assertIn("B10.pdf:p8", joined)
         self.assertNotIn("模型伪造证据", joined)
         self.assertNotIn("{'evidence_id'", joined)
@@ -2669,6 +2738,7 @@ class LiveStreamPromptTests(unittest.TestCase):
 
         response = service.build_response(request, retrieval, generation)
 
+        self.assertTrue(response.answer.startswith("知识库没有命中直接相关切片"))
         self.assertIn("模型推理，非知识库直接证据", response.answer)
         self.assertEqual(response.evidence_summary, [])
         self.assertTrue(response.suggested_next_steps)

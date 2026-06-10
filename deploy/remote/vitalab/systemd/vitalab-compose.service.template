@@ -1,0 +1,17 @@
+[Unit]
+Description=Vitalab portable Docker Compose stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=__VITALAB_ROOT__/deploy
+EnvironmentFile=__VITALAB_ROOT__/config/runtime.env
+RemainAfterExit=yes
+ExecStart=/bin/bash __VITALAB_ROOT__/deploy/scripts/systemd_run_compose.sh up
+ExecStop=/bin/bash __VITALAB_ROOT__/deploy/scripts/systemd_run_compose.sh down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

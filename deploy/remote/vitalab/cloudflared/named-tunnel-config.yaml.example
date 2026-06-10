@@ -1,0 +1,7 @@
+tunnel: <TUNNEL_UUID>
+credentials-file: /etc/cloudflared/<TUNNEL_UUID>.json
+
+ingress:
+  - hostname: api.example.com
+    service: http://api:8001
+  - service: http_status:404

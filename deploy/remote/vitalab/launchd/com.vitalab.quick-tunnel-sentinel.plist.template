@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.vitalab.quick-tunnel-sentinel</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/env</string>
+    <string>python3</string>
+    <string>__VITALAB_ROOT__/deploy/scripts/quick_tunnel_sentinel.py</string>
+    <string>--root</string>
+    <string>__VITALAB_ROOT__</string>
+    <string>--loop</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__VITALAB_ROOT__/deploy</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>__VITALAB_ROOT__/logs/quick-tunnel-sentinel.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>__VITALAB_ROOT__/logs/quick-tunnel-sentinel.stderr.log</string>
+</dict>
+</plist>

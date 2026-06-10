@@ -27,9 +27,11 @@
 `workflow/260526-qa-answerability-grounding.md` - QA seed 驱动的 no-answer gate、citation grounding、paper-level planner 修复
 `workflow/260529-netlify-cloudflare-demo-deploy.md` - Netlify 前端公网部署、Cloudflare quick tunnel 本机后端暴露与验证记录
 `workflow/260603-general-qa-module.md` - 通用问答独立 service/API/frontend/benchmark 开发与验证
+`workflow/260608-vitalab-server-deploy.md` - Vitalab 服务器 SSH 接入、后端迁移与持久化部署规划
 
 ## 全局重要记忆 (Global Memory)
 
 - 生物酶固定化推荐必须基于 objective、application context、evaluation metrics 和 evidence records；不能把“最佳固化剂”当作脱离条件的全局唯一答案。
 - PDF parsing 只使用本地/自托管 MinerU；天翼云 MinerU 不进入后续 MVP、外网部署或生产调用路径。
 - 主要生成 LLM 后续优先接 SiliconFlow API，同时保留 DeepSeek API provider 接口；当前先保留架构约束，不把 API key 写入仓库。
+- 每次前端或可部署代码更新后，必须同步本地 runtime 并更新 Cloudflare Pages 云端版本；云端只部署 `web` 静态目录，避免上传整个 4GB+ 仓库。Netlify 保留为历史备用入口，不再作为主发布目标。

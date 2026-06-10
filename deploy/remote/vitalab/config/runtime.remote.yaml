@@ -1,0 +1,62 @@
+# Portable remote runtime config. Copied to <VITALAB_ROOT>/config/remote.yaml.
+# This file intentionally contains no secrets.
+
+document_parser:
+  provider: mineru_local
+  network_scope: self_hosted
+  submit_base_url: http://mineru:8000
+  result_base_url: http://mineru:8000
+  timeout_seconds: 120
+
+vector_store:
+  provider: qdrant
+  url: http://qdrant:6333
+  collection: enzyme_immobilization_literature_sentence_baai_bge_base_en_v1_5_768_point_schema_v1
+  timeout_seconds: 30
+
+embedding:
+  provider: sentence
+  dimensions: 768
+  model_name: BAAI/bge-base-en-v1.5
+  device: cpu
+  local_files_only: true
+
+retrieval:
+  top_k: 8
+  usable_only: true
+  formulation_candidate_multiplier: 16
+  formulation_candidate_min: 80
+
+external_literature:
+  provider: aminer_mcp
+  enabled: true
+  sse_url: https://mcp.aminer.cn/sse
+  auth_token_env: AMINER_MCP_AUTH_TOKEN
+  timeout_seconds: 20
+  max_results: 5
+
+generator:
+  provider: mock
+  temperature: 0.1
+  timeout_seconds: 180
+  max_retries: 2
+
+generator_providers:
+  mock:
+    enabled: true
+    model: mock-generator-v1
+  siliconflow:
+    enabled: true
+    base_url: https://api.siliconflow.cn/v1
+    api_key_env: SILICONFLOW_API_KEY
+    model: deepseek-ai/DeepSeek-V4-Flash
+  siliconflow_review:
+    enabled: true
+    base_url: https://api.siliconflow.cn/v1
+    api_key_env: SILICONFLOW_API_KEY
+    model: Qwen/Qwen3.6-35B-A3B
+  deepseek:
+    enabled: false
+    base_url: https://api.deepseek.com/v1
+    api_key_env: DEEPSEEK_API_KEY
+    model: TBD

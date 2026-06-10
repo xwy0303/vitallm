@@ -1,0 +1,15 @@
+[Unit]
+Description=Vitalab portable Docker Compose stack (user)
+After=default.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=__VITALAB_ROOT__/deploy
+EnvironmentFile=__VITALAB_ROOT__/config/runtime.env
+RemainAfterExit=yes
+ExecStart=/usr/bin/sg docker -c "/bin/bash __VITALAB_ROOT__/deploy/scripts/systemd_run_compose.sh up"
+ExecStop=/usr/bin/sg docker -c "/bin/bash __VITALAB_ROOT__/deploy/scripts/systemd_run_compose.sh down"
+TimeoutStartSec=0
+
+[Install]
+WantedBy=default.target

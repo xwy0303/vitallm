@@ -1,0 +1,1 @@
+# API and PDF proxying is handled by _worker.js using KV dynamic origin.

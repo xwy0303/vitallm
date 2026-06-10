@@ -165,6 +165,7 @@ function setActiveMode(mode) {
   if (paperSelector) {
     paperSelector.hidden = activeMode !== "paper";
   }
+  renderSelectedPapers();
   textarea.placeholder = "发消息（最多400字）";
   if (activeMode === "paper") {
     if (!documentCatalog.length) {
@@ -667,15 +668,23 @@ async function requestJson(path, options) {
       signal: controller.signal,
       ...options,
     });
-    const data = await response.json().catch(() => ({}));
+    const contentType = response.headers.get("content-type") || "";
+    const responseText = await response.text();
+    const data = parseJsonResponse(responseText);
+    if (!contentType.includes("application/json") && looksLikeHtml(responseText)) {
+      throw new Error(formatUnexpectedContentMessage(path, API_BASE_URL, "JSON", "HTML"));
+    }
     if (!response.ok) {
-      const message = data?.error?.message || data?.detail?.error?.message || response.statusText;
-      throw new Error(typeof message === "string" ? message : JSON.stringify(message));
+      const message = data?.error?.message || data?.detail?.error?.message || responseText || response.statusText;
+      throw new Error(formatHttpError(response, message, path, API_BASE_URL));
     }
     return data;
   } catch (error) {
     if (isAbortError(error, controller)) {
       throw new Error(formatTimeoutMessage(JSON_REQUEST_TIMEOUT_MS));
+    }
+    if (isFetchNetworkError(error)) {
+      throw new Error(formatNetworkFetchMessage(error, path, API_BASE_URL));
     }
     throw error;
   } finally {
@@ -706,7 +715,7 @@ async function requestNdjsonStream(path, payload, handlers = {}) {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       const message = data?.error?.message || data?.detail?.error?.message || response.statusText;
-      throw new Error(typeof message === "string" ? message : JSON.stringify(message));
+      throw new Error(formatHttpError(response, message, path, STREAM_API_BASE_URL));
     }
     if (!response.body) {
       throw new Error("当前浏览器不支持流式响应。");
@@ -769,7 +778,7 @@ async function requestNdjsonStream(path, payload, handlers = {}) {
       for (const rawLine of lines) {
         const line = rawLine.trim();
         if (!line) continue;
-        const event = JSON.parse(line);
+        const event = parseStreamEvent(line, path);
         handleStreamEvent(event);
       }
 
@@ -777,7 +786,7 @@ async function requestNdjsonStream(path, payload, handlers = {}) {
     }
 
     if (buffer.trim()) {
-      const event = JSON.parse(buffer);
+      const event = parseStreamEvent(buffer.trim(), path);
       handleStreamEvent(event);
     }
 
@@ -796,11 +805,32 @@ async function requestNdjsonStream(path, payload, handlers = {}) {
       }
       throw new Error(formatTimeoutMessage(STREAM_REQUEST_TIMEOUT_MS));
     }
+    if (isFetchNetworkError(error)) {
+      throw new Error(formatNetworkFetchMessage(error, path, STREAM_API_BASE_URL));
+    }
     throw error;
   } finally {
     window.clearTimeout(timeoutId);
     clearStreamTimeout(firstTokenTimeoutId);
     clearStreamTimeout(idleTimeoutId);
+  }
+}
+
+function parseJsonResponse(responseText) {
+  if (!responseText) return {};
+  try {
+    return JSON.parse(responseText);
+  } catch (_error) {
+    return {};
+  }
+}
+
+function parseStreamEvent(line, path) {
+  try {
+    return JSON.parse(line);
+  } catch (_error) {
+    const actual = looksLikeHtml(line) ? "HTML" : "非 NDJSON";
+    throw new Error(formatUnexpectedContentMessage(path, STREAM_API_BASE_URL, "NDJSON", actual));
   }
 }
 
@@ -822,6 +852,46 @@ function isAbortError(error, controller) {
   const name = error?.name || "";
   const message = String(error?.message || error || "").toLowerCase();
   return name === "AbortError" || message.includes("aborted") || message.includes("fetch is aborted");
+}
+
+function isFetchNetworkError(error) {
+  const name = error?.name || "";
+  const message = String(error?.message || error || "").toLowerCase();
+  return (
+    name === "TypeError" ||
+    message === "failed to fetch" ||
+    message === "load failed" ||
+    message.includes("networkerror") ||
+    message.includes("network error")
+  );
+}
+
+function looksLikeHtml(value) {
+  return /^\s*<!doctype html|\s*<html[\s>]/i.test(String(value || ""));
+}
+
+function formatHttpError(response, message, path, baseUrl) {
+  const detail = typeof message === "string" ? message.trim() : JSON.stringify(message);
+  const target = formatRequestTarget(path, baseUrl);
+  if (!detail || detail.toLowerCase() === "error" || detail === response.statusText) {
+    return `API 返回 ${response.status} ${response.statusText || "HTTP error"}：${target}`;
+  }
+  return detail.length > 320 ? `${detail.slice(0, 320)}...` : detail;
+}
+
+function formatUnexpectedContentMessage(path, baseUrl, expected, actual) {
+  return `API 响应格式异常：期望 ${expected}，实际收到 ${actual}。请确认当前页面已加载最新部署，且 ${formatRequestTarget(path, baseUrl)} 没有被静态首页或旧 rewrite 截获。`;
+}
+
+function formatNetworkFetchMessage(error, path, baseUrl) {
+  const target = formatRequestTarget(path, baseUrl);
+  const original = String(error?.message || error || "fetch failed");
+  return `网络请求没有到达 API：${target}。如果当前是 file:// 页面，请改用 http://127.0.0.1:5173/ 或 Cloudflare Pages 地址；如果是云端页面，请刷新缓存后重试。浏览器原始错误：${original}`;
+}
+
+function formatRequestTarget(path, baseUrl) {
+  const origin = baseUrl || window.location.origin || "";
+  return `${origin}${path}`;
 }
 
 function formatTimeoutMessage(timeoutMs) {
@@ -1069,7 +1139,6 @@ function renderLiveAnswer(data) {
 
 function renderGeneralQASections(data) {
   const sections = [
-    ["证据摘要", data.evidence_summary],
     ["推理边界", data.reasoning_notes],
     ["建议下一步", data.suggested_next_steps],
   ]
@@ -1114,19 +1183,26 @@ function renderMarkdownLite(value) {
       continue;
     }
 
+    if (isMarkdownHorizontalRule(line)) {
+      flushParagraph();
+      flushList();
+      blocks.push('<hr class="markdown-hr">');
+      continue;
+    }
+
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      flushParagraph();
+      flushList();
+      const level = Math.min(headingMatch[1].length + 2, 6);
+      blocks.push(`<h${level}>${renderInlineMarkdown(headingMatch[2].trim())}</h${level}>`);
+      continue;
+    }
+
     const bulletMatch = line.match(/^[-*]\s+(.+)$/);
     if (bulletMatch) {
       flushParagraph();
       listItems.push(bulletMatch[1].trim());
-      continue;
-    }
-
-    const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
-    if (headingMatch) {
-      flushParagraph();
-      flushList();
-      const level = Math.min(headingMatch[1].length + 2, 5);
-      blocks.push(`<h${level}>${renderInlineMarkdown(headingMatch[2].trim())}</h${level}>`);
       continue;
     }
 
@@ -1137,6 +1213,13 @@ function renderMarkdownLite(value) {
   flushParagraph();
   flushList();
   return blocks.join("");
+}
+
+function isMarkdownHorizontalRule(value) {
+  const compact = String(value || "")
+    .trim()
+    .replace(/\s+/g, "");
+  return /^(?:-{3,}|\*{3,}|_{3,}|—{3,})$/.test(compact);
 }
 
 function parseMarkdownPipeTable(lines, startIndex) {

@@ -66,6 +66,14 @@ QDRANT_SCROLL_BATCH_SIZE = 256
 DASHBOARD_SUMMARY_CACHE_TTL_SECONDS = 60.0
 logger = logging.getLogger(__name__)
 logging.getLogger("pypdf").setLevel(logging.ERROR)
+DEFAULT_CORS_ORIGINS = [
+    "null",
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+    "http://127.0.0.1:8001",
+    "http://localhost:8001",
+    "https://shengji-enzyme-rag-lab.pages.dev",
+]
 
 
 def create_app(config_path: Optional[str | Path] = None) -> FastAPI:
@@ -98,12 +106,7 @@ def resolve_config_path(config_path: Optional[str | Path]) -> Path:
 
 def parse_cors_origins(value: Optional[str]) -> list[str]:
     if not value:
-        return [
-            "http://127.0.0.1:5173",
-            "http://localhost:5173",
-            "http://127.0.0.1:8001",
-            "http://localhost:8001",
-        ]
+        return DEFAULT_CORS_ORIGINS.copy()
     return [item.strip() for item in value.split(",") if item.strip()]
 
 

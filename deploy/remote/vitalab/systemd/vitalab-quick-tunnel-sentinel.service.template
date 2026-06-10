@@ -1,0 +1,15 @@
+[Unit]
+Description=Vitalab quick tunnel origin sentinel
+After=vitalab-compose.service network-online.target
+Wants=network-online.target
+ConditionPathExists=__VITALAB_ROOT__/secrets/cloudflare.env
+
+[Service]
+Type=simple
+WorkingDirectory=__VITALAB_ROOT__/deploy
+ExecStart=/usr/bin/env python3 __VITALAB_ROOT__/deploy/scripts/quick_tunnel_sentinel.py --root __VITALAB_ROOT__ --loop
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

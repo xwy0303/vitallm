@@ -1,0 +1,14 @@
+[Unit]
+Description=Vitalab quick tunnel origin sentinel (user)
+After=vitalab-compose.service default.target
+ConditionPathExists=__VITALAB_ROOT__/secrets/cloudflare.env
+
+[Service]
+Type=simple
+WorkingDirectory=__VITALAB_ROOT__/deploy
+ExecStart=/usr/bin/sg docker -c "/usr/bin/env python3 __VITALAB_ROOT__/deploy/scripts/quick_tunnel_sentinel.py --root __VITALAB_ROOT__ --loop"
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

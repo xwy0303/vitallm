@@ -674,6 +674,10 @@ a {
   gap: 8px;
 }
 
+.selected-paper[hidden] {
+  display: none;
+}
+
 .paper-selector-head label {
   color: var(--green-900);
   font-weight: 650;
@@ -924,7 +928,8 @@ a {
 
 .live-answer-content h3,
 .live-answer-content h4,
-.live-answer-content h5 {
+.live-answer-content h5,
+.live-answer-content h6 {
   margin: 14px 0 7px;
   color: var(--green-900);
   font-size: 13px;
@@ -934,7 +939,8 @@ a {
 
 .live-answer-content h3:first-child,
 .live-answer-content h4:first-child,
-.live-answer-content h5:first-child {
+.live-answer-content h5:first-child,
+.live-answer-content h6:first-child {
   margin-top: 0;
 }
 
@@ -942,8 +948,22 @@ a {
 .live-answer-content ul:last-child,
 .live-answer-content h3:last-child,
 .live-answer-content h4:last-child,
-.live-answer-content h5:last-child {
+.live-answer-content h5:last-child,
+.live-answer-content h6:last-child,
+.live-answer-content hr:last-child {
   margin-bottom: 0;
+}
+
+.live-answer-content h6 {
+  color: #3b5b49;
+  font-size: 12.5px;
+}
+
+.live-answer-content .markdown-hr {
+  height: 1px;
+  margin: 16px 0;
+  border: 0;
+  background: linear-gradient(90deg, transparent, rgba(35, 83, 55, 0.24), transparent);
 }
 
 .live-answer-content ul {
@@ -1175,20 +1195,21 @@ a {
 
 .reference-grid {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .reference-card {
   scroll-margin-top: 18px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fbfefb;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 14px;
+  color: #45614c;
+  background: #f3faf4;
+  font-size: 12px;
 }
 
 .reference-card:target {
-  border-color: rgba(31, 122, 62, 0.48);
-  box-shadow: 0 0 0 3px rgba(31, 122, 62, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(31, 122, 62, 0.22);
 }
 
 .reference-card-head {
@@ -1200,20 +1221,20 @@ a {
 
 .reference-card-head span {
   flex: 0 0 auto;
-  padding: 5px 8px;
+  padding: 3px 7px;
   border-radius: 999px;
   color: var(--green-700);
-  background: var(--green-50);
-  font-size: 12px;
+  background: rgba(255, 255, 255, 0.64);
+  font-size: 11.5px;
   font-weight: 600;
 }
 
 .reference-title {
   min-width: 0;
   padding: 0;
-  color: var(--green-900);
+  color: #345041;
   background: transparent;
-  font-weight: 650;
+  font-weight: 600;
   overflow-wrap: anywhere;
   text-align: left;
 }
@@ -1221,19 +1242,19 @@ a {
 .reference-snippet {
   display: block;
   width: 100%;
-  margin-top: 9px;
+  margin-top: 6px;
   padding: 0;
-  color: var(--muted);
+  color: #526d59;
   background: transparent;
-  line-height: 1.65;
+  line-height: 1.55;
   overflow-wrap: anywhere;
   text-align: left;
 }
 
 .reference-file {
-  margin: 10px 0 0;
-  color: #738276;
-  font-size: 12px;
+  margin: 7px 0 0;
+  color: #6d806f;
+  font-size: 11.5px;
 }
 
 .reference-file a,
@@ -1244,7 +1265,9 @@ a {
 
 .paper-followup {
   margin-left: 8px;
-  padding: 5px 9px;
+  padding: 3px 8px;
+  border: 1px solid rgba(31, 122, 62, 0.14);
+  background: rgba(255, 255, 255, 0.7);
 }
 
 .reference-modal[hidden] {

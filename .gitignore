@@ -13,6 +13,8 @@ __pycache__/
 deploy/local/env.local
 .local/
 .deploy/
+.wrangler/
+outputs/
 .qdrant-initialized
 artifacts/
 output/

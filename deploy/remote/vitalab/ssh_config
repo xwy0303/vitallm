@@ -1,0 +1,10 @@
+Host vitalab
+  HostName 10.7.117.30
+  User gjsk
+  Port 22
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  PreferredAuthentications publickey,password,keyboard-interactive
+  PubkeyAuthentication yes
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
