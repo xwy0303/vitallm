@@ -21,6 +21,7 @@ fi
 
 API_PORT="\${ENZYME_API_PORT:-8001}"
 QDRANT_PORT="\${QDRANT_HTTP_PORT:-6333}"
+WEB_PORT="\${SHENGJI_WEB_PORT:-5173}"
 if command -v python3 >/dev/null 2>&1; then
   PYTHON_BIN=python3
 elif command -v python >/dev/null 2>&1; then
@@ -32,6 +33,10 @@ fi
 
 echo "== API health =="
 curl -fsS "http://127.0.0.1:\${API_PORT}/api/health"
+echo
+
+echo "== web same-origin API health =="
+curl -fsS "http://127.0.0.1:\${WEB_PORT}/api/health"
 echo
 
 echo "== documents =="

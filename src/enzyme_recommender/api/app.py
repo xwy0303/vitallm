@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import threading
 import time
 from collections import Counter
@@ -64,6 +65,17 @@ EVIDENCE_DIR = PROJECT_DIR / "artifacts" / "evidence"
 REFERENCE_NEIGHBOR_WINDOW = 1
 QDRANT_SCROLL_BATCH_SIZE = 256
 DASHBOARD_SUMMARY_CACHE_TTL_SECONDS = 60.0
+CLIENT_ERROR_MESSAGE_LIMIT = 420
+MISSING_GENERATOR_API_KEY_RE = re.compile(
+    r"missing API key env var for generator provider\s+([^:]+):\s*([A-Z0-9_]+)",
+    re.IGNORECASE,
+)
+SECRET_ASSIGNMENT_RE = re.compile(
+    r"((?:[A-Z0-9_]*)(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD)(?:[A-Z0-9_]*)\s*=\s*)[^\s,;]+",
+    re.IGNORECASE,
+)
+SECRET_TOKEN_RE = re.compile(r"\b(?:sk|pk)-[A-Za-z0-9_-]{12,}\b")
+BEARER_TOKEN_RE = re.compile(r"(Bearer\s+)[A-Za-z0-9._~+/=-]{12,}", re.IGNORECASE)
 logger = logging.getLogger(__name__)
 logging.getLogger("pypdf").setLevel(logging.ERROR)
 DEFAULT_CORS_ORIGINS = [
@@ -72,6 +84,8 @@ DEFAULT_CORS_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:8001",
     "http://localhost:8001",
+    "http://127.0.0.1:18001",
+    "http://localhost:18001",
     "https://shengji-enzyme-rag-lab.pages.dev",
 ]
 
@@ -113,13 +127,15 @@ def parse_cors_origins(value: Optional[str]) -> list[str]:
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(RuntimeConfigError)
     async def runtime_config_error_handler(_request: Request, exc: RuntimeConfigError) -> JSONResponse:
-        return JSONResponse(status_code=500, content=error_payload("runtime_config_error", str(exc)))
+        status_code, payload = client_error_payload(exc)
+        logger.warning("runtime config error: %s", sanitize_error_message(str(exc)))
+        return JSONResponse(status_code=status_code, content=payload)
 
     @app.exception_handler(RuntimeError)
     async def runtime_error_handler(_request: Request, exc: RuntimeError) -> JSONResponse:
-        message = str(exc)
-        status_code = 503 if "cannot connect" in message or "failed" in message else 500
-        return JSONResponse(status_code=status_code, content=error_payload("runtime_error", message))
+        status_code, payload = client_error_payload(exc)
+        logger.warning("runtime error: %s", sanitize_error_message(str(exc)))
+        return JSONResponse(status_code=status_code, content=payload)
 
     @app.exception_handler(ValidationError)
     async def validation_error_handler(_request: Request, exc: ValidationError) -> JSONResponse:
@@ -388,6 +404,10 @@ def register_routes(app: FastAPI) -> None:
             filename=path.name,
             content_disposition_type="inline",
         )
+
+    @app.get("/PDF/{pdf_name:path}")
+    def get_pdf_legacy(pdf_name: str) -> FileResponse:
+        return get_pdf(pdf_name)
 
 
 def get_runtime(app: FastAPI) -> RuntimeServices:
@@ -694,13 +714,13 @@ def collect_artifact_stats(
 ) -> dict[str, int]:
     stats = {
         "processed_docs": 0,
-            "processed_pages": 0,
-            "rag_chunks": 0,
-            "table_records": 0,
-            "evidence_records": 0,
-            "curated_evidence_records": 0,
-            "review_items": 0,
-        }
+        "processed_pages": 0,
+        "rag_chunks": 0,
+        "table_records": 0,
+        "evidence_records": 0,
+        "curated_evidence_records": 0,
+        "review_items": 0,
+    }
     if rag_input_dir.is_dir():
         for manifest_path in sorted(rag_input_dir.glob("*/document_manifest.json")):
             try:
@@ -1136,7 +1156,8 @@ def stream_recommendation_events(
             }
         )
     except Exception as exc:
-        yield ndjson_event({"event": "error", "message": str(exc)})
+        logger.warning("recommendation stream failed: %s", sanitize_error_message(str(exc)))
+        yield ndjson_event(stream_error_payload(exc))
 
 
 def stream_optimization_events(
@@ -1238,7 +1259,8 @@ def stream_optimization_events(
             }
         )
     except Exception as exc:
-        yield ndjson_event({"event": "error", "message": str(exc)})
+        logger.warning("optimization stream failed: %s", sanitize_error_message(str(exc)))
+        yield ndjson_event(stream_error_payload(exc))
 
 
 def stream_general_qa_events(
@@ -1371,7 +1393,8 @@ def stream_general_qa_events(
             }
         )
     except Exception as exc:
-        yield ndjson_event({"event": "error", "message": str(exc)})
+        logger.warning("general QA stream failed: %s", sanitize_error_message(str(exc)))
+        yield ndjson_event(stream_error_payload(exc))
 
 
 def chunk_text(value: str, chunk_size: int = 120) -> Iterator[str]:
@@ -1411,6 +1434,66 @@ def ndjson_event(payload: dict[str, Any]) -> str:
 
 def error_payload(code: str, message: Any) -> dict[str, Any]:
     return {"error": {"code": code, "message": message}}
+
+
+def client_error_payload(exc: BaseException) -> tuple[int, dict[str, Any]]:
+    raw_message = str(exc)
+    missing_key_match = MISSING_GENERATOR_API_KEY_RE.search(raw_message)
+    if missing_key_match:
+        provider = missing_key_match.group(1).strip()
+        return (
+            503,
+            error_payload(
+                "generator_api_key_missing",
+                f"generator provider {provider} is missing its server-side API key configuration",
+            ),
+        )
+
+    sanitized = sanitize_error_message(raw_message)
+    lowered = sanitized.lower()
+    if any(
+        marker in lowered
+        for marker in [
+            "cannot connect",
+            "cannot resolve",
+            "connection refused",
+            "failed to connect",
+            "temporary failure in name resolution",
+            "timed out",
+            "timeout",
+            "generation failed",
+            "stream generation failed",
+            "non-json generation response",
+            "empty generation response",
+        ]
+    ):
+        return 503, error_payload("upstream_unavailable", truncate_client_message(sanitized))
+
+    return 500, error_payload("internal_server_error", "internal server error; check API logs for details")
+
+
+def stream_error_payload(exc: BaseException) -> dict[str, Any]:
+    _status_code, payload = client_error_payload(exc)
+    error = payload["error"]
+    return {
+        "event": "error",
+        "code": error["code"],
+        "message": error["message"],
+    }
+
+
+def sanitize_error_message(message: str) -> str:
+    sanitized = SECRET_ASSIGNMENT_RE.sub(r"\1[redacted]", str(message or ""))
+    sanitized = BEARER_TOKEN_RE.sub(r"\1[redacted]", sanitized)
+    sanitized = SECRET_TOKEN_RE.sub("[redacted]", sanitized)
+    return sanitized
+
+
+def truncate_client_message(message: str, limit: int = CLIENT_ERROR_MESSAGE_LIMIT) -> str:
+    compact = " ".join(str(message or "").split())
+    if len(compact) <= limit:
+        return compact
+    return f"{compact[:limit].rstrip()}..."
 
 
 app = create_app()

@@ -39,28 +39,42 @@ for profile in \${VITALAB_COMPOSE_PROFILES//,/ }; do
   profile_args+=(--profile "\${profile}")
 done
 
-API_PORT="\${ENZYME_API_PORT:-18001}"
-api_container="\$(compose_cmd --env-file ../config/runtime.env "\${profile_args[@]}" -f compose.yaml ps -q api 2>/dev/null || true)"
-if command -v ss >/dev/null 2>&1; then
-  occupied="\$(ss -ltnp 2>/dev/null | awk -v p=":\${API_PORT}" '\$4 ~ p"$" {print}' || true)"
-elif command -v lsof >/dev/null 2>&1; then
-  occupied="\$(lsof -nP -iTCP:"\${API_PORT}" -sTCP:LISTEN 2>/dev/null || true)"
-else
-  occupied=""
-fi
-if [[ -n "\${occupied}" ]]; then
+listen_occupied() {
+  local host_port="\$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltnp 2>/dev/null | awk -v p=":\${host_port}" '\$4 ~ p"$" {print}' || true
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"\${host_port}" -sTCP:LISTEN 2>/dev/null || true
+  fi
+}
+
+check_host_port() {
+  local service="\$1"
+  local container_port="\$2"
+  local host_port="\$3"
+  local container occupied owns_port
+
+  container="\$(compose_cmd --env-file ../config/runtime.env "\${profile_args[@]}" -f compose.yaml ps -q "\${service}" 2>/dev/null || true)"
+  occupied="\$(listen_occupied "\${host_port}")"
+  if [[ -z "\${occupied}" ]]; then
+    return 0
+  fi
+
   owns_port="false"
-  if [[ -n "\${api_container}" ]]; then
-    if docker port "\${api_container}" 8001/tcp 2>/dev/null | grep -Eq "(^|:)\${API_PORT}\$"; then
+  if [[ -n "\${container}" ]]; then
+    if docker port "\${container}" "\${container_port}/tcp" 2>/dev/null | grep -Eq "(^|:)\${host_port}\$"; then
       owns_port="true"
     fi
   fi
   if [[ "\${owns_port}" != "true" ]]; then
-    echo "ERROR: 127.0.0.1:\${API_PORT} is already occupied; not killing unknown process." >&2
+    echo "ERROR: 127.0.0.1:\${host_port} is already occupied; not killing unknown process." >&2
     echo "\${occupied}" >&2
     exit 1
   fi
-fi
+}
+
+check_host_port api 8001 "\${ENZYME_API_PORT:-18001}"
+check_host_port web 80 "\${SHENGJI_WEB_PORT:-5173}"
 
 compose_cmd --env-file ../config/runtime.env "\${profile_args[@]}" -f compose.yaml up -d --build
 compose_cmd --env-file ../config/runtime.env "\${profile_args[@]}" -f compose.yaml ps

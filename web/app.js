@@ -675,7 +675,7 @@ async function requestJson(path, options) {
       throw new Error(formatUnexpectedContentMessage(path, API_BASE_URL, "JSON", "HTML"));
     }
     if (!response.ok) {
-      const message = data?.error?.message || data?.detail?.error?.message || responseText || response.statusText;
+      const message = extractApiErrorMessage(data, responseText) || response.statusText;
       throw new Error(formatHttpError(response, message, path, API_BASE_URL));
     }
     return data;
@@ -713,8 +713,9 @@ async function requestNdjsonStream(path, payload, handlers = {}) {
     });
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      const message = data?.error?.message || data?.detail?.error?.message || response.statusText;
+      const responseText = await response.text();
+      const data = parseJsonResponse(responseText);
+      const message = extractApiErrorMessage(data, responseText) || response.statusText;
       throw new Error(formatHttpError(response, message, path, STREAM_API_BASE_URL));
     }
     if (!response.body) {
@@ -764,7 +765,7 @@ async function requestNdjsonStream(path, payload, handlers = {}) {
         idleTimeoutId = null;
         handlers.onStatus?.("finalizing", "正在整理结构化结果。", event);
       } else if (event.event === "error") {
-        throw new Error(event.message || "流式响应失败");
+        throw new Error(event.message || formatApiErrorCode(event.code) || "流式响应失败");
       }
     };
     resetIdleTimeout();
@@ -823,6 +824,47 @@ function parseJsonResponse(responseText) {
   } catch (_error) {
     return {};
   }
+}
+
+function extractApiErrorMessage(data, responseText = "") {
+  if (typeof data?.error === "string") {
+    return formatApiErrorCode(data.error) || data.error;
+  }
+  if (typeof data?.error?.message === "string") {
+    return formatApiErrorMessage(data.error.code, data.error.message);
+  }
+  if (typeof data?.detail === "string") {
+    return data.detail;
+  }
+  if (typeof data?.detail?.error === "string") {
+    return formatApiErrorCode(data.detail.error) || data.detail.error;
+  }
+  if (typeof data?.detail?.error?.message === "string") {
+    return formatApiErrorMessage(data.detail.error.code, data.detail.error.message);
+  }
+  if (typeof data?.message === "string") {
+    return data.message;
+  }
+  return responseText;
+}
+
+function formatApiErrorMessage(code, message) {
+  const formattedCode = formatApiErrorCode(code);
+  if (!formattedCode) return message;
+  if (!message || message === code) return formattedCode;
+  return `${formattedCode}：${message}`;
+}
+
+function formatApiErrorCode(code) {
+  const normalized = String(code || "").trim();
+  const labels = {
+    backend_origin_unavailable: "后端临时入口不可用，Cloudflare KV 中还没有可用 origin 或当前 tunnel 未恢复",
+    backend_fetch_failed: "后端临时入口已记录，但 Cloudflare 无法连通该 origin",
+    generator_api_key_missing: "后端生成模型 API key 未配置",
+    upstream_unavailable: "后端依赖的上游服务暂时不可用",
+    internal_server_error: "后端内部错误，请查看 API 日志",
+  };
+  return labels[normalized] || "";
 }
 
 function parseStreamEvent(line, path) {

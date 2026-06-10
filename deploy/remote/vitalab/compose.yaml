@@ -45,12 +45,13 @@ services:
       start_period: 60s
 
   web:
-    image: nginx:1.27-alpine
+    image: ${SHENGJI_WEB_IMAGE:-vitalab-web:local}
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.web
     restart: unless-stopped
     ports:
       - "${REMOTE_BIND_HOST:-127.0.0.1}:${SHENGJI_WEB_PORT:-5173}:80"
-    volumes:
-      - ../app/web:/usr/share/nginx/html:ro
     depends_on:
       - api
 

@@ -151,6 +151,80 @@ Verification:
 - Pages production `/api/search/evidence` returned 3 hits for a lipase
   immobilization query, with top hit `point_type=evidence_record`.
 
+## 2026-06-10 Phase 1 Closure Hardening
+
+Scope:
+
+- Treat Phase 1 as a product-facing serving baseline, not a one-off demo.
+- Domain purchase/named tunnel remains out of scope for this closure pass.
+- Focus on broken interfaces, misleading UI, error robustness, deploy
+  portability, and reducing obvious runtime traps.
+
+Changes made:
+
+- FastAPI error handling now classifies generator/API-key and upstream provider
+  failures into client-safe error payloads instead of returning raw exception
+  strings to the frontend.
+- NDJSON streaming endpoints use the same safe error contract as JSON endpoints.
+- Secret-like values are redacted from API error messages before they are shown
+  to users or written through normal warning logs.
+- Legacy `/PDF/{pdf_name}` route now maps to the canonical
+  `/api/pdfs/{pdf_name}` implementation, matching the Cloudflare Worker
+  `/PDF/*` proxy contract.
+- Remote `web` service is no longer a bare static nginx container. It now builds
+  a local nginx image with same-origin proxying for `/api`, `/api/*`, `/PDF`,
+  and `/PDF/*` to `api:8001`.
+- Remote `verify_remote.sh` and `status.sh` now check web same-origin
+  `/api/health`, so frontend/backend connectivity is part of acceptance rather
+  than an implicit assumption.
+- Remote `deploy.sh` now fail-fast checks both API host port and web host port,
+  while allowing already-running Compose-owned containers to keep their ports.
+- Frontend error rendering now understands both FastAPI structured errors and
+  Cloudflare Worker simple errors such as `backend_origin_unavailable`.
+- Removed visible Phase 1 UI dead ends: the unimplemented login button and the
+  sidebar `任务历史` anchor that had no matching section.
+
+Validation:
+
+- `python3 -m py_compile src/enzyme_recommender/api/app.py tests/test_phase1_hardening.py`
+- `PYTHONPATH=src .venv/bin/python -m unittest tests.test_phase1_hardening`
+  passed 4 tests.
+- `PYTHONPATH=src .venv/bin/python -m unittest tests.test_core_contracts`
+  passed 116 tests. Existing `ResourceWarning` remains a known test hygiene
+  issue, not a failed contract.
+- `node --check web/app.js`
+- `node tests/worker_kv_smoke.mjs`
+- `for f in deploy/remote/vitalab/scripts/*.sh; do bash -n "$f"; done`
+- `git diff --check`
+- Remote deploy was applied with
+  `deploy/remote/vitalab/scripts/sync_runtime.sh /private/tmp/vitalab.gpu.pages.env`
+  and `deploy/remote/vitalab/scripts/deploy.sh /private/tmp/vitalab.gpu.pages.env`.
+- Remote acceptance passed with
+  `deploy/remote/vitalab/scripts/verify_remote.sh /private/tmp/vitalab.gpu.pages.env`:
+  API health `status=ok`, web same-origin API health `status=ok`,
+  document catalog count `76`, Qdrant `points_count=6910`,
+  Qdrant status `green`, and Pages proxy `/api/health` `status=ok`.
+- Cloudflare Pages static frontend was not redeployed in this pass because the
+  available local inventory only contained the historical
+  `CLOUDFLARE_BACKEND_ORIGIN`; it did not include
+  `CLOUDFLARE_KV_NAMESPACE_ID`, `CLOUDFLARE_ACCOUNT_ID`, or
+  `CLOUDFLARE_API_TOKEN`. Do not bypass the KV dynamic origin requirement by
+  reintroducing hard-coded quick tunnel origin deployment.
+
+Residual engineering debt:
+
+- `src/enzyme_recommender/api/app.py`, `web/app.js`, and
+  `tests/test_core_contracts.py` exceed the project preference of 1000 lines.
+  This pass did not split them because the closure goal is stability and
+  product hardening; Phase 2 should split FastAPI routes/services, frontend
+  request/render modules, and broad contract tests before adding more features.
+- Local macOS static web serving still uses Python `http.server` without
+  same-origin API proxy; local development relies on `web/app.js` defaulting to
+  `http://127.0.0.1:8001` unless `window.ENZYME_API_BASE_URL` is set.
+- Remote API Docker image currently reinstalls large ML dependencies during a
+  rebuild. Phase 2 should split dependency/base image layers and pin runtime
+  wheels to avoid multi-minute rebuilds after small application changes.
+
 ## Proposed Portable Layout
 
 ```text
