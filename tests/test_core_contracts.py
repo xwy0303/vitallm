@@ -2646,6 +2646,61 @@ class LiveStreamPromptTests(unittest.TestCase):
         self.assertNotIn("{'evidence_id'", joined)
         self.assertNotIn("AMiner MCP: [AMiner-1] {", joined)
 
+    def test_general_qa_evidence_fallback_is_mode_aware_not_bare_evidence_summary(self) -> None:
+        request = GeneralQARequest(
+            question="ZIF-8 原位包埋脂肪酶的最佳反应温度一般控制在多少度？",
+            answer_mode="direct",
+        )
+        response = GeneralQAService(runtime=runtime_with_config()).build_response(
+            request,
+            sample_retrieval_response(),
+            GenerationResponse(
+                provider="mock",
+                model="mock-generator-v1",
+                content="Mock response",
+                finish_reason="stop",
+            ),
+        )
+
+        self.assertIn("### 结论", response.answer)
+        self.assertIn("### 证据边界", response.answer)
+        self.assertIn("### 建议下一步", response.answer)
+        self.assertIn("根据知识库命中的切片", response.answer)
+        self.assertIn("mode-aware 知识库摘要", " ".join(response.reasoning_notes))
+        self.assertNotIn("基于当前 evidence，可给出如下结论：", response.answer)
+
+    def test_general_qa_model_prior_fallback_is_structured_without_evidence(self) -> None:
+        request = GeneralQARequest(
+            question="ZIF-90 微流控堵塞怎么排查？",
+            answer_mode="troubleshooting",
+            allow_model_prior=True,
+        )
+        retrieval = RetrievalResponse(
+            query="ZIF-90 microfluidic clogging",
+            collection="test",
+            embedding_model="hash-v1-64",
+            top_k=0,
+            usable_only=True,
+            hits=[],
+        )
+        response = GeneralQAService(runtime=runtime_with_config()).build_response(
+            request,
+            retrieval,
+            GenerationResponse(
+                provider="mock",
+                model="mock-generator-v1",
+                content="Mock response",
+                finish_reason="stop",
+            ),
+        )
+
+        self.assertIn("### 诊断思路", response.answer)
+        self.assertIn("### 可能原因", response.answer)
+        self.assertIn("### 优化动作", response.answer)
+        self.assertIn("### 验证方式与风险边界", response.answer)
+        self.assertIn("知识库没有命中直接相关切片", response.answer)
+        self.assertIn("模型推理，非知识库直接证据", response.answer)
+
     def test_aminer_normalizer_rejects_balance_error_payload_as_evidence(self) -> None:
         result = {
             "content": [
@@ -2738,7 +2793,8 @@ class LiveStreamPromptTests(unittest.TestCase):
 
         response = service.build_response(request, retrieval, generation)
 
-        self.assertTrue(response.answer.startswith("知识库没有命中直接相关切片"))
+        self.assertTrue(response.answer.startswith("### 诊断思路"))
+        self.assertIn("知识库没有命中直接相关切片", response.answer)
         self.assertIn("模型推理，非知识库直接证据", response.answer)
         self.assertEqual(response.evidence_summary, [])
         self.assertTrue(response.suggested_next_steps)

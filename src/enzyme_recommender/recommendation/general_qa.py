@@ -841,26 +841,66 @@ def model_prior_answer(request: GeneralQARequest) -> str:
     if request.answer_mode == "troubleshooting":
         return "\n".join(
             [
-                "优先从成核/沉淀速率、前驱体浓度、两相流稳定性、通道润湿性、颗粒聚集和 residence time 六个方向排查。",
-                "工程上先做小范围 DOE：降低 MOF 前驱体局部过饱和、提高分散相剪切稳定性、缩短通道内成核前停留时间，并用显微观察确认堵塞发生在入口、混合段还是收集端。",
+                "### 诊断思路",
+                "知识库没有命中直接相关切片时，先按工程变量拆解问题，不把任何单点参数写成必然最优。",
+                "",
+                "### 可能原因",
+                "- 成核/沉淀速率过快，导致局部颗粒聚集或通道内提前结晶。",
+                "- 前驱体浓度、酶/载体比例、两相流稳定性、通道润湿性或 residence time 不匹配。",
+                "- pH、离子强度或有机相/水相比例改变了酶构象或 MOF/ZIF 成核路径。",
+                "",
+                "### 优化动作",
+                "- 先做小范围 DOE：降低前驱体局部过饱和、调整流速比、缩短通道内成核前停留时间。",
+                "- 用显微观察定位堵塞发生在入口、混合段还是收集端，再决定改浓度、表面活性剂或通道材料。",
+                "",
+                "### 验证方式与风险边界",
+                "- 记录压降、粒径分布、流型、残余活性和载体结构表征，避免只凭肉眼通堵判断。",
+                "证据边界：本模块中未带 citation 的机制解释、排障判断或工程建议属于模型推理，非知识库直接证据，需用同体系实验验证。",
             ]
         )
     if request.answer_mode == "literature_review":
         return "\n".join(
             [
-                "可以先用关键词组合检索：enzyme immobilization、droplet microfluidics、MOF/ZIF、in situ encapsulation、mass transfer、reusability。",
-                "当前回答不能声称覆盖最近五年高质量文献；需要外部数据库检索后再做系统综述。",
+                "### 当前知识库证据",
+                "知识库没有命中直接相关切片，当前不能给出本地证据支持的系统综述结论。",
+                "",
+                "### AMiner MCP 外部文献线索",
+                "- 可先用关键词组合检索：enzyme immobilization、droplet microfluidics、MOF/ZIF、in situ encapsulation、mass transfer、reusability。",
+                "- 若需要最近五年或高质量文献，必须复核检索式、年份、期刊质量和全文实验体系。",
+                "",
+                "### 文献缺口与复核边界",
+                "- 不能把未检索到的外部论文写成本地知识库 evidence。",
+                "- 后续应按载体类型、固定化方法、性能指标和循环稳定性分层整理。",
             ]
         )
     if request.answer_mode == "experimental_design":
         return "\n".join(
             [
-                "推荐把变量拆成载体组成、pH/温度、enzyme loading、交联/表面活性剂、反应/assay 条件五组，使用 fractional factorial 或小型 DOE 找交互项。",
-                "输出应是可验证 screening matrix，而不是单点“最优条件”。",
+                "### 设计原则",
+                "知识库没有命中直接相关切片时，实验设计只能作为 starting point，不能宣称全局最优。",
+                "",
+                "### Screening matrix / DOE",
+                "- 因子建议：载体组成、pH/温度、enzyme loading、交联/表面活性剂、反应/assay 条件。",
+                "- 每个因子先取 2-3 个水平，使用 fractional factorial 或小型 DOE 找主效应和交互项。",
+                "- 必设对照：游离酶、空载体、无酶 MOF/ZIF、固定化后洗脱液蛋白检测。",
+                "",
+                "### 验证指标",
+                "- 初始活性、activity recovery、残余活性、循环稳定性、蛋白泄漏和载体结构完整性。",
+                "",
+                "### 风险边界",
+                "- 输出应是可验证 screening matrix，而不是单点“最优条件”。",
+                "证据边界：本模块中未带 citation 的机制解释、排障判断或工程建议属于模型推理，非知识库直接证据，需用同体系实验验证。",
             ]
         )
     return (
-        "可以给出领域内的 starting point，但必须通过同酶、同载体、同底物体系的对照实验验证，不能写成普适最优结论。"
+        "### 结论\n"
+        "知识库没有命中直接相关切片时，只能给出领域 starting point，不能写成普适最优结论。\n\n"
+        "### 证据边界\n"
+        "- 当前回答未带 citation 的内容不是知识库直接证据。\n"
+        "- 参数必须绑定同酶、同载体、同底物体系和评价指标。\n\n"
+        "### 建议下一步\n"
+        "- 补充目标酶、载体、反应体系和评价指标后重新检索。\n"
+        "- 若仍无直接 evidence，再设计小范围对照实验验证。"
     )
 
 
