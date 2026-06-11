@@ -57,6 +57,25 @@ SYNC_INCLUDE_PDFS="false"
 Keep real inventories outside git when they include sensitive hostnames or
 operational details.
 
+## Runtime Port Contract
+
+Remote runtime ports are controlled by `<VITALAB_ROOT>/config/runtime.env`, not
+by hard-coded script values. The portable default is:
+
+```bash
+REMOTE_BIND_HOST=127.0.0.1
+ENZYME_API_PORT=18081
+SHENGJI_WEB_PORT=5173
+QDRANT_HTTP_PORT=6333
+QDRANT_GRPC_PORT=6334
+```
+
+The API container still listens on internal port `8001`; only the host-side
+published port is `18081`. Scripts and Compose fall back to `18081` if
+`ENZYME_API_PORT` is missing. Local macOS development can continue to use
+`8001` through `deploy/local/`. The first GPU server already uses port `18001`
+for an existing inference service, so Vitalab must not claim it.
+
 ## Secrets
 
 Secrets live only on the server:

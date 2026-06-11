@@ -43,7 +43,7 @@ else
 fi
 
 echo "== local health =="
-curl -fsS "http://127.0.0.1:\${ENZYME_API_PORT:-8001}/api/health" || true
+curl -fsS "http://127.0.0.1:\${ENZYME_API_PORT:-18081}/api/health" || true
 echo
 curl -fsS "http://127.0.0.1:\${SHENGJI_WEB_PORT:-5173}/api/health" || true
 echo

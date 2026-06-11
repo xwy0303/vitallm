@@ -73,7 +73,7 @@ check_host_port() {
   fi
 }
 
-check_host_port api 8001 "\${ENZYME_API_PORT:-18001}"
+check_host_port api 8001 "\${ENZYME_API_PORT:-18081}"
 check_host_port web 80 "\${SHENGJI_WEB_PORT:-5173}"
 
 compose_cmd --env-file ../config/runtime.env "\${profile_args[@]}" -f compose.yaml up -d --build

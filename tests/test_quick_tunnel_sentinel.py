@@ -35,7 +35,7 @@ class QuickTunnelSentinelTests(unittest.TestCase):
     def test_local_api_unhealthy_skips_restart_and_kv_write(
         self, restart: Mock, _health: Mock, build_client: Mock
     ) -> None:
-        result = run_once(Path("/tmp/vitalab"), {"ENZYME_API_PORT": "18001"})
+        result = run_once(Path("/tmp/vitalab"), {"ENZYME_API_PORT": "18081"})
 
         self.assertFalse(result)
         restart.assert_not_called()
@@ -64,7 +64,7 @@ class QuickTunnelSentinelTests(unittest.TestCase):
         origin_health.side_effect = [False, False]
         read_logs.return_value = "https://new.trycloudflare.com"
 
-        result = run_once(Path("/tmp/vitalab"), {"ENZYME_API_PORT": "18001"})
+        result = run_once(Path("/tmp/vitalab"), {"ENZYME_API_PORT": "18081"})
 
         self.assertFalse(result)
         client.put_value.assert_not_called()

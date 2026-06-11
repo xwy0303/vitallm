@@ -19,7 +19,7 @@ if [[ -f "\${VITALAB_ROOT}/config/runtime.env" ]]; then
   set +a
 fi
 
-API_PORT="\${ENZYME_API_PORT:-8001}"
+API_PORT="\${ENZYME_API_PORT:-18081}"
 QDRANT_PORT="\${QDRANT_HTTP_PORT:-6333}"
 WEB_PORT="\${SHENGJI_WEB_PORT:-5173}"
 if command -v python3 >/dev/null 2>&1; then

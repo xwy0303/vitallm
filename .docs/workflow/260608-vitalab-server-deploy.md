@@ -24,9 +24,11 @@ hostnames, or user-specific paths into reusable deployment logic.
 - As of 2026-06-10, Phase 1 server deployment is running on the target server.
   Docker Compose services are `qdrant`, `api`, `web`, and
   `cloudflared-quick`.
-- The server already had a process bound to host port `8001`. The portable
-  runtime default is now `ENZYME_API_PORT=18001` while the container still
-  listens on `8001`; deploy preflight fails fast if the host port is occupied
+- The server already had a process bound to host port `8001`, and
+  `18001` is owned by an existing inference container
+  (`triton-server-vllm`). The portable first-server runtime default is now
+  `ENZYME_API_PORT=18081` while the Vitalab API container still listens on
+  `8001`; deploy preflight fails fast if the configured host port is occupied
   by an unknown process.
 - Cloudflare Pages production URL `https://shengji-enzyme-rag-lab.pages.dev`
   should proxy API traffic through a KV dynamic backend origin instead of a
@@ -101,8 +103,8 @@ runtime with a server-local runtime without mixing in GPU parsing complexity.
 Remote runtime:
 
 - Root: `/home/gjsk/project/vitalab`
-- API: previous deployed value was `127.0.0.1:18081 -> container api:8001`;
-  the current portable default is `127.0.0.1:18001 -> container api:8001`.
+- API: current first-server portable default is
+  `127.0.0.1:18081 -> container api:8001`.
 - Web: `127.0.0.1:5173 -> nginx:80`
 - Qdrant: `127.0.0.1:6333/6334`
 - Quick tunnel: `https://shade-temp-raising-vendor.trycloudflare.com`
@@ -210,6 +212,61 @@ Validation:
   `CLOUDFLARE_KV_NAMESPACE_ID`, `CLOUDFLARE_ACCOUNT_ID`, or
   `CLOUDFLARE_API_TOKEN`. Do not bypass the KV dynamic origin requirement by
   reintroducing hard-coded quick tunnel origin deployment.
+
+## 2026-06-11 Runtime Port Normalization
+
+The original plan preferred host API port `18001`, but the first GPU server
+already publishes `triton-server-vllm` on `0.0.0.0:18001 -> 8001`. Vitalab must
+not kill or reclaim that service. The canonical first-server remote contract is
+therefore:
+
+- Host API port: `ENZYME_API_PORT=18081`.
+- API container internal port: `8001`.
+- Host web port: `SHENGJI_WEB_PORT=5173`.
+- Local development may still use `8001` through `deploy/local/`; this is a
+  separate local contract and should not leak into remote deploy scripts.
+
+Remote `compose.yaml`, `deploy.sh`, `status.sh`, `verify_remote.sh`,
+`runtime.env.example`, and this workflow now use the same remote fallback:
+`127.0.0.1:18081 -> api:8001`.
+
+## 2026-06-11 Cloudflare KV Origin Activation
+
+Cloudflare KV dynamic origin is now active:
+
+- KV namespace title: `vitalab-origin-registry`.
+- KV namespace id: `9c79c7d016914e00ac13ab8222de6e01`.
+- Pages Worker binding: `VITALAB_ORIGIN_KV`.
+- KV key: `current_backend_origin`.
+- Current origin written by sentinel:
+  `https://benefit-crawford-struct-continuing.trycloudflare.com`.
+
+Actions completed:
+
+- Created or reused the KV namespace and seeded the initial quick tunnel origin.
+- Deployed the KV-aware Cloudflare Pages Worker for
+  `shengji-enzyme-rag-lab`.
+- Installed `<VITALAB_ROOT>/secrets/cloudflare.env` on the server with strict
+  file permissions.
+- Installed and started `vitalab-quick-tunnel-sentinel.service`.
+- Sentinel detected the stale quick tunnel origin, restarted
+  `cloudflared-quick`, validated a new origin, wrote it to KV, and confirmed
+  Pages proxy health.
+
+Validation:
+
+- `https://shengji-enzyme-rag-lab.pages.dev/api/health` returned `status=ok`.
+- `deploy/remote/vitalab/scripts/verify_remote.sh
+  /private/tmp/vitalab.gpu.pages.env` passed API, web same-origin API,
+  documents, dashboard, Qdrant, tunnel origin, KV origin, and Pages proxy
+  health checks.
+
+Security note:
+
+- Cloudflare tokens were intentionally kept out of repository files and docs.
+- Because the tokens were shared in chat during setup, rotate both Cloudflare
+  tokens after confirming the deployment remains healthy, then update only the
+  local operations env and server-side `secrets/cloudflare.env`.
 
 Residual engineering debt:
 
@@ -331,7 +388,7 @@ As of 2026-06-08, the portable skeleton exists under
      controlled in Cloudflare.
 
 8. Verification
-- Local server health: `curl http://127.0.0.1:18001/api/health`.
+- Local server health: `curl http://127.0.0.1:18081/api/health`.
    - Tunnel health: `curl https://<temporary-or-fixed-origin>/api/health`.
    - Pages health: `curl https://shengji-enzyme-rag-lab.pages.dev/api/health`.
    - Dashboard summary: check `processed_docs`, `processed_pages`,

@@ -23,7 +23,7 @@ services:
     depends_on:
       - qdrant
     ports:
-      - "${REMOTE_BIND_HOST:-127.0.0.1}:${ENZYME_API_PORT:-8001}:8001"
+      - "${REMOTE_BIND_HOST:-127.0.0.1}:${ENZYME_API_PORT:-18081}:8001"
     env_file:
       - ../config/runtime.env
       - ../secrets/api.env

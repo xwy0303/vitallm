@@ -267,7 +267,7 @@ def wait_for_pages_health(pages_url: str, timeout_seconds: float, interval_secon
 def run_once(root: Path, env: Mapping[str, str]) -> bool:
     allowed_suffixes = split_csv(env.get("ALLOWED_BACKEND_HOST_SUFFIXES"), DEFAULT_ALLOWED_SUFFIXES)
     origin_key = env.get("CLOUDFLARE_KV_ORIGIN_KEY") or DEFAULT_ORIGIN_KEY
-    api_port = env.get("ENZYME_API_PORT") or "18001"
+    api_port = env.get("ENZYME_API_PORT") or "18081"
     local_health_url = f"http://127.0.0.1:{api_port}/api/health"
     health_timeout = float(env.get("SENTINEL_HEALTH_TIMEOUT_SECONDS") or "10")
 
